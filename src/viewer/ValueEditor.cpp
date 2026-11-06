@@ -17,12 +17,14 @@ ValueEditor::ValueEditor(QWidget* parent)
     , m_label(new QLabel(this))
     , m_edit(new QLineEdit(this))
 {
+    setObjectName(QStringLiteral("valueEditor")); // styled by the window's style sheet
     setFrameShape(QFrame::StyledPanel);
     setAutoFillBackground(true);
 
     auto* ok = new QToolButton(this);
     ok->setText(QStringLiteral("✓"));
     ok->setToolTip(tr("Zatwierdź (Enter)"));
+    ok->setObjectName(QStringLiteral("valueAccept"));
     auto* no = new QToolButton(this);
     no->setText(QStringLiteral("✕"));
     no->setToolTip(tr("Anuluj (Esc)"));
@@ -30,6 +32,11 @@ ValueEditor::ValueEditor(QWidget* parent)
     connect(no, &QToolButton::clicked, this, &ValueEditor::cancel);
 
     m_edit->setAlignment(Qt::AlignRight);
+    // Live preview: report every valid value as it is typed (not values set from outside).
+    connect(m_edit, &QLineEdit::textEdited, this, [this] {
+        if (const auto value = parsed(); value && m_changed)
+            m_changed(*value);
+    });
     m_edit->setMinimumWidth(90);
     m_edit->installEventFilter(this);
 
@@ -44,7 +51,8 @@ ValueEditor::ValueEditor(QWidget* parent)
 }
 
 void ValueEditor::open(const QString& label, double value, double min, double max, const QPointF& anchor,
-                       std::function<void(double)> accept, std::function<void()> cancel)
+                       std::function<void(double)> accept, std::function<void()> cancel,
+                       std::function<void(double)> changed)
 {
     if (isOpen())
         this->cancel();
@@ -54,17 +62,54 @@ void ValueEditor::open(const QString& label, double value, double min, double ma
     m_anchor = anchor;
     m_accept = std::move(accept);
     m_cancel = std::move(cancel);
-    m_edit->setText(QLocale().toString(value, 'f', 3).remove(QRegularExpression(QStringLiteral("[.,]?0+$"))));
+    m_changed = std::move(changed);
+    m_edit->setText(format(value));
     m_edit->setStyleSheet(QString());
 
     adjustSize();
-    const QWidget* area = parentWidget();
-    const int x = std::clamp(qRound(anchor.x() - width() / 2.0), 4, std::max(4, area->width() - width() - 4));
-    const int y = std::clamp(qRound(anchor.y() - height() / 2.0), 4, std::max(4, area->height() - height() - 4));
-    move(x, y);
+    moveClamped(anchor.x() - width() / 2.0, anchor.y() - height() / 2.0);
     show();
     raise();
     refocus();
+}
+
+void ValueEditor::moveClamped(double x, double y)
+{
+    const QWidget* area = parentWidget();
+    move(std::clamp(qRound(x), 4, std::max(4, area->width() - width() - 4)),
+         std::clamp(qRound(y), 4, std::max(4, area->height() - height() - 4)));
+}
+
+void ValueEditor::placeBeside(const QPointF& point)
+{
+    m_anchor = point;
+    moveClamped(point.x() + 20.0, point.y() - height() / 2.0);
+}
+
+QString ValueEditor::format(double value)
+{
+    // Three decimals at most, without trailing zeros.
+    return QLocale().toString(value, 'f', 3).remove(QRegularExpression(QStringLiteral("[.,]?0+$")));
+}
+
+void ValueEditor::setValue(double value)
+{
+    m_edit->setText(format(value));
+    m_edit->setStyleSheet(QString());
+    if (m_edit->hasFocus())
+        m_edit->selectAll();
+}
+
+std::optional<double> ValueEditor::parsed() const
+{
+    // Accept both decimal separators, whatever the locale says.
+    QString text = m_edit->text().trimmed();
+    text.replace(QLatin1Char(','), QLatin1Char('.'));
+    bool ok = false;
+    const double value = QLocale::c().toDouble(text, &ok);
+    if (!ok || value < m_min || value > m_max)
+        return std::nullopt;
+    return value;
 }
 
 void ValueEditor::refocus()
@@ -84,6 +129,7 @@ void ValueEditor::cancel()
     auto done = std::move(m_cancel);
     m_accept = nullptr;
     m_cancel = nullptr;
+    m_changed = nullptr;
     if (done)
         done();
 }
@@ -92,12 +138,8 @@ void ValueEditor::accept()
 {
     if (!isOpen())
         return;
-    // Accept both decimal separators, whatever the locale says.
-    QString text = m_edit->text().trimmed();
-    text.replace(QLatin1Char(','), QLatin1Char('.'));
-    bool ok = false;
-    const double value = QLocale::c().toDouble(text, &ok);
-    if (!ok || value < m_min || value > m_max) {
+    const auto value = parsed();
+    if (!value) {
         m_edit->setStyleSheet(QStringLiteral("color: #e5484d;"));
         m_edit->selectAll();
         return;
@@ -106,8 +148,9 @@ void ValueEditor::accept()
     auto done = std::move(m_accept);
     m_accept = nullptr;
     m_cancel = nullptr;
+    m_changed = nullptr;
     if (done)
-        done(value);
+        done(*value);
 }
 
 bool ValueEditor::eventFilter(QObject* watched, QEvent* event)

@@ -88,6 +88,23 @@ private slots:
         QCOMPARE(field()->text(), QStringLiteral("3"));
     }
 
+    void typingReportsLiveValues()
+    {
+        std::vector<double> seen;
+        m_editor->open(QStringLiteral("Odległość [mm]"), 10.0, -100.0, 100.0, {300, 200},
+                       [](double) {}, {}, [&seen](double v) { seen.push_back(v); });
+        QTRY_VERIFY(field()->hasFocus());
+        type("-2,5");
+        QVERIFY(!seen.empty());
+        QCOMPARE(seen.back(), -2.5);
+        // Values set from outside (an arrow being dragged) don't echo back.
+        const std::size_t before = seen.size();
+        m_editor->setValue(7.0);
+        QCOMPARE(field()->text(), QStringLiteral("7"));
+        QCOMPARE(seen.size(), before);
+        m_editor->cancel();
+    }
+
 private:
     void open(double value)
     {

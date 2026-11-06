@@ -1,0 +1,820 @@
+// SketchEditor, model mode: sketch regions, solid bodies, extrude (with its arrow),
+// fillet and chamfer.
+
+#include "sketch/SketchEditor.h"
+
+#include "model/Profiles.h"
+#include "viewer/OcctViewerWidget.h"
+#include "viewer/ValueEditor.h"
+
+#include <AIS_InteractiveContext.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <BRepGProp.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
+#include <BRep_Builder.hxx>
+#include <GProp_GProps.hxx>
+#include <Graphic3d_Camera.hxx>
+#include <Prs3d_Drawer.hxx>
+#include <StdSelect_BRepOwner.hxx>
+#include <StdSelect_ViewerSelector3d.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
+
+#include <QLineF>
+#include <QPainter>
+#include <QPainterPath>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace {
+
+constexpr double kArrowPx = 70.0;    // on-screen length of the extrude arrow
+constexpr double kArrowGrabPx = 14.0; // how close to it a press grabs it
+
+TopoDS_Compound compound()
+{
+    TopoDS_Compound c;
+    BRep_Builder().MakeCompound(c);
+    return c;
+}
+
+// Where the line through `p` along `d` meets the plane through `origin` with normal `n`.
+std::optional<gp_Pnt> onPlane(const gp_Pnt& p, const gp_Vec& d, const gp_Pnt& origin, const gp_Dir& n)
+{
+    const double denom = d.Dot(gp_Vec(n));
+    if (std::abs(denom) < 1e-9)
+        return std::nullopt;
+    return p.Translated(d * (gp_Vec(p, origin).Dot(gp_Vec(n)) / denom));
+}
+
+gp_Pnt centroidOf(const TopoDS_Shape& face)
+{
+    GProp_GProps props;
+    BRepGProp::SurfaceProperties(face, props);
+    return props.CentreOfMass();
+}
+
+double segmentDistance(const QPointF& a, const QPointF& b, const QPointF& p)
+{
+    const QPointF d = b - a;
+    const double len2 = QPointF::dotProduct(d, d);
+    const double t = len2 > 0.0 ? std::clamp(QPointF::dotProduct(p - a, d) / len2, 0.0, 1.0) : 0.0;
+    return QLineF(a + d * t, p).length();
+}
+
+} // namespace
+
+// --- History ------------------------------------------------------------------------
+
+SketchEditor::Snapshot SketchEditor::snapshot() const
+{
+    Snapshot s;
+    for (const Slot& slot : m_slots)
+        s.sketches.push_back(slot.sketch);
+    s.bodies = m_bodies;
+    return s;
+}
+
+void SketchEditor::restore(Snapshot snapshot)
+{
+    const auto& ctx = m_viewer->aisContext();
+    while (m_slots.size() > snapshot.sketches.size()) {
+        ctx->Remove(m_slots.back().prs, false);
+        m_slots.pop_back();
+    }
+    for (std::size_t i = 0; i < snapshot.sketches.size(); ++i) {
+        if (i < m_slots.size()) {
+            m_slots[i].sketch = std::move(snapshot.sketches[i]);
+        } else {
+            Slot slot;
+            slot.sketch = std::move(snapshot.sketches[i]);
+            slot.prs = new PlanarPrs(slot.sketch.plane(),
+                                     {m_colors.sketch, m_colors.accent, 2.0 * m_viewer->devicePixelRatioF()});
+            ctx->Display(slot.prs, 0, -1, false);
+            m_slots.push_back(std::move(slot));
+        }
+        m_slots[i].regions = findRegions(m_slots[i].sketch);
+    }
+    m_regionSelection.clear();
+    m_bodies = std::move(snapshot.bodies);
+    refreshBodies();
+    refreshSketches();
+    showRegions();
+    updateStatus();
+}
+
+void SketchEditor::commitBodies(std::vector<TopoDS_Shape> bodies)
+{
+    m_valueEditor->cancel();
+    m_undo.push_back(snapshot());
+    m_redo.clear();
+    m_bodies = std::move(bodies);
+    refreshBodies();
+    clearModelSelection();
+    updateStatus();
+    emit historyChanged();
+    m_viewer->update();
+}
+
+// --- Presentation -------------------------------------------------------------------
+
+void SketchEditor::refreshBodies()
+{
+    const auto& ctx = m_viewer->aisContext();
+    // Picked faces / edges belong to the old presentations.
+    ctx->ClearSelected(false);
+    m_bodySelection.clear();
+    for (const Handle(AIS_Shape)& prs : m_bodyPrs)
+        ctx->Remove(prs, false);
+    m_bodyPrs.clear();
+
+    for (const TopoDS_Shape& body : m_bodies) {
+        Handle(AIS_Shape) prs = new AIS_Shape(body);
+        // Matte: with the light coming from the camera, a glossy face seen head-on burns to white.
+        Graphic3d_MaterialAspect material(Graphic3d_NameOfMaterial_Plastified);
+        material.SetSpecularColor(Quantity_Color(0.06, 0.06, 0.06, Quantity_TOC_RGB));
+        prs->SetMaterial(material);
+        prs->SetColor(m_colors.body);
+        // Displayed with a real selection mode: shown with -1 ("not selectable"), OCCT
+        // ignores any later Activate() and the body can never be picked.
+        ctx->Display(prs, AIS_Shaded, AIS_Shape::SelectionMode(TopAbs_FACE), false);
+        m_bodyPrs.push_back(prs);
+    }
+    updateSelectionModes();
+    emit selectionChanged();
+}
+
+void SketchEditor::updateSelectionModes()
+{
+    // Bodies offer faces and edges (edges win near the pointer); push / pull only faces;
+    // nothing while a sketch is open.
+    const auto& ctx = m_viewer->aisContext();
+    const bool model = mode() == EditorMode::Model;
+    const int faces = AIS_Shape::SelectionMode(TopAbs_FACE);
+    const int edges = AIS_Shape::SelectionMode(TopAbs_EDGE);
+    for (const Handle(AIS_Shape)& prs : m_bodyPrs) {
+        // Mode by mode, asking the selection manager itself: the context's own list of
+        // active modes can claim a mode the selector never got, and then nothing is picked.
+        auto set = [&](int selectionMode, bool on) {
+            const bool is = ctx->SelectionManager()->IsActivated(prs, selectionMode);
+            if (on && !is)
+                ctx->Activate(prs, selectionMode, true);
+            else if (!on && is)
+                ctx->Deactivate(prs, selectionMode);
+        };
+        set(faces, model);
+        set(edges, model && m_toolKind != ToolKind::PushPull);
+    }
+    rehighlightPicks();
+}
+
+void SketchEditor::rehighlightPicks()
+{
+    const auto& ctx = m_viewer->aisContext();
+    ctx->ClearSelected(false);
+    for (const BodyPick& p : m_bodySelection)
+        ctx->AddOrRemoveSelected(p.owner, false);
+}
+
+Handle(SelectMgr_EntityOwner) SketchEditor::ownerOf(int body, const TopoDS_Shape& shape) const
+{
+    const Handle(AIS_Shape)& prs = m_bodyPrs[body];
+    const int mode = AIS_Shape::SelectionMode(shape.ShapeType());
+    if (!prs->HasSelection(mode))
+        return {};
+    for (const Handle(SelectMgr_SensitiveEntity)& entity : prs->Selection(mode)->Entities()) {
+        const auto owner = Handle(StdSelect_BRepOwner)::DownCast(entity->BaseSensitive()->OwnerId());
+        if (!owner.IsNull() && owner->Shape().IsSame(shape))
+            return owner;
+    }
+    return {};
+}
+
+void SketchEditor::keepPicks(bool edges, bool facesAndRegions)
+{
+    const std::size_t before = m_bodySelection.size() + m_regionSelection.size();
+    std::erase_if(m_bodySelection, [&](const BodyPick& p) {
+        return p.shape.ShapeType() == TopAbs_EDGE ? !edges : !facesAndRegions;
+    });
+    if (!facesAndRegions)
+        m_regionSelection.clear();
+    if (m_bodySelection.size() + m_regionSelection.size() != before) {
+        rehighlightPicks();
+        showRegions();
+        emit selectionChanged();
+    }
+}
+
+bool SketchEditor::hasPickedEdges() const
+{
+    return !selectedEdges().empty();
+}
+
+void SketchEditor::refreshRegions(int sketch)
+{
+    if (sketch < 0 || sketch >= static_cast<int>(m_slots.size()))
+        return;
+    m_slots[sketch].regions = findRegions(m_slots[sketch].sketch);
+    std::erase_if(m_regionSelection, [sketch](const RegionRef& r) { return r.sketch == sketch; });
+    showRegions();
+}
+
+void SketchEditor::showRegions()
+{
+    const auto& ctx = m_viewer->aisContext();
+    TopoDS_Compound plain = compound(), picked = compound();
+    bool anyPlain = false, anyPicked = false;
+    for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
+        for (int i = 0; i < static_cast<int>(m_slots[s].regions.size()); ++i) {
+            const bool selected = m_regionSelection.count({s, i}) > 0;
+            BRep_Builder().Add(selected ? picked : plain, m_slots[s].regions[i]);
+            (selected ? anyPicked : anyPlain) = true;
+        }
+    }
+
+    // A faint fill shows which areas are closed (and can be pulled); picked ones stand out.
+    auto show = [&](Handle(AIS_Shape)& prs, const TopoDS_Shape& shape, bool any, const Quantity_Color& color,
+                    double transparency) {
+        if (!prs.IsNull())
+            ctx->Remove(prs, false);
+        prs.Nullify();
+        if (!any)
+            return;
+        prs = new AIS_Shape(shape);
+        prs->Attributes()->SetFaceBoundaryDraw(false);
+        prs->SetColor(color);
+        prs->SetTransparency(transparency);
+        prs->SetZLayer(Graphic3d_ZLayerId_Top);
+        ctx->Display(prs, AIS_Shaded, -1, false); // not pickable through AIS: hit-tested on the planes
+    };
+    show(m_regionPrs, plain, anyPlain, m_colors.region, 0.85);
+    show(m_selectedRegionPrs, picked, anyPicked, m_colors.accent, 0.5);
+}
+
+void SketchEditor::applyModelColors()
+{
+    const auto& ctx = m_viewer->aisContext();
+    for (const Handle(AIS_Shape)& prs : m_bodyPrs)
+        ctx->SetColor(prs, m_colors.body, false);
+    // Faces / edges under the pointer and picked, matching the sketch's hover and selection.
+    ctx->HighlightStyle(Prs3d_TypeOfHighlight_LocalDynamic)->SetColor(m_colors.preview);
+    ctx->HighlightStyle(Prs3d_TypeOfHighlight_LocalSelected)->SetColor(m_colors.accent);
+    showRegions();
+    if (!m_previewPrs3d.IsNull())
+        showSessionPreview();
+}
+
+// --- Picking ------------------------------------------------------------------------
+
+SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
+{
+    const Handle(V3d_View)& view = m_viewer->view();
+    if (view.IsNull())
+        return {};
+    const Handle(Graphic3d_Camera)& camera = view->Camera();
+    // Distance in front of the eye, to keep whichever pick is nearer.
+    auto depth = [&](const gp_Pnt& p) { return gp_Vec(camera->Eye(), p).Dot(gp_Vec(camera->Direction())); };
+    // Regions only where they can be pulled; the rounding tools want body edges and faces.
+    const bool edgeTool = m_toolKind == ToolKind::Fillet || m_toolKind == ToolKind::Chamfer;
+
+    Hit best;
+    double bestDepth = std::numeric_limits<double>::max();
+    if (!edgeTool) {
+        double x = 0, y = 0, z = 0, dx = 0, dy = 0, dz = 0;
+        view->ConvertWithProj(e.pixel.x(), e.pixel.y(), x, y, z, dx, dy, dz);
+        for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
+            const gp_Ax3& plane = m_slots[s].sketch.plane();
+            const auto p = onPlane(gp_Pnt(x, y, z), gp_Vec(dx, dy, dz), plane.Location(), plane.Direction());
+            if (!p)
+                continue;
+            const auto region = ::regionAt(m_slots[s].regions, *p);
+            if (region && depth(*p) < bestDepth) {
+                best = {Hit::Kind::Region};
+                best.region = {s, static_cast<int>(*region)};
+                bestDepth = depth(*p);
+            }
+        }
+    }
+
+    const auto& ctx = m_viewer->aisContext();
+    ctx->MoveTo(e.pixel.x(), e.pixel.y(), view, false);
+    if (!ctx->HasDetected())
+        return best;
+    const Handle(SelectMgr_EntityOwner) owner = ctx->DetectedOwner();
+    const auto brep = Handle(StdSelect_BRepOwner)::DownCast(owner);
+    const auto it = std::find(m_bodyPrs.begin(), m_bodyPrs.end(), owner->Selectable());
+    if (brep.IsNull() || it == m_bodyPrs.end())
+        return best;
+    const TopAbs_ShapeEnum wanted = brep->Shape().ShapeType();
+    if (wanted != TopAbs_FACE && wanted != TopAbs_EDGE)
+        return best;
+    const int body = static_cast<int>(it - m_bodyPrs.begin());
+
+    // The face / edge as it sits in the body, so a face's orientation gives its outward normal.
+    TopoDS_Shape shape;
+    for (TopExp_Explorer f(m_bodies[body], wanted); f.More(); f.Next()) {
+        if (f.Current().IsSame(brep->Shape()))
+            shape = f.Current();
+    }
+    if (shape.IsNull())
+        return best;
+    if (depth(ctx->MainSelector()->PickedPoint(1)) < bestDepth - 1e-6) {
+        best = {wanted == TopAbs_EDGE ? Hit::Kind::Edge : Hit::Kind::Face, body};
+        best.owner = owner;
+        best.shape = shape;
+    }
+    return best;
+}
+
+bool SketchEditor::isPicked(const Hit& hit) const
+{
+    if (hit.kind == Hit::Kind::Region)
+        return m_regionSelection.count(hit.region) > 0;
+    return std::any_of(m_bodySelection.begin(), m_bodySelection.end(),
+                       [&](const BodyPick& p) { return p.owner == hit.owner; });
+}
+
+void SketchEditor::togglePick(const Hit& hit)
+{
+    if (hit.kind == Hit::Kind::Region) {
+        if (!m_regionSelection.erase(hit.region))
+            m_regionSelection.insert(hit.region);
+        showRegions();
+    } else if (hit.kind == Hit::Kind::Face || hit.kind == Hit::Kind::Edge) {
+        const auto it = std::find_if(m_bodySelection.begin(), m_bodySelection.end(),
+                                     [&](const BodyPick& p) { return p.owner == hit.owner; });
+        if (it != m_bodySelection.end())
+            m_bodySelection.erase(it);
+        else
+            m_bodySelection.push_back({hit.owner, hit.shape, hit.id});
+        m_viewer->aisContext()->AddOrRemoveSelected(hit.owner, false);
+    }
+    emit selectionChanged();
+    m_viewer->update();
+}
+
+void SketchEditor::clearModelSelection()
+{
+    const bool had = !m_regionSelection.empty() || !m_bodySelection.empty();
+    m_regionSelection.clear();
+    m_bodySelection.clear();
+    m_viewer->aisContext()->ClearSelected(false);
+    if (had) {
+        showRegions();
+        emit selectionChanged();
+    }
+}
+
+std::vector<int> SketchEditor::selectedBodies() const
+{
+    std::vector<int> out;
+    for (const BodyPick& p : m_bodySelection) {
+        if (std::find(out.begin(), out.end(), p.body) == out.end())
+            out.push_back(p.body);
+    }
+    return out;
+}
+
+std::vector<Profile> SketchEditor::selectedProfiles() const
+{
+    std::vector<Profile> out;
+    for (const RegionRef& r : m_regionSelection) {
+        const Slot& slot = m_slots[r.sketch];
+        if (r.index < static_cast<int>(slot.regions.size()))
+            out.push_back({slot.regions[r.index], slot.sketch.plane().Direction(), -1});
+    }
+    for (const BodyPick& p : m_bodySelection) {
+        if (p.shape.ShapeType() != TopAbs_FACE)
+            continue;
+        const TopoDS_Face face = TopoDS::Face(p.shape);
+        if (const auto n = planarNormal(face))
+            out.push_back({face, *n, p.body});
+    }
+    return out;
+}
+
+std::vector<EdgeRef> SketchEditor::selectedEdges() const
+{
+    std::vector<EdgeRef> out;
+    for (const BodyPick& p : m_bodySelection) {
+        if (p.shape.ShapeType() == TopAbs_EDGE)
+            out.push_back({p.body, TopoDS::Edge(p.shape)});
+    }
+    return out;
+}
+
+bool SketchEditor::canSketchOnFace() const
+{
+    return mode() == EditorMode::Model && m_bodySelection.size() == 1
+        && m_bodySelection[0].shape.ShapeType() == TopAbs_FACE
+        && planarNormal(TopoDS::Face(m_bodySelection[0].shape)).has_value();
+}
+
+void SketchEditor::createSketchOnFace()
+{
+    if (!canSketchOnFace())
+        return;
+    const TopoDS_Face face = TopoDS::Face(m_bodySelection[0].shape);
+    // Centered on the face, facing out of the body.
+    const gp_Dir normal = *planarNormal(face);
+    const gp_Dir xDir = BRepAdaptor_Surface(face).Plane().XAxis().Direction();
+    createSketch(gp_Ax3(centroidOf(face), normal, xDir));
+}
+
+std::optional<RegionRef> SketchEditor::regionAt(int sketch, const gp_Pnt2d& p) const
+{
+    if (sketch < 0 || sketch >= static_cast<int>(m_slots.size()))
+        return std::nullopt;
+    const Slot& slot = m_slots[sketch];
+    if (const auto index = ::regionAt(slot.regions, slot.sketch.to3d(p)))
+        return RegionRef{sketch, static_cast<int>(*index)};
+    return std::nullopt;
+}
+
+// --- Input --------------------------------------------------------------------------
+
+bool SketchEditor::modelPress(const PointerEvent& e)
+{
+    m_modelPress = {};
+    // The arrow takes the press first: dragging it sets the distance / radius.
+    if (hitsArrow(e.pos)) {
+        m_session.dragging = true;
+        m_session.dragStartValue = m_session.value;
+        m_session.dragStartParam = arrowParam(e.pixel);
+        return true;
+    }
+    m_modelPress = modelHitAt(e);
+    return false;
+}
+
+bool SketchEditor::modelMove(const PointerEvent& e, bool pressed)
+{
+    if (!pressed || !m_session.dragging)
+        return false; // hovering: AIS highlights faces / edges by itself
+    m_session.value = m_session.dragStartValue + arrowParam(e.pixel) - m_session.dragStartParam;
+    if (m_session.kind != ValueSession::Kind::Extrude)
+        m_session.value = std::max(m_session.value, 0.01); // a round can't go below nothing
+    m_valueEditor->setValue(std::round(m_session.value * 100.0) / 100.0);
+    showSessionPreview();
+    updateHint();
+    return true;
+}
+
+bool SketchEditor::modelRelease(const PointerEvent&)
+{
+    if (m_session.dragging) {
+        m_session.dragging = false;
+        // Snap the dragged distance to what the field shows, and keep typing there.
+        m_session.value = std::round(m_session.value * 100.0) / 100.0;
+        showSessionPreview();
+        m_valueEditor->refocus();
+        return true;
+    }
+    const Hit hit = m_modelPress;
+    m_modelPress = {};
+    if (hit.kind == Hit::Kind::None) {
+        endValueSession(true); // a tap on empty space drops everything
+        clearModelSelection();
+        return true;
+    }
+    const bool edgeTool = m_toolKind == ToolKind::Fillet || m_toolKind == ToolKind::Chamfer;
+    if (edgeTool && hit.kind == Hit::Kind::Face)
+        toggleFaceEdges(hit);
+    else
+        togglePick(hit);
+    syncValueSession();
+    if (m_valueEditor->isOpen())
+        m_valueEditor->refocus();
+    return true;
+}
+
+void SketchEditor::toggleFaceEdges(const Hit& face)
+{
+    // All of the face's edges: added if any is missing, otherwise all removed.
+    std::vector<Hit> edges;
+    for (TopExp_Explorer it(face.shape, TopAbs_EDGE); it.More(); it.Next()) {
+        TopoDS_Shape inBody;
+        for (TopExp_Explorer e(m_bodies[face.id], TopAbs_EDGE); e.More(); e.Next()) {
+            if (e.Current().IsSame(it.Current()))
+                inBody = e.Current();
+        }
+        const Handle(SelectMgr_EntityOwner) owner = ownerOf(face.id, inBody);
+        if (inBody.IsNull() || owner.IsNull())
+            continue;
+        Hit edge{Hit::Kind::Edge, face.id};
+        edge.owner = owner;
+        edge.shape = inBody;
+        if (std::none_of(edges.begin(), edges.end(), [&](const Hit& h) { return h.owner == owner; }))
+            edges.push_back(edge);
+    }
+    const bool all = std::all_of(edges.begin(), edges.end(), [&](const Hit& h) { return isPicked(h); });
+    for (const Hit& edge : edges) {
+        if (all || !isPicked(edge))
+            togglePick(edge);
+    }
+}
+
+// --- Value sessions: extrude / fillet / chamfer -------------------------------------
+
+void SketchEditor::syncValueSession()
+{
+    using Kind = ValueSession::Kind;
+    Kind want = Kind::None;
+    if (m_toolKind == ToolKind::Fillet && !selectedEdges().empty())
+        want = Kind::Fillet;
+    else if (m_toolKind == ToolKind::Chamfer && !selectedEdges().empty())
+        want = Kind::Chamfer;
+    else if ((m_toolKind == ToolKind::Select && !m_regionSelection.empty())
+             || (m_toolKind == ToolKind::PushPull && !selectedProfiles().empty()))
+        want = Kind::Extrude; // picking a sketch region is enough to start pulling it
+
+    if (want == Kind::None) {
+        endValueSession(true);
+        return;
+    }
+    // Extrude: the arrow starts at the first profile's middle, along its normal.
+    // Fillet / chamfer: at the first edge's middle, into the material.
+    auto placeArrow = [this, want] {
+        m_session.arrow = false;
+        if (want == Kind::Extrude) {
+            const std::vector<Profile> profiles = selectedProfiles();
+            m_session.base = centroidOf(profiles.front().face);
+            m_session.normal = profiles.front().normal;
+            m_session.arrow = true;
+        } else {
+            const EdgeRef first = selectedEdges().front();
+            if (const auto handle = edgeHandle(m_bodies[first.body], first.edge)) {
+                m_session.base = handle->first;
+                m_session.normal = handle->second;
+                m_session.arrow = true;
+            }
+        }
+    };
+    if (m_session.kind == want) {
+        placeArrow();
+        showSessionPreview(); // more / fewer picks, same value
+        return;
+    }
+
+    endValueSession(true);
+    m_session.kind = want;
+    placeArrow();
+    m_session.value = want == Kind::Extrude ? 10.0 : 1.0;
+    showSessionPreview();
+
+    QString label = tr("Odległość [mm]");
+    double min = -1e5;
+    QPointF anchor = m_pointerPos - QPointF(0, 40);
+    if (want == Kind::Fillet) {
+        label = tr("Promień [mm]");
+        min = 1e-3;
+    } else if (want == Kind::Chamfer) {
+        label = tr("Faza [mm]");
+        min = 1e-3;
+    }
+    m_valueEditor->open(
+        label, m_session.value, min, 1e5, anchor, [this](double value) { applySession(value); },
+        [this] {
+            // Esc / ✕: drop the operation and what was picked for it.
+            if (m_session.kind != ValueSession::Kind::None) {
+                endValueSession(true);
+                clearModelSelection();
+            }
+        },
+        [this](double value) {
+            m_session.value = value;
+            showSessionPreview();
+        });
+    if (const auto arrow = arrowOnScreen())
+        m_valueEditor->placeBeside(arrow->second); // next to the arrow's head, not over it
+    updateHint();
+}
+
+void SketchEditor::endValueSession(bool restoreBodies)
+{
+    const bool had = m_session.kind != ValueSession::Kind::None;
+    m_session = {}; // first, so dropping the field below doesn't come back here
+    hideSessionPreview();
+    if (restoreBodies) {
+        for (const Handle(AIS_Shape)& prs : m_bodyPrs)
+            m_viewer->aisContext()->UnsetTransparency(prs, false);
+    }
+    if (had && m_valueEditor->isOpen())
+        m_valueEditor->cancel();
+    if (had) {
+        updateHint();
+        m_viewer->update();
+    }
+}
+
+void SketchEditor::showSessionPreview()
+{
+    using Kind = ValueSession::Kind;
+    const auto& ctx = m_viewer->aisContext();
+    m_session.error.clear();
+    TopoDS_Compound shapes = compound();
+    bool any = false;
+    bool solid = false; // fillet / chamfer previews look like bodies, extrusions like ghosts
+
+    if (m_session.kind == Kind::Extrude && std::abs(m_session.value) > 1e-6) {
+        for (const Profile& p : selectedProfiles()) {
+            BRepPrimAPI_MakePrism prism(p.face, gp_Vec(p.normal) * m_session.value);
+            if (prism.IsDone()) {
+                BRep_Builder().Add(shapes, prism.Shape());
+                any = true;
+            }
+        }
+    } else if (m_session.kind == Kind::Fillet || m_session.kind == Kind::Chamfer) {
+        const std::vector<EdgeRef> edges = selectedEdges();
+        const ModelResult result = m_session.kind == Kind::Fillet ? filletEdges(m_bodies, edges, m_session.value)
+                                                                   : chamferEdges(m_bodies, edges, m_session.value);
+        std::set<int> changed;
+        for (const EdgeRef& e : edges)
+            changed.insert(e.body);
+        // The originals fade out behind the preview, but stay pickable for more edges.
+        for (int i = 0; i < bodyCount(); ++i) {
+            if (changed.count(i) && result.ok())
+                ctx->SetTransparency(m_bodyPrs[i], 0.85, false);
+            else
+                ctx->UnsetTransparency(m_bodyPrs[i], false);
+        }
+        if (result.ok()) {
+            for (int i : changed)
+                BRep_Builder().Add(shapes, result.bodies[i]);
+            any = solid = !changed.empty();
+        } else {
+            m_session.error = result.error;
+        }
+    }
+
+    // The field rides along with the arrow's head as the value changes.
+    if (m_valueEditor->isOpen()) {
+        if (const auto arrow = arrowOnScreen())
+            m_valueEditor->placeBeside(arrow->second);
+    }
+
+    if (!any) {
+        hideSessionPreview();
+    } else {
+        if (m_previewPrs3d.IsNull()) {
+            m_previewPrs3d = new AIS_Shape(shapes);
+            ctx->Display(m_previewPrs3d, AIS_Shaded, -1, false);
+        } else {
+            m_previewPrs3d->SetShape(shapes);
+            ctx->Redisplay(m_previewPrs3d, false);
+        }
+        ctx->SetColor(m_previewPrs3d, solid ? m_colors.body : m_colors.preview, false);
+        ctx->SetTransparency(m_previewPrs3d, solid ? 0.0 : 0.55, false);
+    }
+    updateHint();
+    m_viewer->update();
+}
+
+void SketchEditor::hideSessionPreview()
+{
+    if (m_previewPrs3d.IsNull())
+        return;
+    m_viewer->aisContext()->Remove(m_previewPrs3d, false);
+    m_previewPrs3d.Nullify();
+    m_viewer->update();
+}
+
+void SketchEditor::applySession(double value)
+{
+    using Kind = ValueSession::Kind;
+    ModelResult result;
+    switch (m_session.kind) {
+    case Kind::Extrude:
+        result = extrude(m_bodies, selectedProfiles(), value, m_bodyOperation);
+        break;
+    case Kind::Fillet:
+        result = filletEdges(m_bodies, selectedEdges(), value);
+        break;
+    case Kind::Chamfer:
+        result = chamferEdges(m_bodies, selectedEdges(), value);
+        break;
+    case Kind::None:
+        return;
+    }
+    if (!result.ok()) {
+        // Keep the picks and start over, so another value can be tried.
+        emit message(QString::fromStdString(result.error));
+        endValueSession(true);
+        syncValueSession();
+        return;
+    }
+    endValueSession(false);
+    commitBodies(std::move(result.bodies));
+}
+
+void SketchEditor::setBodyOperation(BodyOperation operation)
+{
+    m_bodyOperation = operation;
+}
+
+void SketchEditor::extrudeRegions(const std::vector<RegionRef>& regions, double distance)
+{
+    std::vector<Profile> profiles;
+    for (const RegionRef& r : regions) {
+        if (r.sketch >= 0 && r.sketch < sketchCount() && r.index < static_cast<int>(m_slots[r.sketch].regions.size()))
+            profiles.push_back({m_slots[r.sketch].regions[r.index], m_slots[r.sketch].sketch.plane().Direction(), -1});
+    }
+    ModelResult result = extrude(m_bodies, profiles, distance, m_bodyOperation);
+    if (!result.ok()) {
+        emit message(QString::fromStdString(result.error));
+        return;
+    }
+    commitBodies(std::move(result.bodies));
+}
+
+void SketchEditor::selectRegion(const RegionRef& region)
+{
+    if (mode() != EditorMode::Model || isPicked({Hit::Kind::Region, kNoId, region}))
+        return;
+    togglePick({Hit::Kind::Region, kNoId, region});
+    syncValueSession();
+}
+
+void SketchEditor::combineBodies(BooleanKind kind)
+{
+    ModelResult result = combine(m_bodies, selectedBodies(), kind);
+    if (!result.ok()) {
+        emit message(QString::fromStdString(result.error));
+        return;
+    }
+    endValueSession(true);
+    commitBodies(std::move(result.bodies));
+}
+
+// --- The extrude arrow --------------------------------------------------------------
+
+std::optional<std::pair<QPointF, QPointF>> SketchEditor::arrowOnScreen() const
+{
+    if (m_session.kind == ValueSession::Kind::None || !m_session.arrow || m_viewer->view().IsNull())
+        return std::nullopt;
+    // From where the value puts it (top of the extrusion / depth of the round), pointing
+    // the way bigger values go.
+    const gp_Pnt tip = m_session.base.Translated(gp_Vec(m_session.normal) * m_session.value);
+    const QPointF from = m_viewer->project(tip);
+    const QPointF ahead = m_viewer->project(tip.Translated(gp_Vec(m_session.normal) * pixelsToModel(kArrowPx)));
+    QPointF dir = ahead - from;
+    const double len = std::hypot(dir.x(), dir.y());
+    // Looking straight along the normal it has no length on screen: point it up.
+    dir = len < 15.0 ? QPointF(0, -kArrowPx) : dir * (kArrowPx / len);
+    return std::pair(from, from + dir);
+}
+
+bool SketchEditor::hitsArrow(const QPointF& pos) const
+{
+    const auto arrow = arrowOnScreen();
+    return arrow && segmentDistance(arrow->first, arrow->second, pos) <= kArrowGrabPx;
+}
+
+double SketchEditor::arrowParam(const Graphic3d_Vec2i& pixel) const
+{
+    // Position along the arrow's axis closest to the pointer's view ray.
+    double x = 0, y = 0, z = 0, dx = 0, dy = 0, dz = 0;
+    m_viewer->view()->ConvertWithProj(pixel.x(), pixel.y(), x, y, z, dx, dy, dz);
+    gp_Vec ray(dx, dy, dz);
+    if (ray.Magnitude() < 1e-12)
+        return 0.0;
+    ray.Normalize();
+    const gp_Vec axis(m_session.normal);
+    const gp_Vec w0(gp_Pnt(x, y, z), m_session.base);
+    const double b = axis.Dot(ray);
+    const double denom = 1.0 - b * b;
+    if (denom < 1e-4) {
+        // Looking straight along the axis: up the screen pulls toward the viewer.
+        const double up = -pixel.y() / m_viewer->devicePixelRatioF() * pixelsToModel(1.0);
+        return b < 0.0 ? up : -up;
+    }
+    return (b * ray.Dot(w0) - axis.Dot(w0)) / denom;
+}
+
+void SketchEditor::paintArrow(QPainter& p) const
+{
+    const auto arrow = arrowOnScreen();
+    if (!arrow)
+        return;
+    const auto [from, to] = *arrow;
+    const QColor ink = m_colors.overlayAccent;
+    p.setPen(QPen(ink, 3.0, Qt::SolidLine, Qt::RoundCap));
+    p.drawLine(from, to);
+
+    const QPointF d = (to - from) / QLineF(from, to).length();
+    const QPointF n(-d.y(), d.x());
+    QPainterPath head;
+    head.moveTo(to + d * 14.0);
+    head.lineTo(to - d * 2.0 + n * 8.0);
+    head.lineTo(to - d * 2.0 - n * 8.0);
+    head.closeSubpath();
+    p.fillPath(head, ink);
+
+    // A dot where the arrow sits on the extrusion; the whole arrow can be grabbed.
+    p.setPen(QPen(Qt::white, 2.0));
+    p.setBrush(ink);
+    p.drawEllipse(from, 6.0, 6.0);
+}

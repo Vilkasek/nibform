@@ -41,6 +41,8 @@ public:
     // Background gradient and grid colors for a dark or light UI.
     void setDark(bool dark);
     void setProjection(V3d_TypeOfOrientation orientation);
+    // Looks straight at a plane: from the side `normal` points to, `up` pointing up.
+    void lookAt(const gp_Dir& normal, const gp_Dir& up);
     void releaseGraphics();
 
     // Routes the primary pointer (pen tip, left mouse button) to `interaction`

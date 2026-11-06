@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/Solids.h"
 #include "sketch/ConstraintCommands.h"
 #include "sketch/Sketch.h"
 #include "sketch/SketchTools.h"
@@ -7,6 +8,12 @@
 #include "sketch/Solver.h"
 #include "viewer/PlanarPrs.h"
 #include "viewer/ViewerInteraction.h"
+
+#include <AIS_Shape.hxx>
+#include <SelectMgr_EntityOwner.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shape.hxx>
 
 #include <QColor>
 #include <QObject>
@@ -17,6 +24,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <vector>
 
 class OcctViewerWidget;
@@ -24,17 +32,30 @@ class ValueEditor;
 
 enum class SketchPlane { XY, XZ, YZ };
 
-// Owns the sketches (one per base plane for now), routes primary pointer input
-// to the active tool, keeps constraints solved and the on-screen presentations in sync.
+// Model: bodies and finished sketches; their regions are pulled into bodies and body
+// edges rounded. Sketch: one sketch is open for drawing and constraining.
+enum class EditorMode { Model, Sketch };
+
+// A closed region of sketch `sketch` (index into its regions).
+struct RegionRef
+{
+    int sketch = -1;
+    int index = -1;
+    auto operator<=>(const RegionRef&) const = default;
+};
+
+// Owns the sketches and the solid bodies, routes primary pointer input to the active
+// tool, keeps constraints solved and the on-screen presentations in sync.
+// Model-mode parts (regions, bodies, extrude, fillet) live in SketchEditorBodies.cpp.
 class SketchEditor : public QObject, public ViewerInteraction, public SketchToolHost
 {
     Q_OBJECT
 
 public:
-    // What the sketch is drawn with; one set for light backgrounds, one for dark.
+    // What the model is drawn with; one set for light backgrounds, one for dark.
     struct Colors
     {
-        Quantity_Color sketch, defined, inactive, accent, preview, trim;
+        Quantity_Color sketch, defined, inactive, accent, preview, trim, body, region;
         QColor glyphInk, dimensionInk, overlayAccent, badgeFill;
     };
 
@@ -43,10 +64,22 @@ public:
 
     void setDark(bool dark);
 
+    // --- Modes ----------------------------------------------------------------------
+    EditorMode mode() const { return m_active >= 0 ? EditorMode::Sketch : EditorMode::Model; }
+    static gp_Ax3 basePlane(SketchPlane plane);
+    // Opens a new, empty sketch on `plane` and turns the view to face it.
+    void createSketch(const gp_Ax3& plane);
+    // Exactly one planar body face is picked: a sketch can start on it.
+    bool canSketchOnFace() const;
+    void createSketchOnFace();
+    // Picked regions all belong to one sketch: it can be reopened.
+    bool canEditSketch() const;
+    void editSketch();
+    // Back to the model; an empty sketch is dropped.
+    void closeSketch();
+
     ToolKind tool() const { return m_toolKind; }
     void setTool(ToolKind kind);
-    SketchPlane plane() const { return m_slots[m_active].plane; }
-    void setPlane(SketchPlane plane);
 
     bool canUndo() const { return !m_undo.empty(); }
     bool canRedo() const { return !m_redo.empty(); }
@@ -56,7 +89,7 @@ public:
     void clearActiveSketch();
     // Esc: drop the operation in progress, then leave the tool, then clear the selection.
     void cancel();
-    // Enter: finish a polyline, or edit the selected dimension.
+    // Enter: finish a polyline, accept a typed value, or edit the selected dimension.
     void confirm();
 
     const SketchSelection& selection() const { return m_selection; }
@@ -65,8 +98,27 @@ public:
     void applyConstraint(ConstraintCommand command);
     void editDimension(ConstraintId id);
 
+    // --- Bodies ---------------------------------------------------------------------
+    BodyOperation bodyOperation() const { return m_bodyOperation; }
+    void setBodyOperation(BodyOperation operation);
+    int bodyCount() const { return static_cast<int>(m_bodies.size()); }
+    // Bodies owning the picked faces / edges, in the order they were picked.
+    std::vector<int> selectedBodies() const;
+    void combineBodies(BooleanKind kind);
+    // Region of sketch `sketch` at `p` (sketch coordinates), and pulling regions directly.
+    std::optional<RegionRef> regionAt(int sketch, const gp_Pnt2d& p) const;
+    void extrudeRegions(const std::vector<RegionRef>& regions, double distance);
+    // Picks a region as a tap in Select would (showing its arrow and distance field).
+    void selectRegion(const RegionRef& region);
+
+    // For the floating context bar: what is picked, and where the pointer last was.
+    bool hasPickedEdges() const;
+    bool valueSessionOpen() const { return m_session.kind != ValueSession::Kind::None; }
+    QPointF pointerPos() const { return m_pointerPos; }
+    int sketchCount() const { return static_cast<int>(m_slots.size()); }
+
     // SketchToolHost
-    const Sketch& sketch() const override { return m_slots[m_active].sketch; }
+    const Sketch& sketch() const override;
     void commit(const std::function<void(Sketch&)>& change, bool extendLastStep = false) override;
     double pickTolerance() const override;
     void askValue(const QString& label, double value, double min, double max, std::function<void(double)> accept,
@@ -81,32 +133,65 @@ public:
     void paintOverlay(QPainter& painter) override;
 
 signals:
+    void modeChanged(EditorMode mode);
     void toolChanged(ToolKind kind);
     void hintChanged(const QString& hint);
     void historyChanged();
     void selectionChanged();
-    void statusChanged(const QString& status); // degrees of freedom of the active sketch
+    void statusChanged(const QString& status); // DOF of the open sketch / body count
     void message(const QString& text);         // short-lived feedback (rejected constraint, ...)
 
 private:
     struct Slot
     {
-        SketchPlane plane;
         Sketch sketch;
         Handle(PlanarPrs) prs;
+        std::vector<TopoDS_Face> regions; // closed regions, kept up to date
     };
-    struct HistoryStep
+    // Everything undo restores: all sketches and the bodies.
+    struct Snapshot
     {
-        int slot;
-        Sketch sketch;
+        std::vector<Sketch> sketches;
+        std::vector<TopoDS_Shape> bodies;
     };
-    // What is under the pointer in select mode.
+    // What is under the pointer. Sketch mode: points, curves, constraint labels.
+    // Model mode: Region (`region`), Face / Edge of body `id` (picked through AIS).
     struct Hit
     {
-        enum class Kind { None, Point, Entity, Constraint };
+        enum class Kind { None, Point, Entity, Constraint, Region, Face, Edge };
         Kind kind = Kind::None;
         int id = kNoId;
-        bool operator==(const Hit&) const = default;
+        RegionRef region = {};
+        Handle(SelectMgr_EntityOwner) owner = {};
+        TopoDS_Shape shape = {}; // the face or edge, oriented as it sits in its body
+        bool operator==(const Hit& o) const
+        {
+            return kind == o.kind && id == o.id && region == o.region && owner == o.owner;
+        }
+    };
+    // A body face or edge the user picked.
+    struct BodyPick
+    {
+        Handle(SelectMgr_EntityOwner) owner;
+        TopoDS_Shape shape;
+        int body = -1;
+    };
+    // A typed value applied to the model selection with a live preview: how far to pull
+    // the picked profiles (with an arrow to drag), or how much to round / bevel edges.
+    struct ValueSession
+    {
+        enum class Kind { None, Extrude, Fillet, Chamfer };
+        Kind kind = Kind::None;
+        double value = 0.0;
+        // The arrow: extrusion direction from the profile's middle, or into the
+        // material from an edge's middle for fillet / chamfer
+        bool arrow = false;
+        gp_Pnt base; // where the arrow starts at value 0
+        gp_Dir normal;
+        bool dragging = false;
+        double dragStartValue = 0.0;
+        double dragStartParam = 0.0;
+        std::string error; // why the previewed value doesn't work (fillet too big, ...)
     };
     // Screen rectangle of a constraint glyph or dimension label, from the last overlay paint.
     struct Label
@@ -114,8 +199,6 @@ private:
         ConstraintId id;
         QRectF rect;
     };
-
-    static gp_Ax3 planeAxes(SketchPlane plane);
 
     std::optional<gp_Pnt2d> toSketch(const Graphic3d_Vec2i& pixel) const;
     double pixelsToModel(const Graphic3d_Vec2i& pixel, double logicalPixels) const;
@@ -135,14 +218,50 @@ private:
     // solver units, on the same side / turning direction as the current one.
     void promptDimension(const SketchConstraint& c, const QPointF& anchor, std::function<void(double)> accepted);
 
+    void enterSketch(int index, bool lookAt);
     void setSelection(SketchSelection selection);
     void resetInteraction();
-    void sketchChanged(); // re-analyzes DOF after the active sketch changed
+    void sketchChanged(); // re-analyzes DOF and regions after the open sketch changed
     void updatePreviewStyle();
     void refreshSketches();
     void refreshOverlay();
     void updateHint();
     void updateStatus();
+    void updateGrid();
+
+    // Model mode (SketchEditorBodies.cpp)
+    Hit modelHitAt(const PointerEvent& e) const;
+    bool modelPress(const PointerEvent& e);
+    bool modelMove(const PointerEvent& e, bool pressed);
+    bool modelRelease(const PointerEvent& e);
+    bool isPicked(const Hit& hit) const;
+    void togglePick(const Hit& hit);
+    // Fillet / chamfer: a tapped face stands for all of its edges.
+    void toggleFaceEdges(const Hit& face);
+    // Drops picks the new tool can't use (edges outside the rounding tools and so on).
+    void keepPicks(bool edges, bool facesAndRegions);
+    Handle(SelectMgr_EntityOwner) ownerOf(int body, const TopoDS_Shape& shape) const;
+    void rehighlightPicks();
+    void clearModelSelection();
+    std::vector<Profile> selectedProfiles() const;
+    std::vector<EdgeRef> selectedEdges() const;
+    void syncValueSession(); // opens / updates / closes the session after a pick changed
+    void endValueSession(bool restoreBodies);
+    void showSessionPreview();
+    void hideSessionPreview();
+    void applySession(double value);
+    std::optional<std::pair<QPointF, QPointF>> arrowOnScreen() const;
+    bool hitsArrow(const QPointF& pos) const;
+    double arrowParam(const Graphic3d_Vec2i& pixel) const;
+    void paintArrow(QPainter& painter) const;
+    void commitBodies(std::vector<TopoDS_Shape> bodies);
+    Snapshot snapshot() const;
+    void restore(Snapshot snapshot);
+    void refreshBodies();
+    void updateSelectionModes();
+    void refreshRegions(int sketch);
+    void showRegions(); // redraws region fills (selection changed)
+    void applyModelColors();
 
     OcctViewerWidget* m_viewer;
     Snapper m_snapper;
@@ -150,8 +269,8 @@ private:
     Colors m_colors;
 
     std::vector<Slot> m_slots;
-    int m_active = 0;
-    SolveResult m_analysis; // of the active sketch
+    int m_active = -1; // the open sketch, -1 in model mode
+    SolveResult m_analysis; // of the open sketch
 
     ToolKind m_toolKind = ToolKind::Select;
     std::unique_ptr<SketchTool> m_tool;
@@ -172,9 +291,20 @@ private:
 
     std::vector<Label> m_labels;
 
-    std::vector<HistoryStep> m_undo;
-    std::vector<HistoryStep> m_redo;
+    std::vector<Snapshot> m_undo;
+    std::vector<Snapshot> m_redo;
 
-    Handle(PlanarPrs) m_previewPrs; // rubber band of the tool in progress
+    std::vector<TopoDS_Shape> m_bodies;
+    std::vector<Handle(AIS_Shape)> m_bodyPrs;
+    std::set<RegionRef> m_regionSelection;
+    std::vector<BodyPick> m_bodySelection; // faces, or edges in the fillet / chamfer tools
+    BodyOperation m_bodyOperation = BodyOperation::Auto;
+    ValueSession m_session;
+    Hit m_modelPress; // what the current model-mode press landed on
+    Handle(AIS_Shape) m_regionPrs;         // all regions, faint fill
+    Handle(AIS_Shape) m_selectedRegionPrs; // picked ones, accent fill
+    Handle(AIS_Shape) m_previewPrs3d;      // extrusion / rounded bodies being previewed
+
+    Handle(PlanarPrs) m_previewPrs; // rubber band of the sketch tool in progress
     Handle(PlanarPrs) m_overlayPrs; // snap marker and alignment guides
 };

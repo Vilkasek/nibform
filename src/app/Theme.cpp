@@ -2,7 +2,6 @@
 
 #include <QApplication>
 #include <QGuiApplication>
-#include <QStyle>
 #include <QStyleHints>
 
 bool resolvesToDark(ThemeMode mode)
@@ -23,14 +22,13 @@ bool resolvesToDark(ThemeMode mode)
 
 QPalette themePalette(bool dark)
 {
-    if (!dark)
-        return QApplication::style()->standardPalette();
-
-    const QColor window(45, 47, 51);
-    const QColor base(32, 34, 37);
-    const QColor text(225, 228, 233);
-    const QColor disabled(125, 129, 136);
-    const QColor accent(66, 133, 244);
+    // Both spelled out: Fusion's own "standard" palette follows the desktop's scheme,
+    // so it would turn dark under a dark desktop even when light was asked for.
+    const QColor window = dark ? QColor(45, 47, 51) : QColor(246, 247, 249);
+    const QColor base = dark ? QColor(32, 34, 37) : QColor(255, 255, 255);
+    const QColor text = dark ? QColor(225, 228, 233) : QColor(31, 35, 41);
+    const QColor disabled = dark ? QColor(125, 129, 136) : QColor(160, 166, 174);
+    const QColor accent = dark ? QColor(66, 133, 244) : QColor(37, 99, 235);
 
     QPalette p;
     p.setColor(QPalette::Window, window);
@@ -43,17 +41,17 @@ QPalette themePalette(bool dark)
     p.setColor(QPalette::Text, text);
     p.setColor(QPalette::Button, window);
     p.setColor(QPalette::ButtonText, text);
-    p.setColor(QPalette::BrightText, Qt::white);
-    p.setColor(QPalette::Light, window.lighter(130));
-    p.setColor(QPalette::Midlight, window.lighter(115));
-    p.setColor(QPalette::Mid, window.darker(120));
-    p.setColor(QPalette::Dark, window.darker(150));
+    p.setColor(QPalette::BrightText, dark ? Qt::white : Qt::black);
+    p.setColor(QPalette::Light, dark ? window.lighter(130) : QColor(255, 255, 255));
+    p.setColor(QPalette::Midlight, dark ? window.lighter(115) : window.darker(104));
+    p.setColor(QPalette::Mid, window.darker(dark ? 120 : 125));
+    p.setColor(QPalette::Dark, window.darker(dark ? 150 : 160));
     p.setColor(QPalette::Shadow, Qt::black);
     p.setColor(QPalette::Highlight, accent);
     p.setColor(QPalette::HighlightedText, Qt::white);
     p.setColor(QPalette::Link, accent.lighter(120));
     for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText})
         p.setColor(QPalette::Disabled, role, disabled);
-    p.setColor(QPalette::Disabled, QPalette::Highlight, window.lighter(140));
+    p.setColor(QPalette::Disabled, QPalette::Highlight, dark ? window.lighter(140) : window.darker(115));
     return p;
 }

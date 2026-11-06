@@ -1,5 +1,6 @@
 #include "sketch/SketchEditor.h"
 
+#include "viewer/Glyphs.h"
 #include "viewer/OcctViewerWidget.h"
 #include "viewer/ValueEditor.h"
 
@@ -29,12 +30,12 @@ Quantity_Color srgb(double r, double g, double b)
 // Light background: dark ink. Dark background: light ink, same hues.
 const SketchEditor::Colors kLightColors{
     srgb(0.10, 0.12, 0.16), srgb(0.05, 0.47, 0.30), srgb(0.45, 0.48, 0.53), srgb(0.98, 0.45, 0.09),
-    srgb(0.13, 0.42, 0.95), srgb(0.90, 0.16, 0.16),
+    srgb(0.13, 0.42, 0.95), srgb(0.90, 0.16, 0.16), srgb(0.70, 0.74, 0.80), srgb(0.25, 0.50, 0.95),
     QColor(52, 60, 74), QColor(40, 72, 140), QColor(250, 115, 23), QColor(255, 255, 255, 235),
 };
 const SketchEditor::Colors kDarkColors{
     srgb(0.86, 0.88, 0.91), srgb(0.38, 0.82, 0.58), srgb(0.44, 0.47, 0.52), srgb(1.00, 0.56, 0.20),
-    srgb(0.40, 0.64, 1.00), srgb(1.00, 0.38, 0.38),
+    srgb(0.40, 0.64, 1.00), srgb(1.00, 0.38, 0.38), srgb(0.52, 0.57, 0.64), srgb(0.35, 0.60, 1.00),
     QColor(210, 216, 226), QColor(140, 180, 255), QColor(255, 140, 60), QColor(32, 34, 38, 235),
 };
 
@@ -42,66 +43,6 @@ QPointF unit(const QPointF& v)
 {
     const double len = std::hypot(v.x(), v.y());
     return len > 1e-9 ? v / len : QPointF(1.0, 0.0);
-}
-
-// Small vector icons, so the glyphs don't depend on which fonts are installed.
-void drawGlyph(QPainter& p, ConstraintKind kind, const QRectF& r, const QColor& ink)
-{
-    const QPointF c = r.center();
-    const double s = r.width() * 0.28;
-    auto at = [&](double x, double y) { return c + QPointF(x * s, y * s); };
-    QPen pen(ink, 1.6);
-    pen.setCapStyle(Qt::RoundCap);
-    p.setPen(pen);
-    p.setBrush(Qt::NoBrush);
-
-    switch (kind) {
-    case ConstraintKind::Horizontal:
-        p.drawLine(at(-1, 0), at(1, 0));
-        break;
-    case ConstraintKind::Vertical:
-        p.drawLine(at(0, -1), at(0, 1));
-        break;
-    case ConstraintKind::Parallel:
-        p.drawLine(at(-0.8, 1), at(-0.1, -1));
-        p.drawLine(at(0.1, 1), at(0.8, -1));
-        break;
-    case ConstraintKind::Perpendicular:
-        p.drawLine(at(-1, 0.9), at(1, 0.9));
-        p.drawLine(at(0, 0.9), at(0, -1));
-        break;
-    case ConstraintKind::Equal:
-        p.drawLine(at(-1, -0.4), at(1, -0.4));
-        p.drawLine(at(-1, 0.4), at(1, 0.4));
-        break;
-    case ConstraintKind::Tangent:
-        p.drawEllipse(at(0, -0.3), 0.65 * s, 0.65 * s);
-        p.drawLine(at(-1, 0.35), at(1, 0.35));
-        break;
-    case ConstraintKind::Concentric:
-        p.drawEllipse(c, s, s);
-        p.drawEllipse(c, 0.45 * s, 0.45 * s);
-        break;
-    case ConstraintKind::PointOnEntity:
-        p.drawArc(QRectF(at(-1, -0.2), at(1, 1.8)), 30 * 16, 120 * 16);
-        p.setBrush(ink);
-        p.drawEllipse(at(0, -0.2), 0.3 * s, 0.3 * s);
-        break;
-    case ConstraintKind::Midpoint:
-        p.drawLine(at(-1, 0), at(1, 0));
-        p.drawLine(at(-1, -0.5), at(-1, 0.5));
-        p.drawLine(at(1, -0.5), at(1, 0.5));
-        p.setBrush(ink);
-        p.drawEllipse(c, 0.3 * s, 0.3 * s);
-        break;
-    case ConstraintKind::Fixed:
-        p.drawArc(QRectF(at(-0.5, -1), at(0.5, 0.2)), 0, 180 * 16);
-        p.setBrush(ink);
-        p.drawRoundedRect(QRectF(at(-0.8, -0.4), at(0.8, 0.9)), 1.5, 1.5);
-        break;
-    default:
-        break;
-    }
 }
 
 void drawArrow(QPainter& p, const QPointF& tip, const QPointF& from, const QColor& ink)
@@ -140,22 +81,18 @@ SketchEditor::SketchEditor(OcctViewerWidget* viewer, QObject* parent)
 {
     const double dpr = viewer->devicePixelRatioF();
     const auto& ctx = viewer->aisContext();
+    // Body edges are thin targets for a pen.
+    ctx->SetPixelTolerance(qRound(8.0 * dpr));
 
-    for (SketchPlane plane : {SketchPlane::XY, SketchPlane::XZ, SketchPlane::YZ}) {
-        Slot slot{plane, Sketch(planeAxes(plane)), nullptr};
-        slot.prs = new PlanarPrs(slot.sketch.plane(), {m_colors.sketch, m_colors.accent, 2.0 * dpr});
-        ctx->Display(slot.prs, 0, -1, false);
-        m_slots.push_back(std::move(slot));
-    }
-
-    m_previewPrs = new PlanarPrs(planeAxes(SketchPlane::XY),
+    m_previewPrs = new PlanarPrs(basePlane(SketchPlane::XY),
                                  {m_colors.preview, m_colors.preview, 2.0 * dpr, Aspect_TOL_SOLID, 0.0});
-    m_overlayPrs = new PlanarPrs(planeAxes(SketchPlane::XY),
+    m_overlayPrs = new PlanarPrs(basePlane(SketchPlane::XY),
                                  {m_colors.accent, m_colors.accent, 1.0 * dpr, Aspect_TOL_DASH, 0.0});
     ctx->Display(m_previewPrs, 0, -1, false);
     ctx->Display(m_overlayPrs, 0, -1, false);
 
-    setPlane(SketchPlane::XY);
+    updateGrid();
+    updateStatus();
 }
 
 SketchEditor::~SketchEditor() = default;
@@ -166,6 +103,7 @@ void SketchEditor::setDark(bool dark)
     m_overlayPrs->setStyle({m_colors.accent, m_colors.accent, 1.0 * m_viewer->devicePixelRatioF(),
                             Aspect_TOL_DASH, 0.0});
     updatePreviewStyle();
+    applyModelColors();
     refreshSketches();
     refreshOverlay();
     m_viewer->update();
@@ -181,7 +119,7 @@ void SketchEditor::updatePreviewStyle()
                             (thick ? 4.0 : 2.0) * m_viewer->devicePixelRatioF(), Aspect_TOL_SOLID, 0.0});
 }
 
-gp_Ax3 SketchEditor::planeAxes(SketchPlane plane)
+gp_Ax3 SketchEditor::basePlane(SketchPlane plane)
 {
     // Chosen so the sketch's (u, v) read naturally when looking at the plane from
     // the matching standard view: Top -> (X, Y), Front -> (X, Z), Right -> (Y, Z).
@@ -198,6 +136,10 @@ gp_Ax3 SketchEditor::planeAxes(SketchPlane plane)
 
 void SketchEditor::setTool(ToolKind kind)
 {
+    // Each tool belongs to one mode (the toolbar only offers those).
+    if (isSketchTool(kind) != (mode() == EditorMode::Sketch) && kind != ToolKind::Select)
+        return;
+    endValueSession(true); // before the field is dropped, so dropping it doesn't clear picks
     m_valueEditor->cancel(); // may call back into the old tool, so before it goes
     if (m_tool)
         m_tool->cancel();
@@ -209,6 +151,17 @@ void SketchEditor::setTool(ToolKind kind)
     if (kind != ToolKind::Select)
         setSelection({});
 
+    if (mode() == EditorMode::Model) {
+        // Picks carry over where they make sense: edges picked in Select into the rounding
+        // tools, regions and faces into push / pull; Select keeps everything.
+        if (kind == ToolKind::Fillet || kind == ToolKind::Chamfer)
+            keepPicks(true, false);
+        else if (kind == ToolKind::PushPull)
+            keepPicks(false, true);
+        updateSelectionModes();
+        syncValueSession();
+    }
+
     refreshSketches();
     refreshOverlay();
     updateHint();
@@ -216,42 +169,111 @@ void SketchEditor::setTool(ToolKind kind)
     emit toolChanged(kind);
 }
 
-void SketchEditor::setPlane(SketchPlane plane)
+const Sketch& SketchEditor::sketch() const
 {
-    for (int i = 0; i < static_cast<int>(m_slots.size()); ++i) {
-        if (m_slots[i].plane == plane)
-            m_active = i;
-    }
-    resetInteraction();
-    setSelection({});
+    static const Sketch none;
+    // Undo can take the open sketch away for a moment, before closeSketch() catches up.
+    return m_active >= 0 && m_active < static_cast<int>(m_slots.size()) ? m_slots[m_active].sketch : none;
+}
 
+void SketchEditor::createSketch(const gp_Ax3& plane)
+{
+    if (mode() == EditorMode::Sketch)
+        closeSketch();
+    Slot slot;
+    slot.sketch = Sketch(plane);
+    slot.prs = new PlanarPrs(plane, {m_colors.sketch, m_colors.accent, 2.0 * m_viewer->devicePixelRatioF()});
+    m_viewer->aisContext()->Display(slot.prs, 0, -1, false);
+    m_slots.push_back(std::move(slot));
+    // Not an undo step by itself: the first drawn curve records the sketch.
+    enterSketch(static_cast<int>(m_slots.size()) - 1, true);
+}
+
+void SketchEditor::enterSketch(int index, bool lookAt)
+{
+    endValueSession(true);
+    clearModelSelection();
+    m_active = index;
+    updateSelectionModes(); // bodies stop reacting to the pointer while drawing
     const gp_Ax3& axes = sketch().plane();
     m_previewPrs->setPlane(axes);
     m_overlayPrs->setPlane(axes);
-    // The grid follows the privileged plane, but only picks it up when re-activated.
-    const Handle(V3d_Viewer)& viewer = m_viewer->viewer();
-    viewer->SetPrivilegedPlane(axes);
-    viewer->DeactivateGrid();
-    viewer->ActivateGrid(Aspect_GT_Rectangular, Aspect_GDM_Lines);
-    if (!m_viewer->view().IsNull())
-        m_viewer->view()->Invalidate();
-
+    updateGrid();
+    if (lookAt)
+        m_viewer->lookAt(axes.Direction(), axes.YDirection());
+    emit modeChanged(EditorMode::Sketch);
+    setTool(ToolKind::Line);
     sketchChanged();
     refreshSketches();
     refreshOverlay();
     m_viewer->update();
 }
 
+void SketchEditor::closeSketch()
+{
+    if (m_active < 0)
+        return;
+    resetInteraction();
+    setSelection({});
+    const int closing = m_active;
+    m_active = -1;
+    if (closing < static_cast<int>(m_slots.size()) && m_slots[closing].sketch.isEmpty()) {
+        m_viewer->aisContext()->Remove(m_slots[closing].prs, false);
+        m_slots.erase(m_slots.begin() + closing);
+        m_regionSelection.clear();
+    }
+    updateGrid();
+    updateSelectionModes();
+    emit modeChanged(EditorMode::Model);
+    setTool(ToolKind::Select);
+    refreshSketches();
+    refreshOverlay();
+    showRegions();
+    updateStatus();
+    m_viewer->update();
+}
+
+bool SketchEditor::canEditSketch() const
+{
+    if (mode() != EditorMode::Model || m_regionSelection.empty())
+        return false;
+    const int sketch = m_regionSelection.begin()->sketch;
+    return std::all_of(m_regionSelection.begin(), m_regionSelection.end(),
+                       [sketch](const RegionRef& r) { return r.sketch == sketch; });
+}
+
+void SketchEditor::editSketch()
+{
+    if (canEditSketch())
+        enterSketch(m_regionSelection.begin()->sketch, false);
+}
+
+void SketchEditor::updateGrid()
+{
+    // The grid lies on the open sketch, or on the ground in the model.
+    const gp_Ax3 axes = m_active >= 0 ? sketch().plane() : basePlane(SketchPlane::XY);
+    const Handle(V3d_Viewer)& viewer = m_viewer->viewer();
+    viewer->SetPrivilegedPlane(axes);
+    // The grid picks up a new privileged plane only when re-activated.
+    viewer->DeactivateGrid();
+    viewer->ActivateGrid(Aspect_GT_Rectangular, Aspect_GDM_Lines);
+    if (!m_viewer->view().IsNull())
+        m_viewer->view()->Invalidate();
+}
+
 void SketchEditor::commit(const std::function<void(Sketch&)>& change, bool extendLastStep)
 {
+    if (m_active < 0)
+        return;
     m_valueEditor->cancel(); // a pending value would apply to a sketch that no longer exists
-    if (!extendLastStep || m_undo.empty() || m_undo.back().slot != m_active)
-        m_undo.push_back({m_active, m_slots[m_active].sketch});
+    if (!extendLastStep || m_undo.empty())
+        m_undo.push_back(snapshot());
     m_redo.clear();
     Sketch& s = m_slots[m_active].sketch;
     change(s);
     m_analysis = solve(s);
     updateStatus();
+    refreshRegions(m_active);
     refreshSketches();
     emit historyChanged();
 }
@@ -260,14 +282,17 @@ void SketchEditor::undo()
 {
     if (m_undo.empty())
         return;
-    HistoryStep step = std::move(m_undo.back());
+    Snapshot step = std::move(m_undo.back());
     m_undo.pop_back();
-    m_redo.push_back({step.slot, m_slots[step.slot].sketch});
-    m_slots[step.slot].sketch = std::move(step.sketch);
+    m_redo.push_back(snapshot());
+    restore(std::move(step));
 
     // Tools may hold point ids that no longer exist.
     resetInteraction();
+    if (m_active >= static_cast<int>(m_slots.size()))
+        closeSketch(); // the open sketch was undone away
     setSelection({});
+    clearModelSelection();
     sketchChanged();
     refreshSketches();
     refreshOverlay();
@@ -279,13 +304,16 @@ void SketchEditor::redo()
 {
     if (m_redo.empty())
         return;
-    HistoryStep step = std::move(m_redo.back());
+    Snapshot step = std::move(m_redo.back());
     m_redo.pop_back();
-    m_undo.push_back({step.slot, m_slots[step.slot].sketch});
-    m_slots[step.slot].sketch = std::move(step.sketch);
+    m_undo.push_back(snapshot());
+    restore(std::move(step));
 
     resetInteraction();
+    if (m_active >= static_cast<int>(m_slots.size()))
+        closeSketch();
     setSelection({});
+    clearModelSelection();
     sketchChanged();
     refreshSketches();
     refreshOverlay();
@@ -295,6 +323,34 @@ void SketchEditor::redo()
 
 void SketchEditor::deleteSelection()
 {
+    if (mode() == EditorMode::Model) {
+        // Picked faces delete their bodies, picked regions their whole sketches.
+        const std::vector<int> bodies = selectedBodies();
+        std::set<int> sketches;
+        for (const RegionRef& r : m_regionSelection)
+            sketches.insert(r.sketch);
+        if (bodies.empty() && sketches.empty())
+            return;
+        Snapshot next = snapshot();
+        for (auto it = sketches.rbegin(); it != sketches.rend(); ++it)
+            next.sketches.erase(next.sketches.begin() + *it);
+        std::vector<TopoDS_Shape> kept;
+        for (int i = 0; i < bodyCount(); ++i) {
+            if (std::find(bodies.begin(), bodies.end(), i) == bodies.end())
+                kept.push_back(m_bodies[i]);
+        }
+        next.bodies = std::move(kept);
+        endValueSession(true);
+        m_undo.push_back(snapshot());
+        m_redo.clear();
+        restore(std::move(next));
+        clearModelSelection();
+        updateStatus();
+        emit historyChanged();
+        m_viewer->update();
+        return;
+    }
+
     if (m_selection.empty())
         return;
     const SketchSelection doomed = m_selection;
@@ -314,7 +370,7 @@ void SketchEditor::deleteSelection()
 
 void SketchEditor::clearActiveSketch()
 {
-    if (sketch().isEmpty())
+    if (m_active < 0 || sketch().isEmpty())
         return;
     resetInteraction();
     setSelection({});
@@ -325,7 +381,7 @@ void SketchEditor::clearActiveSketch()
 
 bool SketchEditor::canApply(ConstraintCommand command) const
 {
-    if (m_selection.points.empty() && m_selection.entities.empty())
+    if (m_active < 0 || (m_selection.points.empty() && m_selection.entities.empty()))
         return false;
     Sketch probe = sketch();
     return applyCommand(command, probe, m_selection, 1.0).applied;
@@ -333,6 +389,8 @@ bool SketchEditor::canApply(ConstraintCommand command) const
 
 void SketchEditor::applyConstraint(ConstraintCommand command)
 {
+    if (m_active < 0)
+        return;
     if (m_selection.points.empty() && m_selection.entities.empty()) {
         emit message(tr("Najpierw zaznacz geometrię, potem wybierz więz"));
         return;
@@ -550,13 +608,13 @@ SketchEditor::Hit SketchEditor::hitAt(const PointerEvent& e) const
             return {Hit::Kind::Constraint, it->id};
     }
     const auto raw = toSketch(e.pixel);
-    if (!raw)
-        return {};
-    const double tolerance = pixelsToModel(e.pixel, kHitPx);
-    if (auto p = sketch().findPoint(*raw, tolerance))
-        return {Hit::Kind::Point, *p};
-    if (auto h = sketch().hitTest(*raw, tolerance))
-        return {Hit::Kind::Entity, *h};
+    if (raw) {
+        const double tolerance = pixelsToModel(e.pixel, kHitPx);
+        if (auto p = sketch().findPoint(*raw, tolerance))
+            return {Hit::Kind::Point, *p};
+        if (auto h = sketch().hitTest(*raw, tolerance))
+            return {Hit::Kind::Entity, *h};
+    }
     return {};
 }
 
@@ -565,6 +623,8 @@ bool SketchEditor::press(const PointerEvent& e)
     m_pressPixel = e.pixel;
     m_pointerPixel = e.pixel;
     m_pointerPos = e.pos;
+    if (mode() == EditorMode::Model)
+        return modelPress(e); // the field there stays open while picking / dragging
     if (m_valueEditor->isOpen()) {
         // The second tap of a double tap lands where the field opened: keep typing.
         // A tap anywhere else drops the edit, and does nothing more.
@@ -594,6 +654,8 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
     m_pointerPos = e.pos;
     if (pressed && m_swallowRelease)
         return false;
+    if (mode() == EditorMode::Model)
+        return modelMove(e, pressed);
     if (!m_tool)
         return selectMove(e, pressed);
 
@@ -613,6 +675,8 @@ bool SketchEditor::release(const PointerEvent& e)
         m_swallowRelease = false;
         return false;
     }
+    if (mode() == EditorMode::Model)
+        return modelRelease(e);
     if (!m_tool)
         return selectRelease(e);
 
@@ -669,7 +733,7 @@ bool SketchEditor::selectMove(const PointerEvent& e, bool pressed)
             }
         }
         m_valueEditor->cancel();
-        m_undo.push_back({m_active, s});
+        m_undo.push_back(snapshot());
         m_redo.clear();
         m_dragging = true;
     }
@@ -730,6 +794,8 @@ void SketchEditor::toggle(const Hit& hit, bool additive)
     case Hit::Kind::Constraint:
         flip(selection.constraints, hit.id);
         break;
+    default:
+        break; // model-mode picks never reach the sketch selection
     }
     setSelection(std::move(selection));
     refreshSketches();
@@ -753,7 +819,15 @@ void SketchEditor::cancel()
         m_valueEditor->cancel();
         return;
     }
-    if (m_tool && m_tool->cancel()) {
+    if (mode() == EditorMode::Model) {
+        // First drop what is picked, then leave the tool.
+        if (!m_regionSelection.empty() || !m_bodySelection.empty()) {
+            endValueSession(true);
+            clearModelSelection();
+        } else if (m_toolKind != ToolKind::Select) {
+            setTool(ToolKind::Select);
+        }
+    } else if (m_tool && m_tool->cancel()) {
         refreshOverlay();
         updateHint();
     } else if (m_tool) {
@@ -775,13 +849,16 @@ void SketchEditor::confirm()
         refreshOverlay();
         updateHint();
         m_viewer->update();
-    } else if (!m_tool && m_selection.size() == 1 && m_selection.constraints.size() == 1) {
+    } else if (mode() == EditorMode::Sketch && !m_tool && m_selection.size() == 1
+               && m_selection.constraints.size() == 1) {
         editDimension(*m_selection.constraints.begin());
     }
 }
 
 void SketchEditor::setSelection(SketchSelection selection)
 {
+    if (m_active < 0)
+        selection = {};
     // Drop ids that no longer exist (after undo, delete, merge).
     const Sketch& s = sketch();
     std::erase_if(selection.points, [&](PointId id) { return !s.point(id); });
@@ -795,6 +872,7 @@ void SketchEditor::setSelection(SketchSelection selection)
 
 void SketchEditor::resetInteraction()
 {
+    endValueSession(true);
     m_valueEditor->cancel();
     if (m_tool)
         m_tool->cancel();
@@ -807,7 +885,10 @@ void SketchEditor::resetInteraction()
 
 void SketchEditor::sketchChanged()
 {
-    m_analysis = analyze(sketch());
+    if (m_active >= 0) {
+        m_analysis = analyze(sketch());
+        refreshRegions(m_active);
+    }
     updateStatus();
 }
 
@@ -862,6 +943,34 @@ void SketchEditor::refreshOverlay()
 
 void SketchEditor::updateHint()
 {
+    if (mode() == EditorMode::Model) {
+        const bool open = m_session.kind != ValueSession::Kind::None;
+        const QString error = QString::fromStdString(m_session.error);
+        switch (m_toolKind) {
+        case ToolKind::PushPull:
+            emit hintChanged(open ? QStringLiteral("Wyciągnij: przeciągnij strzałkę albo wpisz odległość  ·  "
+                                                   "Enter zatwierdza, Esc anuluje")
+                                  : QStringLiteral("Wyciągnij: dotknij obszaru szkicu albo płaskiej ściany bryły"));
+            return;
+        case ToolKind::Fillet:
+        case ToolKind::Chamfer: {
+            const QString name = m_toolKind == ToolKind::Fillet ? QStringLiteral("Zaokrąglij")
+                                                                : QStringLiteral("Fazuj");
+            if (!error.isEmpty())
+                emit hintChanged(name + QStringLiteral(": ") + error);
+            else if (open)
+                emit hintChanged(name + QStringLiteral(": dotykaj kolejnych krawędzi, wpisz wartość  ·  Enter zatwierdza"));
+            else
+                emit hintChanged(name + QStringLiteral(": dotknij krawędzi bryły"));
+            return;
+        }
+        default:
+            emit hintChanged(open ? QStringLiteral("Przeciągnij strzałkę albo wpisz odległość  ·  Enter wyciąga, Esc anuluje")
+                                  : QStringLiteral("Dotknij obszaru szkicu, by go wyciągnąć, albo ściany bryły  ·  "
+                                                   "Stwórz szkic, by rysować"));
+            return;
+        }
+    }
     if (m_tool) {
         QString hint = m_tool->hint();
         if (m_snap) {
@@ -882,9 +991,13 @@ void SketchEditor::updateHint()
 
 void SketchEditor::updateStatus()
 {
+    if (m_active < 0) {
+        emit statusChanged(tr("Model: %n brył(y)", nullptr, bodyCount()));
+        return;
+    }
     const Sketch& s = sketch();
     if (s.entities().empty())
-        emit statusChanged(QString());
+        emit statusChanged(tr("Szkic pusty"));
     else if (!m_analysis.ok)
         emit statusChanged(tr("Szkic: sprzeczne więzy"));
     else if (m_analysis.dof == 0)
@@ -896,6 +1009,10 @@ void SketchEditor::updateStatus()
 void SketchEditor::paintOverlay(QPainter& p)
 {
     m_labels.clear();
+    if (m_active < 0) {
+        paintArrow(p);
+        return;
+    }
     const Sketch& s = sketch();
     auto screen = [&](const gp_Pnt2d& q) { return m_viewer->project(s.to3d(q)); };
     auto accented = [&](ConstraintId id) {
@@ -1135,7 +1252,7 @@ void SketchEditor::paintOverlay(QPainter& p)
             p.setPen(QPen(hot ? m_colors.overlayAccent : border, 1.0));
             p.setBrush(hot ? m_colors.overlayAccent : m_colors.badgeFill);
             p.drawRoundedRect(rect, 4, 4);
-            drawGlyph(p, c.kind, rect, hot ? Qt::white : m_colors.glyphInk);
+            drawConstraintGlyph(p, c.kind, rect, hot ? Qt::white : m_colors.glyphInk);
             m_labels.push_back({c.id, rect});
         }
     }

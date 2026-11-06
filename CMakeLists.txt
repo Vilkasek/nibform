@@ -18,6 +18,10 @@ set(SHAPR_WARNINGS -Wall -Wextra -Wno-unused-parameter)
 
 # Geometry/model code with no Qt or GUI dependency, so it can be unit tested.
 add_library(shapr_core STATIC
+  src/model/Profiles.cpp
+  src/model/Profiles.h
+  src/model/Solids.cpp
+  src/model/Solids.h
   src/sketch/Constraint.h
   src/sketch/ConstraintCommands.cpp
   src/sketch/ConstraintCommands.h
@@ -38,18 +42,25 @@ add_library(shapr_core STATIC
 )
 target_include_directories(shapr_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
 target_compile_options(shapr_core PRIVATE ${SHAPR_WARNINGS})
-target_link_libraries(shapr_core PUBLIC TKernel TKMath Eigen3::Eigen)
+target_link_libraries(shapr_core PUBLIC
+  TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet
+  Eigen3::Eigen)
 
 add_executable(shapr_linux
   src/main.cpp
   src/app/MainWindow.cpp
+  src/app/Icons.cpp
+  src/app/Icons.h
   src/app/MainWindow.h
   src/app/Theme.cpp
   src/app/Theme.h
   src/sketch/SketchEditor.cpp
+  src/sketch/SketchEditorBodies.cpp
   src/sketch/SketchEditor.h
   src/sketch/SketchTools.cpp
   src/sketch/SketchTools.h
+  src/viewer/Glyphs.cpp
+  src/viewer/Glyphs.h
   src/viewer/OcctViewerWidget.cpp
   src/viewer/OcctViewerWidget.h
   src/viewer/PenSample.h
@@ -70,7 +81,7 @@ target_link_libraries(shapr_linux PRIVATE
 )
 
 enable_testing()
-foreach(name sketch solver trim offset)
+foreach(name sketch solver trim offset model)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${SHAPR_WARNINGS})
   target_link_libraries(test_${name} PRIVATE shapr_core)

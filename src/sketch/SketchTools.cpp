@@ -578,6 +578,9 @@ std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
     case ToolKind::Offset:
         return std::make_unique<OffsetTool>(host);
     case ToolKind::Select:
+    case ToolKind::PushPull:
+    case ToolKind::Fillet:
+    case ToolKind::Chamfer:
         break;
     }
     return nullptr;

@@ -61,6 +61,15 @@ protected:
     gp_Pnt2d m_cursor;
 };
 
-enum class ToolKind { Select, Line, Rectangle, Circle, Arc, Trim, Offset };
+// Sketch tools draw on the open sketch. PushPull, Fillet and Chamfer work on regions
+// and bodies in model mode, so the editor handles them itself, like Select:
+// makeTool() gives no SketchTool for those.
+enum class ToolKind { Select, Line, Rectangle, Circle, Arc, Trim, Offset, PushPull, Fillet, Chamfer };
+
+inline bool isSketchTool(ToolKind kind)
+{
+    return kind != ToolKind::Select && kind != ToolKind::PushPull && kind != ToolKind::Fillet
+        && kind != ToolKind::Chamfer;
+}
 
 std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host);

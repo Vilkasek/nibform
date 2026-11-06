@@ -4,6 +4,7 @@
 #include <QPointF>
 
 #include <functional>
+#include <optional>
 
 class QLabel;
 class QLineEdit;
@@ -19,10 +20,17 @@ public:
     explicit ValueEditor(QWidget* parent);
 
     // Shows the field centered near `anchor` (parent coordinates) with `value` selected.
-    // `accept` gets a value within [min, max]; `cancel` runs when the edit is dropped.
+    // `accept` gets a value within [min, max]; `cancel` runs when the edit is dropped;
+    // `changed` follows every valid value while typing (for live previews).
     // Opening again drops the previous edit first.
     void open(const QString& label, double value, double min, double max, const QPointF& anchor,
-              std::function<void(double)> accept, std::function<void()> cancel = {});
+              std::function<void(double)> accept, std::function<void()> cancel = {},
+              std::function<void(double)> changed = {});
+    // Moves the open field so it starts just right of `point` (parent coordinates),
+    // instead of centered on its anchor: for things that must stay visible, like an arrow.
+    void placeBeside(const QPointF& point);
+    // Shows `value` as if typed (e.g. while an arrow is dragged), selected, without `changed`.
+    void setValue(double value);
     void cancel();
     // Takes the typed value (what Enter does); an invalid one is marked and kept open.
     void accept();
@@ -35,6 +43,10 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void moveClamped(double x, double y);
+    std::optional<double> parsed() const;
+    static QString format(double value);
+
     QLabel* m_label;
     QLineEdit* m_edit;
     double m_min = 0.0;
@@ -42,4 +54,5 @@ private:
     QPointF m_anchor;
     std::function<void(double)> m_accept;
     std::function<void()> m_cancel;
+    std::function<void(double)> m_changed;
 };

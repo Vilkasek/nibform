@@ -19,7 +19,16 @@ OpenCASCADE z Archa jest zbudowany pod GLX, więc aplikacja sama wymusza `QT_QPA
 `SHAPR_DEBUG_INPUT=1` wypisuje urządzenia wejścia i zdarzenia scrolla/gestów,
 `SHAPR_INVERT_SCROLL=1` odwraca kierunek obrotu/przesuwania z touchpada.
 
-Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_value_editor`).
+Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_value_editor`).
+
+## Dwa tryby: Bryła i Szkic
+
+Aplikacja startuje w trybie **Bryła** (pasek „BRYŁA”): bryły, zamknięte obszary szkiców, wyciąganie,
+zaokrąglanie i fazowanie. **Stwórz szkic** (`K`) otwiera nowy szkic – na zaznaczonej płaskiej ścianie
+bryły, a bez niej na podłożu; strzałka obok przycisku pozwala wybrać płaszczyznę (XY / XZ / YZ).
+Widok obraca się wtedy na wprost szkicu, a pasek zmienia się na „SZKIC” z narzędziami rysowania
+i więzami. **✓ Zamknij szkic** (`Ctrl+Enter`) wraca do brył (pusty szkic znika). **Edytuj szkic**
+otwiera ponownie szkic, którego obszar jest zaznaczony. Skróty działają tylko w swoim trybie.
 
 ## Szkicowanie
 
@@ -38,7 +47,7 @@ Przyciąganie: punkty → początek układu → środki odcinków → wyrównani
 Przyciąganie zostawia więzy: wyrównana linia dostaje „poziomo”/„pionowo”, prostokąt – oba,
 punkt na środku odcinka – „środek”, punkt w początku układu – „zablokuj”.
 `Esc` przerywa operację, drugi `Esc` wraca do zaznaczania. `Ctrl+Z` / `Ctrl+Shift+Z` cofnij/ponów.
-Płaszczyznę szkicu (XY / XZ / YZ) wybierasz na pasku; siatka podąża za nią.
+Siatka leży na płaszczyźnie otwartego szkicu (w trybie Bryła – na podłożu).
 
 ## Więzy i wymiary
 
@@ -68,6 +77,37 @@ Solver (`src/sketch/Solver.cpp`, tylko Eigen): Gauss-Newton z krokiem o minimaln
 więc przy każdej zmianie geometria przesuwa się jak najmniej; stopnie swobody i „w pełni określone”
 elementy wynikają z jądra jakobianu (SVD).
 
+## Bryły
+
+Zamknięte obszary szkiców (także z dziurami, przecięte liniami, ograniczone łukami) są lekko
+wypełnione. **Dotknięcie obszaru** (w trybie Zaznacz) albo obszaru lub płaskiej ściany w narzędziu
+**Wyciągnij** (`W`) pokazuje strzałkę i pole odległości z podglądem bryły: przeciągnij strzałkę albo
+wpisz wartość (ujemna odwraca kierunek; podgląd nadąża za pisaniem); kolejne dotknięcia dodają
+obszary/ściany. `Enter` lub ✓ wyciąga, `Esc` lub ✕ anuluje.
+
+| Narzędzie | Skrót | Jak |
+|---|---|---|
+| Wyciągnij | `W` | obszary szkiców i płaskie ściany brył (push/pull) |
+| Zaokrąglij | `G` | dotykaj krawędzi brył (dotknięcie ściany bierze wszystkie jej krawędzie), przeciągnij uchwyt w głąb materiału albo wpisz promień – podgląd od razu; `Enter` zatwierdza |
+| Fazuj | `B` | jak wyżej, z odległością fazy |
+
+W trybie Zaznacz ściany i krawędzie brył da się klikać wszędzie (krawędź wygrywa, gdy rysik
+jest blisko niej). Przy zaznaczonych krawędziach obok pojawia się pasek z *Zaokrąglij* / *Fazuj*,
+przy jednej płaskiej ścianie – *Szkic na ścianie* / *Wyciągnij*; narzędzie przejmuje to, co zaznaczone.
+
+Pole *Bryła* na pasku decyduje, co wyciąganie robi z istniejącymi bryłami:
+
+| Tryb | Działanie |
+|---|---|
+| Automatycznie | ściana bryły: wyciągnięcie dodaje, wciśnięcie odejmuje; obszar szkicu: w całości wewnątrz bryły – odejmuje, częściowo lub stykając się z nią (np. szkic na ścianie) – dodaje, z dala od brył – nowa bryła |
+| Nowa bryła / Dodaj / Odejmij | wymusza daną operację |
+
+Menu *Bryły* łączy, odejmuje (od pierwszej zaznaczonej) albo zostawia część wspólną brył,
+których ściany są zaznaczone. `Delete` usuwa bryły o zaznaczonych ścianach i szkice o zaznaczonych
+obszarach. Cofanie obejmuje szkice i bryły razem.
+`SHAPR_DEMO=1` buduje przykładowy model (`SHAPR_DEMO=sketch` dodatkowo otwiera szkic) –
+przydatne z `SHAPR_SCREENSHOT`.
+
 ## Sterowanie widokiem
 
 | Wejście | Akcja |
@@ -96,7 +136,7 @@ trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybó
 - [x] **M0** – okno Qt + widok OCCT, nawigacja mysz/touchpad/dotyk/rysik
 - [x] **M1** – szkic na płaszczyźnie rysikiem (linia, prostokąt, okrąg, łuk), snapping
 - [x] **M2** – więzy i wymiary, solver
-- [ ] **M3** – wykrywanie profili, push/pull, boolean
+- [x] **M3** – wykrywanie profili, push/pull, boolean
 - [ ] **M4** – parametryczna historia, zapis projektu, eksport STEP/STL
 - [ ] **M5** – szkic na ścianie, fillet/chamfer/shell
 - [ ] **M6** – polish pod Framework 12 (obrót ekranu, palm rejection, tryb tabletu)

@@ -225,6 +225,15 @@ void OcctViewerWidget::fitAll()
     updateView();
 }
 
+void OcctViewerWidget::lookAt(const gp_Dir& normal, const gp_Dir& up)
+{
+    if (m_view.IsNull())
+        return;
+    m_view->SetProj(normal.X(), normal.Y(), normal.Z());
+    m_view->SetUp(up.X(), up.Y(), up.Z());
+    fitAll();
+}
+
 void OcctViewerWidget::setDark(bool dark)
 {
     auto srgb = [](double r, double g, double b) { return Quantity_Color(r, g, b, Quantity_TOC_sRGB); };
@@ -339,7 +348,10 @@ void OcctViewerWidget::paintGL()
         m_view->Invalidate();
     }
 
-    m_view->InvalidateImmediate();
+    // Redraw the whole scene, not just OCCT's immediate layer: presentations changed in
+    // place (a preview growing, bodies recolored) don't mark the view invalid by
+    // themselves, and would otherwise show up only after some later event.
+    m_view->Invalidate();
     FlushViewEvents(m_context, m_view, true);
 
     // The overlay projects model points, so it has to follow every camera change.

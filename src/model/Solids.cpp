@@ -1,0 +1,340 @@
+#include "model/Solids.h"
+
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <BRep_Tool.hxx>
+#include <ShapeAnalysis_Surface.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <BRepAlgoAPI_Common.hxx>
+#include <BRepAlgoAPI_Cut.hxx>
+#include <BRepAlgoAPI_Fuse.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepFilletAPI_MakeChamfer.hxx>
+#include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRepGProp.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
+#include <GProp_GProps.hxx>
+#include <ShapeUpgrade_UnifySameDomain.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <TopoDS.hxx>
+#include <gp_Pln.hxx>
+
+#include <algorithm>
+#include <cmath>
+#include <map>
+#include <memory>
+#include <set>
+
+namespace {
+
+constexpr double kMinVolume = 1e-6; // mm³: anything smaller is a touch, not an overlap
+
+// Merges coplanar faces and collinear edges a boolean leaves behind, so the
+// result can be pushed / pulled face by face again.
+TopoDS_Shape tidy(const TopoDS_Shape& shape)
+{
+    ShapeUpgrade_UnifySameDomain unify(shape, true, true, false);
+    unify.Build();
+    return unify.Shape();
+}
+
+std::optional<TopoDS_Shape> boolean(BooleanKind kind, const TopoDS_Shape& a, const TopTools_ListOfShape& tools)
+{
+    TopTools_ListOfShape args;
+    args.Append(a);
+    std::unique_ptr<BRepAlgoAPI_BooleanOperation> op;
+    switch (kind) {
+    case BooleanKind::Union:
+        op = std::make_unique<BRepAlgoAPI_Fuse>();
+        break;
+    case BooleanKind::Subtract:
+        op = std::make_unique<BRepAlgoAPI_Cut>();
+        break;
+    case BooleanKind::Intersect:
+        op = std::make_unique<BRepAlgoAPI_Common>();
+        break;
+    }
+    op->SetArguments(args);
+    op->SetTools(tools);
+    op->Build();
+    if (!op->IsDone() || op->HasErrors())
+        return std::nullopt;
+    const TopoDS_Shape result = tidy(op->Shape());
+    if (!BRepCheck_Analyzer(result).IsValid())
+        return std::nullopt;
+    return result;
+}
+
+std::optional<TopoDS_Shape> boolean(BooleanKind kind, const TopoDS_Shape& a, const TopoDS_Shape& b)
+{
+    TopTools_ListOfShape tools;
+    tools.Append(b);
+    return boolean(kind, a, tools);
+}
+
+// Each solid of `shape` as a body of its own.
+void appendSolids(std::vector<TopoDS_Shape>& out, const TopoDS_Shape& shape)
+{
+    for (TopExp_Explorer it(shape, TopAbs_SOLID); it.More(); it.Next()) {
+        if (volumeOf(it.Current()) > kMinVolume)
+            out.push_back(it.Current());
+    }
+}
+
+double overlap(const TopoDS_Shape& a, const TopoDS_Shape& b)
+{
+    const auto common = boolean(BooleanKind::Intersect, a, b);
+    return common ? volumeOf(*common) : 0.0;
+}
+
+bool touches(const TopoDS_Shape& a, const TopoDS_Shape& b)
+{
+    BRepExtrema_DistShapeShape distance(a, b);
+    return distance.IsDone() && distance.Value() < 1e-6;
+}
+
+// Applies `round` (a fillet or chamfer maker filled with the body's edges) body by body.
+template <typename Maker>
+ModelResult roundEdges(const std::vector<TopoDS_Shape>& bodies, const std::vector<EdgeRef>& edges, double size,
+                       const char* failure)
+{
+    ModelResult result;
+    result.bodies = bodies;
+    if (edges.empty() || size <= 0.0) {
+        result.error = "Zaznacz krawędzie bryły";
+        return result;
+    }
+    std::map<int, std::vector<TopoDS_Edge>> byBody;
+    for (const EdgeRef& e : edges) {
+        if (e.body >= 0 && e.body < static_cast<int>(bodies.size()))
+            byBody[e.body].push_back(e.edge);
+    }
+    for (const auto& [body, list] : byBody) {
+        Maker maker(bodies[body]);
+        for (const TopoDS_Edge& edge : list)
+            maker.Add(size, edge);
+        try {
+            maker.Build();
+        } catch (const Standard_Failure&) {
+        }
+        if (!maker.IsDone() || !BRepCheck_Analyzer(maker.Shape()).IsValid()) {
+            result.error = failure;
+            return result;
+        }
+        result.bodies[body] = maker.Shape();
+    }
+    return result;
+}
+
+} // namespace
+
+std::optional<gp_Dir> planarNormal(const TopoDS_Face& face)
+{
+    const BRepAdaptor_Surface surface(face, false);
+    if (surface.GetType() != GeomAbs_Plane)
+        return std::nullopt;
+    gp_Dir n = surface.Plane().Axis().Direction();
+    if (face.Orientation() == TopAbs_REVERSED)
+        n.Reverse();
+    return n;
+}
+
+std::optional<std::pair<gp_Pnt, gp_Dir>> edgeHandle(const TopoDS_Shape& body, const TopoDS_Edge& edge)
+{
+    TopTools_IndexedDataMapOfShapeListOfShape faces;
+    TopExp::MapShapesAndAncestors(body, TopAbs_EDGE, TopAbs_FACE, faces);
+    const int index = faces.FindIndex(edge);
+    if (index == 0 || faces(index).Extent() != 2)
+        return std::nullopt;
+
+    const BRepAdaptor_Curve curve(edge);
+    const gp_Pnt middle = curve.Value((curve.FirstParameter() + curve.LastParameter()) / 2.0);
+
+    // Outward normals of both faces at the edge's middle; into the material is minus their sum.
+    gp_Vec sum(0, 0, 0);
+    for (const TopoDS_Shape& f : faces(index)) {
+        const TopoDS_Face face = TopoDS::Face(f);
+        const Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        const gp_Pnt2d uv = ShapeAnalysis_Surface(surface).ValueOfUV(middle, 1e-7);
+        BRepLProp_SLProps props(BRepAdaptor_Surface(face), uv.X(), uv.Y(), 1, 1e-9);
+        if (!props.IsNormalDefined())
+            return std::nullopt;
+        gp_Dir n = props.Normal();
+        if (face.Orientation() == TopAbs_REVERSED)
+            n.Reverse();
+        sum += gp_Vec(n);
+    }
+    if (sum.Magnitude() < 1e-9)
+        return std::nullopt; // the faces are flat to each other: no corner to round
+    return std::pair(middle, gp_Dir(-sum));
+}
+
+double volumeOf(const TopoDS_Shape& shape)
+{
+    GProp_GProps props;
+    BRepGProp::VolumeProperties(shape, props);
+    return std::abs(props.Mass());
+}
+
+ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles,
+                    double distance, BodyOperation operation)
+{
+    ModelResult result;
+    if (profiles.empty() || std::abs(distance) < 1e-9) {
+        result.error = "Nic do wyciągnięcia";
+        return result;
+    }
+
+    // One prism per profile, grouped by the body its face came from (-1: sketch).
+    std::map<int, TopTools_ListOfShape> prisms;
+    for (const Profile& p : profiles) {
+        BRepPrimAPI_MakePrism prism(p.face, gp_Vec(p.normal) * distance);
+        if (!prism.IsDone()) {
+            result.error = "Nie udało się wyciągnąć profilu";
+            return result;
+        }
+        prisms[p.body].Append(prism.Shape());
+    }
+
+    std::vector<TopoDS_Shape> current = bodies;
+    std::set<int> consumed; // bodies replaced by a result
+    std::vector<TopoDS_Shape> added;
+
+    for (auto& [owner, list] : prisms) {
+        // Several touching profiles extrude into one tool.
+        TopoDS_Shape tool = list.First();
+        if (list.Extent() > 1) {
+            TopTools_ListOfShape rest = list;
+            rest.RemoveFirst();
+            const auto fused = boolean(BooleanKind::Union, tool, rest);
+            if (!fused) {
+                result.error = "Nie udało się połączyć profili";
+                return result;
+            }
+            tool = *fused;
+        }
+
+        // Which bodies the tool meets (overlapping, or just touching, e.g. a sketch on a
+        // body's face pulled outward), and what to do with them.
+        std::vector<int> touched;
+        double inside = 0.0;
+        if (owner >= 0) {
+            touched.push_back(owner);
+        } else if (operation != BodyOperation::NewBody) {
+            for (int i = 0; i < static_cast<int>(current.size()); ++i) {
+                if (consumed.count(i))
+                    continue;
+                const double v = overlap(current[i], tool);
+                if (v > kMinVolume || touches(current[i], tool)) {
+                    touched.push_back(i);
+                    inside += v;
+                }
+            }
+        }
+
+        BodyOperation op = operation;
+        if (op == BodyOperation::Auto) {
+            if (owner >= 0)
+                op = distance > 0.0 ? BodyOperation::Join : BodyOperation::Cut;
+            else if (touched.empty())
+                op = BodyOperation::NewBody;
+            else
+                op = inside >= 0.99 * volumeOf(tool) ? BodyOperation::Cut : BodyOperation::Join;
+        }
+        if (touched.empty() && op != BodyOperation::Cut)
+            op = BodyOperation::NewBody;
+
+        switch (op) {
+        case BodyOperation::NewBody:
+            appendSolids(added, tool);
+            break;
+        case BodyOperation::Join: {
+            TopTools_ListOfShape others;
+            for (std::size_t k = 1; k < touched.size(); ++k)
+                others.Append(current[touched[k]]);
+            others.Append(tool);
+            const auto fused = boolean(BooleanKind::Union, current[touched[0]], others);
+            if (!fused) {
+                result.error = "Nie udało się dodać do bryły";
+                return result;
+            }
+            for (int i : touched)
+                consumed.insert(i);
+            appendSolids(added, *fused);
+            break;
+        }
+        case BodyOperation::Cut:
+            if (touched.empty()) {
+                result.error = "Wycięcie nie trafia w żadną bryłę";
+                return result;
+            }
+            for (int i : touched) {
+                const auto cut = boolean(BooleanKind::Subtract, current[i], tool);
+                if (!cut) {
+                    result.error = "Nie udało się odjąć od bryły";
+                    return result;
+                }
+                consumed.insert(i);
+                appendSolids(added, *cut); // may split in pieces, or vanish
+            }
+            break;
+        case BodyOperation::Auto:
+            break;
+        }
+    }
+
+    for (int i = 0; i < static_cast<int>(current.size()); ++i) {
+        if (!consumed.count(i))
+            result.bodies.push_back(current[i]);
+    }
+    result.bodies.insert(result.bodies.end(), added.begin(), added.end());
+    return result;
+}
+
+ModelResult filletEdges(const std::vector<TopoDS_Shape>& bodies, const std::vector<EdgeRef>& edges, double radius)
+{
+    return roundEdges<BRepFilletAPI_MakeFillet>(bodies, edges, radius,
+                                                "Nie da się zaokrąglić – promień za duży dla tych krawędzi");
+}
+
+ModelResult chamferEdges(const std::vector<TopoDS_Shape>& bodies, const std::vector<EdgeRef>& edges,
+                         double distance)
+{
+    return roundEdges<BRepFilletAPI_MakeChamfer>(bodies, edges, distance,
+                                                 "Nie da się sfazować – odległość za duża dla tych krawędzi");
+}
+
+ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<int>& selected, BooleanKind kind)
+{
+    ModelResult result;
+    std::vector<int> unique;
+    for (int i : selected) {
+        if (i >= 0 && i < static_cast<int>(bodies.size()) && std::find(unique.begin(), unique.end(), i) == unique.end())
+            unique.push_back(i);
+    }
+    if (unique.size() < 2) {
+        result.error = "Zaznacz co najmniej dwie bryły";
+        return result;
+    }
+    TopTools_ListOfShape tools;
+    for (std::size_t k = 1; k < unique.size(); ++k)
+        tools.Append(bodies[unique[k]]);
+    const auto shape = boolean(kind, bodies[unique[0]], tools);
+    if (!shape) {
+        result.error = "Operacja na bryłach nie powiodła się";
+        return result;
+    }
+    for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
+        if (std::find(unique.begin(), unique.end(), i) == unique.end())
+            result.bodies.push_back(bodies[i]);
+    }
+    const std::size_t before = result.bodies.size();
+    appendSolids(result.bodies, *shape);
+    if (result.bodies.size() == before && kind == BooleanKind::Intersect)
+        result.error = "Bryły nie mają części wspólnej";
+    return result;
+}

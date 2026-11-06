@@ -13,8 +13,9 @@ PlanarPrs::PlanarPrs(const gp_Ax3& plane, const Style& style)
     : m_plane(plane)
     , m_style(style)
 {
-    // Sketch geometry lies exactly on the grid plane; draw it on top to avoid z-fighting.
-    SetZLayer(Graphic3d_ZLayerId_Topmost);
+    // Sketch geometry lies exactly on the grid plane: draw it in a later layer so it wins
+    // over the grid, but one that keeps the depth buffer, so bodies still hide it.
+    SetZLayer(Graphic3d_ZLayerId_Top);
     SetMutable(true);
 }
 
