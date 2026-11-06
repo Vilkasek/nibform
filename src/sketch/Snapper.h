@@ -12,6 +12,7 @@ struct SnapResult
     Kind kind = Kind::None;
     gp_Pnt2d pos;
     PointId pointId = kNoId;       // set when snapped onto an existing sketch point
+    EntityId entity = kNoId;       // the line whose midpoint was snapped to
     std::vector<Segment2d> guides; // inference lines to show (alignment)
 
     bool snapped() const { return kind != Kind::None; }

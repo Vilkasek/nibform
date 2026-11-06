@@ -1,0 +1,45 @@
+#pragma once
+
+#include <QFrame>
+#include <QPointF>
+
+#include <functional>
+
+class QLabel;
+class QLineEdit;
+
+// A small number field that floats over the 3D view, next to what it edits
+// (Fusion / Shapr3D style). Unlike a modal dialog it never blocks the event loop,
+// so it is safe to open from pointer handlers. Enter or ✓ accepts, Esc or ✕ cancels.
+class ValueEditor : public QFrame
+{
+    Q_OBJECT
+
+public:
+    explicit ValueEditor(QWidget* parent);
+
+    // Shows the field centered near `anchor` (parent coordinates) with `value` selected.
+    // `accept` gets a value within [min, max]; `cancel` runs when the edit is dropped.
+    // Opening again drops the previous edit first.
+    void open(const QString& label, double value, double min, double max, const QPointF& anchor,
+              std::function<void(double)> accept, std::function<void()> cancel = {});
+    void cancel();
+    // Takes the typed value (what Enter does); an invalid one is marked and kept open.
+    void accept();
+    bool isOpen() const { return isVisible(); }
+    QPointF anchor() const { return m_anchor; }
+    // Gives the keyboard back to the field (after a click it chose to ignore).
+    void refocus();
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    QLabel* m_label;
+    QLineEdit* m_edit;
+    double m_min = 0.0;
+    double m_max = 0.0;
+    QPointF m_anchor;
+    std::function<void(double)> m_accept;
+    std::function<void()> m_cancel;
+};

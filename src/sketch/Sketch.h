@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sketch/Constraint.h"
+
 #include <gp_Ax3.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Pnt2d.hxx>
@@ -7,10 +9,6 @@
 #include <optional>
 #include <set>
 #include <vector>
-
-using PointId = int;
-using EntityId = int;
-constexpr int kNoId = -1;
 
 struct SketchPoint
 {
@@ -23,7 +21,8 @@ enum class EntityKind { Line, Circle, Arc };
 // Geometry references points by id, so connected curves share their endpoints.
 //   Line:   a = start, b = end
 //   Circle: c = center, radius
-//   Arc:    c = center, a = start, b = end, counter-clockwise from a to b
+//   Arc:    c = center, a = start, b = end, counter-clockwise from a to b;
+//           `radius` mirrors |c - a| (the solver keeps |c - b| equal to it)
 struct SketchEntity
 {
     EntityId id = kNoId;
@@ -53,25 +52,43 @@ public:
     EntityId addCircle(PointId center, double radius);
     EntityId addArc(PointId center, PointId start, PointId end);
 
-    // Removes the entities and any points nothing references anymore.
+    // Returns the id of an existing identical relation instead of adding a duplicate.
+    ConstraintId addConstraint(SketchConstraint c);
+    void removeConstraints(const std::set<ConstraintId>& ids);
+    SketchConstraint* constraint(ConstraintId id);
+    const SketchConstraint* constraint(ConstraintId id) const;
+
+    // Removes the entities, constraints that refer to them and any points nothing references anymore.
     void removeEntities(const std::set<EntityId>& ids);
+    // Replaces `drop` with `keep` everywhere; false (and no change) if that would collapse an entity.
+    bool mergePoints(PointId keep, PointId drop);
     void clear();
+
+    void setPos(PointId id, const gp_Pnt2d& pos);
+    void setRadius(EntityId id, double radius);
 
     const std::vector<SketchPoint>& points() const { return m_points; }
     const std::vector<SketchEntity>& entities() const { return m_entities; }
+    const std::vector<SketchConstraint>& constraints() const { return m_constraints; }
     const SketchPoint* point(PointId id) const;
     const SketchEntity* entity(EntityId id) const;
+    SketchEntity* entity(EntityId id);
     gp_Pnt2d pos(PointId id) const;
     bool isEmpty() const { return m_entities.empty() && m_points.empty(); }
+    // Entities that use `point` as an endpoint or center.
+    std::vector<EntityId> entitiesAt(PointId point) const;
 
     double distanceTo(const SketchEntity& e, const gp_Pnt2d& p) const;
     // Nearest entity within `tolerance` of `p`.
     std::optional<EntityId> hitTest(const gp_Pnt2d& p, double tolerance) const;
 
 private:
+    const SketchConstraint* findDuplicate(const SketchConstraint& c) const;
+
     gp_Ax3 m_plane;
     std::vector<SketchPoint> m_points;
     std::vector<SketchEntity> m_entities;
+    std::vector<SketchConstraint> m_constraints;
     int m_nextId = 1;
 };
 

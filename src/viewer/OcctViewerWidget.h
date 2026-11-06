@@ -38,12 +38,18 @@ public:
     const Handle(AIS_InteractiveContext)& aisContext() const { return m_context; }
 
     void fitAll();
+    // Background gradient and grid colors for a dark or light UI.
+    void setDark(bool dark);
     void setProjection(V3d_TypeOfOrientation orientation);
     void releaseGraphics();
 
     // Routes the primary pointer (pen tip, left mouse button) to `interaction`
     // before AIS selection; navigation input is unaffected. Not owned.
     void setInteraction(ViewerInteraction* interaction) { m_interaction = interaction; }
+    // Where a model point appears on screen, in logical widget pixels.
+    QPointF project(const gp_Pnt& p) const;
+    // Called by the overlay that sits on top of the GL surface.
+    void paintOverlay(QPainter& painter);
 
     QSize minimumSizeHint() const override { return {200, 200}; }
     QSize sizeHint() const override { return {1280, 800}; }
@@ -64,6 +70,7 @@ protected:
     void wheelEvent(QWheelEvent* e) override;
     void tabletEvent(QTabletEvent* e) override;
     void keyPressEvent(QKeyEvent* e) override;
+    void resizeEvent(QResizeEvent* e) override;
 
     void handleViewRedraw(const Handle(AIS_InteractiveContext)& ctx,
                           const Handle(V3d_View)& view) override;
@@ -74,6 +81,8 @@ private:
     PointerEvent makePointer(PointerEvent::Source source, const QPointF& pos, double pressure,
                              Qt::KeyboardModifiers modifiers) const;
     Aspect_VKeyMouse navigationButtons(Qt::MouseButtons buttons) const;
+    // True when the view cube is under `pixel`; its clicks go to AIS, not the interaction.
+    bool isViewCubeAt(const Graphic3d_Vec2i& pixel);
     bool handleTouch(QTouchEvent* e);
     bool handleNativeGesture(QNativeGestureEvent* e);
 
@@ -90,6 +99,7 @@ private:
     bool m_coreProfile = true;
     bool m_penDown = false;
     ViewerInteraction* m_interaction = nullptr;
+    QWidget* m_overlay = nullptr;
     bool m_primaryGrab = false; // interaction owns the current primary press
     bool m_debugInput = false;
     bool m_invertScroll = false;

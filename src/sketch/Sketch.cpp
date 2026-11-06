@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace {
 
@@ -108,6 +109,48 @@ EntityId Sketch::addArc(PointId center, PointId start, PointId end)
     return e.id;
 }
 
+const SketchConstraint* Sketch::findDuplicate(const SketchConstraint& c) const
+{
+    // Horizontal/vertical are about the two points, whether or not they came from a line.
+    const bool pointsOnly = c.kind == ConstraintKind::Horizontal || c.kind == ConstraintKind::Vertical;
+    for (const SketchConstraint& existing : m_constraints) {
+        if (existing.kind != c.kind)
+            continue;
+        const bool same = pointsOnly
+            ? (existing.p1 == c.p1 && existing.p2 == c.p2) || (existing.p1 == c.p2 && existing.p2 == c.p1)
+            : sameRelation(existing, c);
+        if (same)
+            return &existing;
+    }
+    return nullptr;
+}
+
+ConstraintId Sketch::addConstraint(SketchConstraint c)
+{
+    if (const SketchConstraint* existing = findDuplicate(c))
+        return existing->id;
+    c.id = m_nextId++;
+    m_constraints.push_back(c);
+    return c.id;
+}
+
+void Sketch::removeConstraints(const std::set<ConstraintId>& ids)
+{
+    std::erase_if(m_constraints, [&](const SketchConstraint& c) { return ids.count(c.id) > 0; });
+}
+
+SketchConstraint* Sketch::constraint(ConstraintId id)
+{
+    auto it = std::find_if(m_constraints.begin(), m_constraints.end(),
+                           [id](const SketchConstraint& c) { return c.id == id; });
+    return it == m_constraints.end() ? nullptr : &*it;
+}
+
+const SketchConstraint* Sketch::constraint(ConstraintId id) const
+{
+    return const_cast<Sketch*>(this)->constraint(id);
+}
+
 void Sketch::removeEntities(const std::set<EntityId>& ids)
 {
     std::erase_if(m_entities, [&](const SketchEntity& e) { return ids.count(e.id) > 0; });
@@ -120,12 +163,99 @@ void Sketch::removeEntities(const std::set<EntityId>& ids)
         }
     }
     std::erase_if(m_points, [&](const SketchPoint& p) { return used.count(p.id) == 0; });
+
+    std::erase_if(m_constraints, [&](const SketchConstraint& c) {
+        for (EntityId e : {c.e1, c.e2}) {
+            if (e != kNoId && !entity(e))
+                return true;
+        }
+        for (PointId p : {c.p1, c.p2}) {
+            if (p != kNoId && !point(p))
+                return true;
+        }
+        return false;
+    });
+}
+
+bool Sketch::mergePoints(PointId keep, PointId drop)
+{
+    if (keep == drop || !point(keep) || !point(drop))
+        return false;
+    auto remap = [&](PointId p) { return p == drop ? keep : p; };
+
+    for (const SketchEntity& e : m_entities) {
+        const PointId a = remap(e.a), b = remap(e.b), c = remap(e.c);
+        const bool collapses = (e.kind == EntityKind::Line && a == b)
+                            || (e.kind == EntityKind::Arc && (a == b || a == c || b == c));
+        if (collapses)
+            return false;
+    }
+
+    for (SketchEntity& e : m_entities) {
+        e.a = remap(e.a);
+        e.b = remap(e.b);
+        e.c = remap(e.c);
+    }
+    std::erase_if(m_points, [&](const SketchPoint& p) { return p.id == drop; });
+
+    std::vector<SketchConstraint> old = std::move(m_constraints);
+    m_constraints.clear();
+    for (SketchConstraint c : old) {
+        c.p1 = remap(c.p1);
+        c.p2 = remap(c.p2);
+        const bool degenerate = [&] {
+            switch (c.kind) {
+            case ConstraintKind::Horizontal:
+            case ConstraintKind::Vertical:
+            case ConstraintKind::Distance:
+                return c.p1 == c.p2;
+            case ConstraintKind::PointOnEntity:
+            case ConstraintKind::PointLineDistance:
+            case ConstraintKind::Midpoint: {
+                const SketchEntity* e = entity(c.e1);
+                return !e || c.p1 == e->a || c.p1 == e->b || c.p1 == e->c;
+            }
+            default:
+                return false;
+            }
+        }();
+        if (!degenerate && !findDuplicate(c))
+            m_constraints.push_back(c);
+    }
+    return true;
 }
 
 void Sketch::clear()
 {
     m_points.clear();
     m_entities.clear();
+    m_constraints.clear();
+}
+
+void Sketch::setPos(PointId id, const gp_Pnt2d& pos)
+{
+    for (SketchPoint& p : m_points) {
+        if (p.id == id)
+            p.pos = pos;
+    }
+}
+
+void Sketch::setRadius(EntityId id, double radius)
+{
+    for (SketchEntity& e : m_entities) {
+        if (e.id == id)
+            e.radius = radius;
+    }
+}
+
+std::vector<EntityId> Sketch::entitiesAt(PointId point) const
+{
+    std::vector<EntityId> out;
+    for (const SketchEntity& e : m_entities) {
+        if (e.a == point || e.b == point || e.c == point)
+            out.push_back(e.id);
+    }
+    return out;
 }
 
 const SketchPoint* Sketch::point(PointId id) const
@@ -138,6 +268,11 @@ const SketchEntity* Sketch::entity(EntityId id) const
 {
     auto it = std::find_if(m_entities.begin(), m_entities.end(), [id](const SketchEntity& e) { return e.id == id; });
     return it == m_entities.end() ? nullptr : &*it;
+}
+
+SketchEntity* Sketch::entity(EntityId id)
+{
+    return const_cast<SketchEntity*>(std::as_const(*this).entity(id));
 }
 
 gp_Pnt2d Sketch::pos(PointId id) const

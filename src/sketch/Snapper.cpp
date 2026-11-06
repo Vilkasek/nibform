@@ -34,6 +34,7 @@ SnapResult Snapper::snap(const Sketch& sketch, const gp_Pnt2d& raw, double point
             bestMid = d;
             result.kind = SnapResult::Kind::Midpoint;
             result.pos = mid;
+            result.entity = e.id;
         }
     }
     if (result.kind == SnapResult::Kind::Midpoint)

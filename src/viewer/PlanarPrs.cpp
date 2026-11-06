@@ -50,6 +50,7 @@ void PlanarPrs::Compute(const Handle(PrsMgr_PresentationManager)&,
     };
 
     addSegments(m_list.segments, m_style.color);
+    addSegments(m_list.definedSegments, m_style.definedColor);
     addSegments(m_list.accentSegments, m_style.accentColor);
     addPoints(m_list.points, m_style.color, m_style.pointScale);
     addPoints(m_list.accentPoints, m_style.accentColor, std::max(1.0, m_style.pointScale) * 1.6);

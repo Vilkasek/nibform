@@ -17,11 +17,14 @@ void appendArc(std::vector<Segment2d>& out, const gp_Pnt2d& center, double radiu
     }
 }
 
-DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent)
+DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent, const std::set<EntityId>& defined,
+                    const std::set<PointId>& accentPoints)
 {
     DrawList list;
     for (const SketchEntity& e : sketch.entities()) {
-        std::vector<Segment2d>& out = accent.count(e.id) ? list.accentSegments : list.segments;
+        std::vector<Segment2d>& out = accent.count(e.id)    ? list.accentSegments
+                                    : defined.count(e.id) ? list.definedSegments
+                                                          : list.segments;
         switch (e.kind) {
         case EntityKind::Line:
             out.push_back({sketch.pos(e.a), sketch.pos(e.b)});
@@ -43,6 +46,6 @@ DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent)
         }
     }
     for (const SketchPoint& p : sketch.points())
-        list.points.push_back(p.pos);
+        (accentPoints.count(p.id) ? list.accentPoints : list.points).push_back(p.pos);
     return list;
 }

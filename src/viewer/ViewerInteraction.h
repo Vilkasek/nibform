@@ -6,6 +6,7 @@
 #include <Qt>
 
 class QKeyEvent;
+class QPainter;
 
 struct PointerEvent
 {
@@ -33,4 +34,6 @@ public:
     virtual bool release(const PointerEvent& e) = 0;
     virtual bool leave() { return false; }
     virtual bool key(QKeyEvent* e) { return false; }
+    // Screen-space drawing on top of the 3D view, in logical pixels (labels, dimensions).
+    virtual void paintOverlay(QPainter& painter) {}
 };

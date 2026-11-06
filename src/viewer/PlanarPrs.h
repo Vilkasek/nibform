@@ -20,6 +20,7 @@ public:
         double lineWidth = 2.0;
         Aspect_TypeOfLine lineType = Aspect_TOL_SOLID;
         double pointScale = 1.0; // 0 hides plain points
+        Quantity_Color definedColor = Quantity_NOC_BLACK; // fully constrained geometry
     };
 
     PlanarPrs(const gp_Ax3& plane, const Style& style);

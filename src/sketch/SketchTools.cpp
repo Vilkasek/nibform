@@ -1,5 +1,8 @@
 #include "sketch/SketchTools.h"
 
+#include "sketch/Offset.h"
+#include "sketch/Trim.h"
+
 #include <cmath>
 
 namespace {
@@ -78,9 +81,9 @@ private:
         const SnapResult start = *m_start;
         PointId endId = kNoId;
         m_host.commit([&](Sketch& sketch) {
-            const PointId a = resolve(sketch, start);
-            endId = resolve(sketch, end);
-            sketch.addLine(a, endId);
+            const PointId a = resolveConstrained(sketch, start);
+            endId = resolveConstrained(sketch, end);
+            constrainAxis(sketch, a, endId, sketch.addLine(a, endId));
         });
 
         if (end.pointId != kNoId) {
@@ -183,14 +186,15 @@ protected:
             return;
 
         m_host.commit([&](Sketch& sketch) {
-            const PointId p1 = resolve(sketch, first);
+            const PointId p1 = resolveConstrained(sketch, first);
             const PointId p2 = sketch.pointAt(gp_Pnt2d(c.X(), a.Y()));
-            const PointId p3 = resolve(sketch, second);
+            const PointId p3 = resolveConstrained(sketch, second);
             const PointId p4 = sketch.pointAt(gp_Pnt2d(a.X(), c.Y()));
-            sketch.addLine(p1, p2);
-            sketch.addLine(p2, p3);
-            sketch.addLine(p3, p4);
-            sketch.addLine(p4, p1);
+            // Corners are built aligned, so every side gets its horizontal / vertical.
+            constrainAxis(sketch, p1, p2, sketch.addLine(p1, p2));
+            constrainAxis(sketch, p2, p3, sketch.addLine(p2, p3));
+            constrainAxis(sketch, p3, p4, sketch.addLine(p3, p4));
+            constrainAxis(sketch, p4, p1, sketch.addLine(p4, p1));
         });
     }
 };
@@ -222,7 +226,7 @@ protected:
         const double r = center.pos.Distance(rim.pos);
         if (r < kMinSize)
             return;
-        m_host.commit([&](Sketch& sketch) { sketch.addCircle(resolve(sketch, center), r); });
+        m_host.commit([&](Sketch& sketch) { sketch.addCircle(resolveConstrained(sketch, center), r); });
     }
 };
 
@@ -323,8 +327,8 @@ private:
         const bool ccw = isOnCcwArc(*center, start.pos, end.pos, through.pos);
         m_host.commit([&](Sketch& sketch) {
             const PointId c = sketch.pointAt(*center);
-            const PointId a = resolve(sketch, start);
-            const PointId b = resolve(sketch, end);
+            const PointId a = resolveConstrained(sketch, start);
+            const PointId b = resolveConstrained(sketch, end);
             if (ccw)
                 sketch.addArc(c, a, b);
             else
@@ -338,7 +342,225 @@ private:
     bool m_pressStarted = false;
 };
 
+// Fusion-style trim: the piece of curve between its nearest crossings is highlighted
+// under the pointer; a tap removes it, a stroke removes every piece it passes over.
+class TrimTool : public SketchTool
+{
+public:
+    using SketchTool::SketchTool;
+
+    void press(const SnapResult& s) override
+    {
+        m_down = true;
+        m_stroke = false;
+        trimAt(s.pos);
+    }
+
+    void release(const SnapResult&, bool) override
+    {
+        m_down = false;
+        m_stroke = false;
+    }
+
+    void hover(const SnapResult& s) override
+    {
+        SketchTool::hover(s);
+        if (m_down)
+            trimAt(s.pos);
+    }
+
+    bool cancel() override
+    {
+        m_down = false;
+        m_stroke = false;
+        return false; // nothing to abandon: every trim is already done
+    }
+
+    void preview(DrawList& out) const override
+    {
+        if (auto piece = findTrimPiece(m_host.sketch(), m_cursor, m_host.pickTolerance()))
+            out.accentSegments = trimPieceSegments(m_host.sketch(), *piece);
+    }
+
+    std::vector<gp_Pnt2d> anchors() const override { return {}; }
+    bool snaps() const override { return false; }
+
+    QString hint() const override
+    {
+        return QStringLiteral("Przytnij: dotknij fragmentu, by go usunąć  ·  przeciągnij przez kilka naraz");
+    }
+
+private:
+    void trimAt(const gp_Pnt2d& pos)
+    {
+        const auto piece = findTrimPiece(m_host.sketch(), pos, m_host.pickTolerance());
+        if (!piece)
+            return;
+        m_host.commit([&](Sketch& sketch) { trim(sketch, *piece); }, m_stroke);
+        m_stroke = true;
+    }
+
+    bool m_down = false;
+    bool m_stroke = false; // a trim already happened in this press-drag
+};
+
+// Offset: tap a curve to take its whole connected chain, then the copy follows the
+// pointer (the side and rough distance); the next tap asks for the exact distance.
+class OffsetTool : public SketchTool
+{
+public:
+    using SketchTool::SketchTool;
+
+    void press(const SnapResult& s) override
+    {
+        if (m_editing)
+            return;
+        if (m_chain) {
+            m_confirm = true;
+            return;
+        }
+        if (auto id = m_host.sketch().hitTest(s.pos, m_host.pickTolerance()))
+            m_chain = chainFrom(m_host.sketch(), *id);
+        m_picked = m_chain.has_value();
+        m_failed = false;
+    }
+
+    void release(const SnapResult&, bool dragged) override
+    {
+        const bool finishNow = !m_editing && (m_confirm || (m_picked && dragged));
+        m_confirm = m_picked = false;
+        if (finishNow)
+            finish();
+    }
+
+    bool cancel() override
+    {
+        const bool active = m_chain.has_value();
+        m_chain.reset();
+        m_confirm = m_picked = m_failed = m_editing = false;
+        return active;
+    }
+
+    void preview(DrawList& out) const override
+    {
+        const Sketch& sketch = m_host.sketch();
+        if (!m_chain) {
+            // Show which chain a tap would take.
+            if (auto id = sketch.hitTest(m_cursor, m_host.pickTolerance())) {
+                if (auto chain = chainFrom(sketch, *id))
+                    out.accentSegments = tessellate(sketch, ids(*chain)).accentSegments;
+            }
+            return;
+        }
+        out.accentSegments = tessellate(sketch, ids(*m_chain)).accentSegments;
+        Sketch probe = sketch;
+        const std::vector<EntityId> created = offsetChain(probe, *m_chain, distance());
+        out.segments = tessellate(probe, {created.begin(), created.end()}).accentSegments;
+    }
+
+    std::vector<gp_Pnt2d> anchors() const override { return {}; }
+    bool snaps() const override { return false; }
+
+    QString hint() const override
+    {
+        if (!m_chain)
+            return QStringLiteral("Odsunięcie: dotknij krzywej (weźmie cały połączony łańcuch)");
+        if (m_failed)
+            return QStringLiteral("Odsunięcie: za duże – krzywe by się wywinęły  ·  Esc anuluje");
+        if (m_editing)
+            return QStringLiteral("Odsunięcie: wpisz odległość  ·  Enter zatwierdza, Esc anuluje");
+        return QStringLiteral("Odsunięcie: %1  ·  dotknij, by wpisać dokładną wartość  ·  Esc anuluje")
+            .arg(mm(std::abs(distance())));
+    }
+
+private:
+    static std::set<EntityId> ids(const Chain& chain)
+    {
+        std::set<EntityId> out;
+        for (const ChainLink& link : chain.links)
+            out.insert(link.entity);
+        return out;
+    }
+
+    // Signed: positive to the left of the chain, as offsetChain() expects.
+    // Frozen while the exact value is being typed.
+    double distance() const { return m_editing ? m_frozen : chainSide(m_host.sketch(), *m_chain, m_cursor); }
+
+    void finish()
+    {
+        m_frozen = distance();
+        m_editing = true;
+        const double side = m_frozen < 0.0 ? -1.0 : 1.0;
+        m_host.askValue(
+            QStringLiteral("Odsunięcie [mm]"), std::round(std::abs(m_frozen) * 100.0) / 100.0, 1e-3, 1e6,
+            [this, side](double value) {
+                m_editing = false;
+                apply(side * value);
+            },
+            [this] { m_editing = false; });
+    }
+
+    void apply(double distance)
+    {
+        Sketch probe = m_host.sketch();
+        if (offsetChain(probe, *m_chain, distance).empty()) {
+            m_failed = true;
+            return;
+        }
+        const Chain chain = *m_chain;
+        m_host.commit([&](Sketch& sketch) { offsetChain(sketch, chain, distance); });
+        cancel();
+    }
+
+    std::optional<Chain> m_chain;
+    bool m_picked = false;  // this press took the chain (a drag from here finishes it)
+    bool m_confirm = false; // a second press with a chain taken
+    bool m_editing = false; // the exact value is being typed
+    bool m_failed = false;
+    double m_frozen = 0.0;
+};
+
 } // namespace
+
+PointId SketchTool::resolveConstrained(Sketch& sketch, const SnapResult& s)
+{
+    const PointId id = resolve(sketch, s);
+    SketchConstraint c;
+    c.p1 = id;
+    switch (s.kind) {
+    case SnapResult::Kind::Origin:
+        c.kind = ConstraintKind::Fixed;
+        c.target = gp_Pnt2d(0.0, 0.0);
+        sketch.addConstraint(c);
+        break;
+    case SnapResult::Kind::Midpoint:
+        c.kind = ConstraintKind::Midpoint;
+        c.e1 = s.entity;
+        if (sketch.entity(s.entity))
+            sketch.addConstraint(c);
+        break;
+    default:
+        break;
+    }
+    return id;
+}
+
+void SketchTool::constrainAxis(Sketch& sketch, PointId a, PointId b, EntityId line)
+{
+    const gp_Pnt2d pa = sketch.pos(a);
+    const gp_Pnt2d pb = sketch.pos(b);
+    SketchConstraint c;
+    c.p1 = a;
+    c.p2 = b;
+    c.e1 = line;
+    if (pa.Y() == pb.Y())
+        c.kind = ConstraintKind::Horizontal;
+    else if (pa.X() == pb.X())
+        c.kind = ConstraintKind::Vertical;
+    else
+        return;
+    sketch.addConstraint(c);
+}
 
 std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
 {
@@ -351,6 +573,10 @@ std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
         return std::make_unique<CircleTool>(host);
     case ToolKind::Arc:
         return std::make_unique<ArcTool>(host);
+    case ToolKind::Trim:
+        return std::make_unique<TrimTool>(host);
+    case ToolKind::Offset:
+        return std::make_unique<OffsetTool>(host);
     case ToolKind::Select:
         break;
     }

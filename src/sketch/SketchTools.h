@@ -15,8 +15,15 @@ class SketchToolHost
 public:
     virtual ~SketchToolHost() = default;
     virtual const Sketch& sketch() const = 0;
-    // Records an undo step and applies `change` to the active sketch.
-    virtual void commit(const std::function<void(Sketch&)>& change) = 0;
+    // Records an undo step and applies `change` to the active sketch. With
+    // `extendLastStep` the change joins the previous step (one stroke, one undo).
+    virtual void commit(const std::function<void(Sketch&)>& change, bool extendLastStep = false) = 0;
+    // How close (in sketch units) the pointer must be to pick a curve.
+    virtual double pickTolerance() const = 0;
+    // Asks the user for a number without blocking: `accept` runs with it, or
+    // `cancel` when the user drops it (or the tool is switched away first).
+    virtual void askValue(const QString& label, double value, double min, double max,
+                          std::function<void(double)> accept, std::function<void()> cancel) = 0;
 };
 
 // A drawing tool. Every tool accepts both input styles Shapr3D users expect:
@@ -37,17 +44,23 @@ public:
     // Points the snapper should offer horizontal/vertical alignment against.
     virtual std::vector<gp_Pnt2d> anchors() const = 0;
     virtual QString hint() const = 0;
+    // Whether the pointer should snap to points and alignments for this tool.
+    virtual bool snaps() const { return true; }
 
 protected:
     static PointId resolve(Sketch& sketch, const SnapResult& s)
     {
         return s.pointId != kNoId ? s.pointId : sketch.pointAt(s.pos);
     }
+    // resolve() plus whatever the snap implied: pinned to the origin, or a line's midpoint.
+    static PointId resolveConstrained(Sketch& sketch, const SnapResult& s);
+    // Horizontal / vertical when the two points line up exactly (alignment snapping).
+    static void constrainAxis(Sketch& sketch, PointId a, PointId b, EntityId line);
 
     SketchToolHost& m_host;
     gp_Pnt2d m_cursor;
 };
 
-enum class ToolKind { Select, Line, Rectangle, Circle, Arc };
+enum class ToolKind { Select, Line, Rectangle, Circle, Arc, Trim, Offset };
 
 std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host);

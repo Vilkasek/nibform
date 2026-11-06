@@ -1,8 +1,11 @@
 #include "sketch/SketchEditor.h"
 
 #include "viewer/OcctViewerWidget.h"
+#include "viewer/ValueEditor.h"
 
-#include <QKeyEvent>
+#include <QLineF>
+#include <QPainter>
+#include <QPainterPath>
 
 #include <gp_Vec.hxx>
 
@@ -16,32 +19,139 @@ constexpr double kPointSnapPx = 12.0;
 constexpr double kAlignSnapPx = 8.0;
 constexpr double kHitPx = 10.0;
 constexpr double kDragThresholdPx = 6.0;
+constexpr double kDimensionOffsetPx = 40.0; // clears the relation glyphs next to a line
 
-const Quantity_Color kSketchColor(0.10, 0.12, 0.16, Quantity_TOC_sRGB);
-const Quantity_Color kInactiveColor(0.45, 0.48, 0.53, Quantity_TOC_sRGB);
-const Quantity_Color kAccentColor(0.98, 0.45, 0.09, Quantity_TOC_sRGB);
-const Quantity_Color kPreviewColor(0.13, 0.42, 0.95, Quantity_TOC_sRGB);
+Quantity_Color srgb(double r, double g, double b)
+{
+    return Quantity_Color(r, g, b, Quantity_TOC_sRGB);
+}
+
+// Light background: dark ink. Dark background: light ink, same hues.
+const SketchEditor::Colors kLightColors{
+    srgb(0.10, 0.12, 0.16), srgb(0.05, 0.47, 0.30), srgb(0.45, 0.48, 0.53), srgb(0.98, 0.45, 0.09),
+    srgb(0.13, 0.42, 0.95), srgb(0.90, 0.16, 0.16),
+    QColor(52, 60, 74), QColor(40, 72, 140), QColor(250, 115, 23), QColor(255, 255, 255, 235),
+};
+const SketchEditor::Colors kDarkColors{
+    srgb(0.86, 0.88, 0.91), srgb(0.38, 0.82, 0.58), srgb(0.44, 0.47, 0.52), srgb(1.00, 0.56, 0.20),
+    srgb(0.40, 0.64, 1.00), srgb(1.00, 0.38, 0.38),
+    QColor(210, 216, 226), QColor(140, 180, 255), QColor(255, 140, 60), QColor(32, 34, 38, 235),
+};
+
+QPointF unit(const QPointF& v)
+{
+    const double len = std::hypot(v.x(), v.y());
+    return len > 1e-9 ? v / len : QPointF(1.0, 0.0);
+}
+
+// Small vector icons, so the glyphs don't depend on which fonts are installed.
+void drawGlyph(QPainter& p, ConstraintKind kind, const QRectF& r, const QColor& ink)
+{
+    const QPointF c = r.center();
+    const double s = r.width() * 0.28;
+    auto at = [&](double x, double y) { return c + QPointF(x * s, y * s); };
+    QPen pen(ink, 1.6);
+    pen.setCapStyle(Qt::RoundCap);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+
+    switch (kind) {
+    case ConstraintKind::Horizontal:
+        p.drawLine(at(-1, 0), at(1, 0));
+        break;
+    case ConstraintKind::Vertical:
+        p.drawLine(at(0, -1), at(0, 1));
+        break;
+    case ConstraintKind::Parallel:
+        p.drawLine(at(-0.8, 1), at(-0.1, -1));
+        p.drawLine(at(0.1, 1), at(0.8, -1));
+        break;
+    case ConstraintKind::Perpendicular:
+        p.drawLine(at(-1, 0.9), at(1, 0.9));
+        p.drawLine(at(0, 0.9), at(0, -1));
+        break;
+    case ConstraintKind::Equal:
+        p.drawLine(at(-1, -0.4), at(1, -0.4));
+        p.drawLine(at(-1, 0.4), at(1, 0.4));
+        break;
+    case ConstraintKind::Tangent:
+        p.drawEllipse(at(0, -0.3), 0.65 * s, 0.65 * s);
+        p.drawLine(at(-1, 0.35), at(1, 0.35));
+        break;
+    case ConstraintKind::Concentric:
+        p.drawEllipse(c, s, s);
+        p.drawEllipse(c, 0.45 * s, 0.45 * s);
+        break;
+    case ConstraintKind::PointOnEntity:
+        p.drawArc(QRectF(at(-1, -0.2), at(1, 1.8)), 30 * 16, 120 * 16);
+        p.setBrush(ink);
+        p.drawEllipse(at(0, -0.2), 0.3 * s, 0.3 * s);
+        break;
+    case ConstraintKind::Midpoint:
+        p.drawLine(at(-1, 0), at(1, 0));
+        p.drawLine(at(-1, -0.5), at(-1, 0.5));
+        p.drawLine(at(1, -0.5), at(1, 0.5));
+        p.setBrush(ink);
+        p.drawEllipse(c, 0.3 * s, 0.3 * s);
+        break;
+    case ConstraintKind::Fixed:
+        p.drawArc(QRectF(at(-0.5, -1), at(0.5, 0.2)), 0, 180 * 16);
+        p.setBrush(ink);
+        p.drawRoundedRect(QRectF(at(-0.8, -0.4), at(0.8, 0.9)), 1.5, 1.5);
+        break;
+    default:
+        break;
+    }
+}
+
+void drawArrow(QPainter& p, const QPointF& tip, const QPointF& from, const QColor& ink)
+{
+    const QPointF d = unit(tip - from);
+    const QPointF n(-d.y(), d.x());
+    QPainterPath head;
+    head.moveTo(tip);
+    head.lineTo(tip - d * 8.0 + n * 3.0);
+    head.lineTo(tip - d * 8.0 - n * 3.0);
+    head.closeSubpath();
+    p.fillPath(head, ink);
+}
+
+QString dimensionText(const SketchConstraint& c)
+{
+    switch (c.kind) {
+    case ConstraintKind::Radius:
+        return QStringLiteral("R %1").arg(c.value, 0, 'f', 2);
+    case ConstraintKind::Diameter:
+        return QStringLiteral("Ø %1").arg(c.value, 0, 'f', 2);
+    case ConstraintKind::Angle:
+        return QStringLiteral("%1°").arg(std::abs(c.value) * 180.0 / M_PI, 0, 'f', 1);
+    default:
+        return QString::number(std::abs(c.value), 'f', 2);
+    }
+}
 
 } // namespace
 
 SketchEditor::SketchEditor(OcctViewerWidget* viewer, QObject* parent)
     : QObject(parent)
     , m_viewer(viewer)
+    , m_valueEditor(new ValueEditor(viewer))
+    , m_colors(kLightColors)
 {
     const double dpr = viewer->devicePixelRatioF();
     const auto& ctx = viewer->aisContext();
 
     for (SketchPlane plane : {SketchPlane::XY, SketchPlane::XZ, SketchPlane::YZ}) {
         Slot slot{plane, Sketch(planeAxes(plane)), nullptr};
-        slot.prs = new PlanarPrs(slot.sketch.plane(), {kSketchColor, kAccentColor, 2.0 * dpr});
+        slot.prs = new PlanarPrs(slot.sketch.plane(), {m_colors.sketch, m_colors.accent, 2.0 * dpr});
         ctx->Display(slot.prs, 0, -1, false);
         m_slots.push_back(std::move(slot));
     }
 
     m_previewPrs = new PlanarPrs(planeAxes(SketchPlane::XY),
-                                 {kPreviewColor, kPreviewColor, 2.0 * dpr, Aspect_TOL_SOLID, 0.0});
+                                 {m_colors.preview, m_colors.preview, 2.0 * dpr, Aspect_TOL_SOLID, 0.0});
     m_overlayPrs = new PlanarPrs(planeAxes(SketchPlane::XY),
-                                 {kAccentColor, kAccentColor, 1.0 * dpr, Aspect_TOL_DASH, 0.0});
+                                 {m_colors.accent, m_colors.accent, 1.0 * dpr, Aspect_TOL_DASH, 0.0});
     ctx->Display(m_previewPrs, 0, -1, false);
     ctx->Display(m_overlayPrs, 0, -1, false);
 
@@ -49,6 +159,27 @@ SketchEditor::SketchEditor(OcctViewerWidget* viewer, QObject* parent)
 }
 
 SketchEditor::~SketchEditor() = default;
+
+void SketchEditor::setDark(bool dark)
+{
+    m_colors = dark ? kDarkColors : kLightColors;
+    m_overlayPrs->setStyle({m_colors.accent, m_colors.accent, 1.0 * m_viewer->devicePixelRatioF(),
+                            Aspect_TOL_DASH, 0.0});
+    updatePreviewStyle();
+    refreshSketches();
+    refreshOverlay();
+    m_viewer->update();
+}
+
+void SketchEditor::updatePreviewStyle()
+{
+    // Trim and offset highlight the curves they act on thickly (trim in red, as it deletes),
+    // so the highlight shows around the sketch lines it sits on. The rest preview in blue.
+    const bool trim = m_toolKind == ToolKind::Trim;
+    const bool thick = trim || m_toolKind == ToolKind::Offset;
+    m_previewPrs->setStyle({m_colors.preview, trim ? m_colors.trim : m_colors.preview,
+                            (thick ? 4.0 : 2.0) * m_viewer->devicePixelRatioF(), Aspect_TOL_SOLID, 0.0});
+}
 
 gp_Ax3 SketchEditor::planeAxes(SketchPlane plane)
 {
@@ -67,12 +198,14 @@ gp_Ax3 SketchEditor::planeAxes(SketchPlane plane)
 
 void SketchEditor::setTool(ToolKind kind)
 {
+    m_valueEditor->cancel(); // may call back into the old tool, so before it goes
     if (m_tool)
         m_tool->cancel();
     m_toolKind = kind;
     m_tool = makeTool(kind, *this);
+    updatePreviewStyle();
     m_snap.reset();
-    m_hover.reset();
+    m_hover = {};
     if (kind != ToolKind::Select)
         setSelection({});
 
@@ -103,16 +236,22 @@ void SketchEditor::setPlane(SketchPlane plane)
     if (!m_viewer->view().IsNull())
         m_viewer->view()->Invalidate();
 
+    sketchChanged();
     refreshSketches();
     refreshOverlay();
     m_viewer->update();
 }
 
-void SketchEditor::commit(const std::function<void(Sketch&)>& change)
+void SketchEditor::commit(const std::function<void(Sketch&)>& change, bool extendLastStep)
 {
-    m_undo.push_back({m_active, m_slots[m_active].sketch});
+    m_valueEditor->cancel(); // a pending value would apply to a sketch that no longer exists
+    if (!extendLastStep || m_undo.empty() || m_undo.back().slot != m_active)
+        m_undo.push_back({m_active, m_slots[m_active].sketch});
     m_redo.clear();
-    change(m_slots[m_active].sketch);
+    Sketch& s = m_slots[m_active].sketch;
+    change(s);
+    m_analysis = solve(s);
+    updateStatus();
     refreshSketches();
     emit historyChanged();
 }
@@ -129,6 +268,7 @@ void SketchEditor::undo()
     // Tools may hold point ids that no longer exist.
     resetInteraction();
     setSelection({});
+    sketchChanged();
     refreshSketches();
     refreshOverlay();
     m_viewer->update();
@@ -146,6 +286,7 @@ void SketchEditor::redo()
 
     resetInteraction();
     setSelection({});
+    sketchChanged();
     refreshSketches();
     refreshOverlay();
     m_viewer->update();
@@ -156,10 +297,18 @@ void SketchEditor::deleteSelection()
 {
     if (m_selection.empty())
         return;
-    const std::set<EntityId> doomed = m_selection;
+    const SketchSelection doomed = m_selection;
+    std::set<EntityId> entities = doomed.entities;
+    for (PointId p : doomed.points) {
+        for (EntityId e : sketch().entitiesAt(p))
+            entities.insert(e);
+    }
     setSelection({});
-    m_hover.reset();
-    commit([&](Sketch& s) { s.removeEntities(doomed); });
+    m_hover = {};
+    commit([&](Sketch& s) {
+        s.removeConstraints(doomed.constraints);
+        s.removeEntities(entities);
+    });
     m_viewer->update();
 }
 
@@ -172,6 +321,138 @@ void SketchEditor::clearActiveSketch()
     commit([](Sketch& s) { s.clear(); });
     refreshOverlay();
     m_viewer->update();
+}
+
+bool SketchEditor::canApply(ConstraintCommand command) const
+{
+    if (m_selection.points.empty() && m_selection.entities.empty())
+        return false;
+    Sketch probe = sketch();
+    return applyCommand(command, probe, m_selection, 1.0).applied;
+}
+
+void SketchEditor::applyConstraint(ConstraintCommand command)
+{
+    if (m_selection.points.empty() && m_selection.entities.empty()) {
+        emit message(tr("Najpierw zaznacz geometrię, potem wybierz więz"));
+        return;
+    }
+
+    Sketch candidate = sketch();
+    const std::size_t constraintsBefore = candidate.constraints().size();
+    const CommandResult r =
+        applyCommand(command, candidate, m_selection, pixelsToModel(kDimensionOffsetPx));
+    if (!r.applied) {
+        emit message(tr("Ten więz nie pasuje do zaznaczenia"));
+        return;
+    }
+    const bool merged = candidate.points().size() < sketch().points().size();
+    if (!merged && candidate.constraints().size() == constraintsBefore) {
+        emit message(tr("Ten więz już istnieje"));
+        return;
+    }
+
+    auto apply = [this](Sketch& next) {
+        if (!validate(next))
+            return;
+        commit([&](Sketch& s) { s = std::move(next); });
+        setSelection({});
+        refreshSketches();
+        m_viewer->update();
+    };
+    if (r.dimension == kNoId) {
+        apply(candidate);
+        return;
+    }
+
+    // Reject a redundant dimension before asking for its value.
+    Sketch probe = candidate;
+    if (!validate(probe))
+        return;
+    const ConstraintId dimension = r.dimension;
+    promptDimension(*candidate.constraint(dimension), m_pointerPos,
+                    [apply, candidate, dimension](double value) mutable {
+                        candidate.constraint(dimension)->value = value;
+                        apply(candidate);
+                    });
+}
+
+void SketchEditor::editDimension(ConstraintId id)
+{
+    const SketchConstraint* c = sketch().constraint(id);
+    if (!c || !isDimension(c->kind))
+        return;
+    // Over the dimension's own label, so a double tap lands on the field, not past it.
+    QPointF anchor = m_pointerPos;
+    for (const Label& label : m_labels) {
+        if (label.id == id)
+            anchor = label.rect.center();
+    }
+    promptDimension(*c, anchor, [this, id](double value) {
+        Sketch candidate = sketch();
+        candidate.constraint(id)->value = value;
+        if (validate(candidate)) {
+            commit([&](Sketch& s) { s = std::move(candidate); });
+            m_viewer->update();
+        }
+    });
+}
+
+bool SketchEditor::validate(Sketch& candidate)
+{
+    const SolveResult after = solve(candidate);
+    if (!after.ok) {
+        emit message(tr("Więzy są sprzeczne – zmiana odrzucona"));
+        return false;
+    }
+    // Each new equation (and each merged point) should take away one degree of freedom;
+    // if fewer went, the change only restates something already determined.
+    const int expected = (after.equations - m_analysis.equations) + (m_analysis.variables - after.variables);
+    if (m_analysis.dof - after.dof < expected) {
+        emit message(tr("Więz nadmiarowy – ta geometria jest już określona"));
+        return false;
+    }
+    return true;
+}
+
+void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anchor,
+                                   std::function<void(double)> accepted)
+{
+    const double current = measure(sketch(), c);
+    // Distances to a line and angles are signed: keep the side / turning direction.
+    const double sign = current < 0.0 ? -1.0 : 1.0;
+    QString label;
+    double shown = std::abs(current);
+    double max = 1e6;
+    double toSolver = 1.0;
+    switch (c.kind) {
+    case ConstraintKind::Distance:
+        label = tr("Długość [mm]");
+        break;
+    case ConstraintKind::PointLineDistance:
+    case ConstraintKind::LineDistance:
+        label = tr("Odległość [mm]");
+        break;
+    case ConstraintKind::Radius:
+        label = tr("Promień [mm]");
+        break;
+    case ConstraintKind::Diameter:
+        label = tr("Średnica [mm]");
+        break;
+    case ConstraintKind::Angle:
+        label = tr("Kąt [°]");
+        shown *= 180.0 / M_PI;
+        max = 180.0;
+        toSolver = M_PI / 180.0;
+        break;
+    default:
+        return;
+    }
+    m_valueEditor->open(label, shown, 1e-3, max, anchor,
+                        [this, accepted, sign, toSolver](double value) {
+                            accepted(sign * value * toSolver);
+                            m_viewer->update();
+                        });
 }
 
 std::optional<gp_Pnt2d> SketchEditor::toSketch(const Graphic3d_Vec2i& pixel) const
@@ -212,6 +493,41 @@ double SketchEditor::pixelsToModel(const Graphic3d_Vec2i& pixel, double logicalP
     return d;
 }
 
+double SketchEditor::pixelsToModel(double logicalPixels) const
+{
+    const double dpr = m_viewer->devicePixelRatioF();
+    const Graphic3d_Vec2i center(qRound(m_viewer->width() * dpr / 2.0), qRound(m_viewer->height() * dpr / 2.0));
+    const double d = pixelsToModel(center, logicalPixels);
+    return d > 0.0 ? d : logicalPixels * 0.2;
+}
+
+void SketchEditor::askValue(const QString& label, double value, double min, double max,
+                            std::function<void(double)> accept, std::function<void()> cancel)
+{
+    auto refresh = [this] {
+        refreshOverlay();
+        updateHint();
+        m_viewer->update();
+    };
+    // Just above the pointer, so the field doesn't cover what is being offset.
+    m_valueEditor->open(label, value, min, max, m_pointerPos - QPointF(0, 40),
+                        [accept, refresh](double v) {
+                            accept(v);
+                            refresh();
+                        },
+                        [cancel, refresh] {
+                            if (cancel)
+                                cancel();
+                            refresh();
+                        });
+    updateHint();
+}
+
+double SketchEditor::pickTolerance() const
+{
+    return pixelsToModel(m_pointerPixel, kHitPx);
+}
+
 SnapResult SketchEditor::snapAt(const PointerEvent& e) const
 {
     SnapResult s;
@@ -220,30 +536,48 @@ SnapResult SketchEditor::snapAt(const PointerEvent& e) const
         return s;
     s.pos = *raw;
     // Alt disables snapping, like most CAD tools.
-    if (e.modifiers & Qt::AltModifier)
+    if ((e.modifiers & Qt::AltModifier) || (m_tool && !m_tool->snaps()))
         return s;
     return m_snapper.snap(sketch(), *raw, pixelsToModel(e.pixel, kPointSnapPx),
                           pixelsToModel(e.pixel, kAlignSnapPx), m_tool ? m_tool->anchors() : std::vector<gp_Pnt2d>{});
 }
 
+SketchEditor::Hit SketchEditor::hitAt(const PointerEvent& e) const
+{
+    // Labels are drawn on top, so they win.
+    for (auto it = m_labels.rbegin(); it != m_labels.rend(); ++it) {
+        if (it->rect.adjusted(-3, -3, 3, 3).contains(e.pos))
+            return {Hit::Kind::Constraint, it->id};
+    }
+    const auto raw = toSketch(e.pixel);
+    if (!raw)
+        return {};
+    const double tolerance = pixelsToModel(e.pixel, kHitPx);
+    if (auto p = sketch().findPoint(*raw, tolerance))
+        return {Hit::Kind::Point, *p};
+    if (auto h = sketch().hitTest(*raw, tolerance))
+        return {Hit::Kind::Entity, *h};
+    return {};
+}
+
 bool SketchEditor::press(const PointerEvent& e)
 {
     m_pressPixel = e.pixel;
-
-    if (!m_tool) {
-        const auto raw = toSketch(e.pixel);
-        const auto hit = raw ? sketch().hitTest(*raw, pixelsToModel(e.pixel, kHitPx)) : std::nullopt;
-        std::set<EntityId> selection = (e.modifiers & Qt::ShiftModifier) ? m_selection : std::set<EntityId>{};
-        if (hit) {
-            if (selection.count(*hit))
-                selection.erase(*hit);
-            else
-                selection.insert(*hit);
+    m_pointerPixel = e.pixel;
+    m_pointerPos = e.pos;
+    if (m_valueEditor->isOpen()) {
+        // The second tap of a double tap lands where the field opened: keep typing.
+        // A tap anywhere else drops the edit, and does nothing more.
+        m_swallowRelease = true;
+        if (QLineF(e.pos, m_valueEditor->anchor()).length() < 30.0) {
+            m_valueEditor->refocus();
+            return false;
         }
-        setSelection(std::move(selection));
-        refreshSketches();
+        m_valueEditor->cancel();
         return true;
     }
+    if (!m_tool)
+        return selectPress(e);
 
     const SnapResult s = snapAt(e);
     m_tool->hover(s);
@@ -256,17 +590,12 @@ bool SketchEditor::press(const PointerEvent& e)
 
 bool SketchEditor::move(const PointerEvent& e, bool pressed)
 {
-    if (!m_tool) {
-        if (pressed)
-            return false;
-        const auto raw = toSketch(e.pixel);
-        const auto hit = raw ? sketch().hitTest(*raw, pixelsToModel(e.pixel, kHitPx)) : std::nullopt;
-        if (hit == m_hover)
-            return false;
-        m_hover = hit;
-        refreshSketches();
-        return true;
-    }
+    m_pointerPixel = e.pixel;
+    m_pointerPos = e.pos;
+    if (pressed && m_swallowRelease)
+        return false;
+    if (!m_tool)
+        return selectMove(e, pressed);
 
     const SnapResult s = snapAt(e);
     m_tool->hover(s);
@@ -278,8 +607,14 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
 
 bool SketchEditor::release(const PointerEvent& e)
 {
-    if (!m_tool)
+    m_pointerPixel = e.pixel;
+    m_pointerPos = e.pos;
+    if (m_swallowRelease) {
+        m_swallowRelease = false;
         return false;
+    }
+    if (!m_tool)
+        return selectRelease(e);
 
     const Graphic3d_Vec2i d = e.pixel - m_pressPixel;
     const double threshold = kDragThresholdPx * m_viewer->devicePixelRatioF();
@@ -294,11 +629,117 @@ bool SketchEditor::release(const PointerEvent& e)
     return true;
 }
 
+bool SketchEditor::selectPress(const PointerEvent& e)
+{
+    m_pressHit = hitAt(e);
+    m_dragging = false;
+    return false;
+}
+
+bool SketchEditor::selectMove(const PointerEvent& e, bool pressed)
+{
+    if (!pressed) {
+        const Hit hit = hitAt(e);
+        if (hit == m_hover)
+            return false;
+        m_hover = hit;
+        refreshSketches();
+        return true;
+    }
+
+    if (m_pressHit.kind != Hit::Kind::Point && m_pressHit.kind != Hit::Kind::Entity)
+        return false;
+
+    if (!m_dragging) {
+        const Graphic3d_Vec2i d = e.pixel - m_pressPixel;
+        const double threshold = kDragThresholdPx * m_viewer->devicePixelRatioF();
+        const auto from = toSketch(m_pressPixel);
+        if (d.x() * d.x() + d.y() * d.y() <= threshold * threshold || !from)
+            return false;
+
+        m_dragFrom = *from;
+        m_dragStart.clear();
+        const Sketch& s = sketch();
+        if (m_pressHit.kind == Hit::Kind::Point) {
+            m_dragStart[m_pressHit.id] = s.pos(m_pressHit.id);
+        } else if (const SketchEntity* ent = s.entity(m_pressHit.id)) {
+            for (PointId p : {ent->a, ent->b, ent->c}) {
+                if (p != kNoId)
+                    m_dragStart[p] = s.pos(p);
+            }
+        }
+        m_valueEditor->cancel();
+        m_undo.push_back({m_active, s});
+        m_redo.clear();
+        m_dragging = true;
+    }
+
+    const auto to = toSketch(e.pixel);
+    if (!to)
+        return false;
+    const gp_Vec2d delta(m_dragFrom, *to);
+    std::map<PointId, gp_Pnt2d> targets;
+    for (const auto& [id, start] : m_dragStart)
+        targets[id] = start.Translated(delta);
+    // Keep the last good state when the constraints can't follow at all.
+    solve(m_slots[m_active].sketch, targets, false);
+    refreshSketches();
+    return true;
+}
+
+bool SketchEditor::selectRelease(const PointerEvent& e)
+{
+    const Hit hit = m_pressHit;
+    m_pressHit = {};
+    if (m_dragging) {
+        m_dragging = false;
+        m_dragStart.clear();
+        sketchChanged();
+        refreshSketches();
+        emit historyChanged();
+        return true;
+    }
+
+    // Tapping a dimension that is already selected opens it for editing.
+    const SketchConstraint* c = hit.kind == Hit::Kind::Constraint ? sketch().constraint(hit.id) : nullptr;
+    if (c && isDimension(c->kind) && m_selection.constraints.count(hit.id)) {
+        editDimension(hit.id);
+        return true;
+    }
+    toggle(hit, true);
+    return true;
+}
+
+void SketchEditor::toggle(const Hit& hit, bool additive)
+{
+    SketchSelection selection = additive ? m_selection : SketchSelection{};
+    auto flip = [](std::set<int>& set, int id) {
+        if (!set.erase(id))
+            set.insert(id);
+    };
+    switch (hit.kind) {
+    case Hit::Kind::None:
+        selection = {};
+        break;
+    case Hit::Kind::Point:
+        flip(selection.points, hit.id);
+        break;
+    case Hit::Kind::Entity:
+        flip(selection.entities, hit.id);
+        break;
+    case Hit::Kind::Constraint:
+        flip(selection.constraints, hit.id);
+        break;
+    }
+    setSelection(std::move(selection));
+    refreshSketches();
+}
+
 bool SketchEditor::leave()
 {
-    const bool had = m_snap.has_value() || m_hover.has_value();
+    const bool had = m_snap.has_value() || m_hover.kind != Hit::Kind::None;
     m_snap.reset();
-    m_hover.reset();
+    m_hover = {};
     if (had) {
         refreshSketches();
         refreshOverlay();
@@ -306,48 +747,68 @@ bool SketchEditor::leave()
     return had;
 }
 
-bool SketchEditor::key(QKeyEvent* e)
+void SketchEditor::cancel()
 {
-    switch (e->key()) {
-    case Qt::Key_Escape:
-        if (m_tool && m_tool->cancel()) {
-            refreshOverlay();
-            updateHint();
-        } else if (m_tool) {
-            setTool(ToolKind::Select);
-        } else {
-            setSelection({});
-            refreshSketches();
-        }
-        return true;
-    case Qt::Key_Return:
-    case Qt::Key_Enter:
-        if (m_tool && m_tool->cancel()) {
-            refreshOverlay();
-            updateHint();
-            return true;
-        }
-        return false;
-    default:
-        return false;
+    if (m_valueEditor->isOpen()) {
+        m_valueEditor->cancel();
+        return;
+    }
+    if (m_tool && m_tool->cancel()) {
+        refreshOverlay();
+        updateHint();
+    } else if (m_tool) {
+        setTool(ToolKind::Select);
+    } else {
+        setSelection({});
+        refreshSketches();
+    }
+    m_viewer->update();
+}
+
+void SketchEditor::confirm()
+{
+    if (m_valueEditor->isOpen()) {
+        m_valueEditor->accept();
+        return;
+    }
+    if (m_tool && m_tool->cancel()) {
+        refreshOverlay();
+        updateHint();
+        m_viewer->update();
+    } else if (!m_tool && m_selection.size() == 1 && m_selection.constraints.size() == 1) {
+        editDimension(*m_selection.constraints.begin());
     }
 }
 
-void SketchEditor::setSelection(std::set<EntityId> selection)
+void SketchEditor::setSelection(SketchSelection selection)
 {
+    // Drop ids that no longer exist (after undo, delete, merge).
+    const Sketch& s = sketch();
+    std::erase_if(selection.points, [&](PointId id) { return !s.point(id); });
+    std::erase_if(selection.entities, [&](EntityId id) { return !s.entity(id); });
+    std::erase_if(selection.constraints, [&](ConstraintId id) { return !s.constraint(id); });
     if (selection == m_selection)
         return;
     m_selection = std::move(selection);
-    emit selectionChanged(static_cast<int>(m_selection.size()));
+    emit selectionChanged();
 }
 
 void SketchEditor::resetInteraction()
 {
+    m_valueEditor->cancel();
     if (m_tool)
         m_tool->cancel();
     m_snap.reset();
-    m_hover.reset();
+    m_hover = {};
+    m_pressHit = {};
+    m_dragging = false;
     updateHint();
+}
+
+void SketchEditor::sketchChanged()
+{
+    m_analysis = analyze(sketch());
+    updateStatus();
 }
 
 void SketchEditor::refreshSketches()
@@ -358,15 +819,23 @@ void SketchEditor::refreshSketches()
         const bool active = i == m_active;
 
         std::set<EntityId> accent;
+        std::set<PointId> accentPoints;
+        std::set<EntityId> defined;
         if (active) {
-            accent = m_selection;
-            if (m_hover)
-                accent.insert(*m_hover);
+            accent = m_selection.entities;
+            accentPoints = m_selection.points;
+            if (m_hover.kind == Hit::Kind::Entity)
+                accent.insert(m_hover.id);
+            if (m_hover.kind == Hit::Kind::Point)
+                accentPoints.insert(m_hover.id);
+            defined = m_analysis.definedEntities;
         }
-        slot.prs->setStyle({active ? kSketchColor : kInactiveColor, kAccentColor,
-                            (active ? 2.0 : 1.5) * m_viewer->devicePixelRatioF(), Aspect_TOL_SOLID,
-                            active ? 1.0 : 0.0});
-        slot.prs->setDrawList(tessellate(slot.sketch, accent));
+        PlanarPrs::Style style{active ? m_colors.sketch : m_colors.inactive, m_colors.accent,
+                               (active ? 2.0 : 1.5) * m_viewer->devicePixelRatioF(), Aspect_TOL_SOLID,
+                               active ? 1.0 : 0.0};
+        style.definedColor = m_colors.defined;
+        slot.prs->setStyle(style);
+        slot.prs->setDrawList(tessellate(slot.sketch, accent, defined, accentPoints));
         ctx->Redisplay(slot.prs, false);
     }
 }
@@ -407,5 +876,267 @@ void SketchEditor::updateHint()
         emit hintChanged(hint);
         return;
     }
-    emit hintChanged(QStringLiteral("Zaznacz: dotknij elementu (Shift dodaje)  ·  Delete usuwa"));
+    emit hintChanged(QStringLiteral("Zaznacz: dotknij, by dodać  ·  przeciągnij, by przesunąć  ·  "
+                                    "zaznaczony wymiar: dotknij, by zmienić"));
+}
+
+void SketchEditor::updateStatus()
+{
+    const Sketch& s = sketch();
+    if (s.entities().empty())
+        emit statusChanged(QString());
+    else if (!m_analysis.ok)
+        emit statusChanged(tr("Szkic: sprzeczne więzy"));
+    else if (m_analysis.dof == 0)
+        emit statusChanged(tr("Szkic w pełni określony"));
+    else
+        emit statusChanged(tr("Szkic: %n st. swobody", nullptr, m_analysis.dof));
+}
+
+void SketchEditor::paintOverlay(QPainter& p)
+{
+    m_labels.clear();
+    const Sketch& s = sketch();
+    auto screen = [&](const gp_Pnt2d& q) { return m_viewer->project(s.to3d(q)); };
+    auto accented = [&](ConstraintId id) {
+        return m_selection.constraints.count(id) || (m_hover.kind == Hit::Kind::Constraint && m_hover.id == id);
+    };
+
+    QFont font = p.font();
+    font.setPointSizeF(9.5);
+    font.setBold(true);
+    p.setFont(font);
+    const QFontMetricsF metrics(font);
+
+    // Draws a value badge centered at `at` and remembers it for picking.
+    auto badge = [&](ConstraintId id, const QPointF& at, const QString& text) {
+        const bool hot = accented(id);
+        const QSizeF size = metrics.size(Qt::TextSingleLine, text) + QSizeF(10, 4);
+        const QRectF rect(at - QPointF(size.width() / 2, size.height() / 2), size);
+        p.setPen(QPen(hot ? m_colors.overlayAccent : m_colors.dimensionInk, 1.0));
+        p.setBrush(hot ? m_colors.overlayAccent : m_colors.badgeFill);
+        p.drawRoundedRect(rect, 4, 4);
+        p.setPen(hot ? Qt::white : m_colors.dimensionInk);
+        p.drawText(rect, Qt::AlignCenter, text);
+        m_labels.push_back({id, rect});
+    };
+
+    // --- Dimensions ------------------------------------------------------------------
+    for (const SketchConstraint& c : s.constraints()) {
+        if (!isDimension(c.kind))
+            continue;
+        const QColor ink = accented(c.id) ? m_colors.overlayAccent : m_colors.dimensionInk;
+        p.setPen(QPen(ink, 1.2));
+        p.setBrush(Qt::NoBrush);
+
+        switch (c.kind) {
+        case ConstraintKind::Distance: {
+            const gp_Pnt2d a = s.pos(c.p1), b = s.pos(c.p2);
+            if (a.Distance(b) < 1e-9)
+                break;
+            const gp_Vec2d d = gp_Vec2d(a, b).Normalized();
+            const gp_Vec2d n(-d.Y(), d.X());
+            const QPointF sa = screen(a), sb = screen(b);
+            const QPointF da = screen(a.Translated(n * c.offset)), db = screen(b.Translated(n * c.offset));
+            const QPointF overshoot = unit(da - sa) * 5.0;
+            p.drawLine(sa, da + overshoot);
+            p.drawLine(sb, db + overshoot);
+            p.drawLine(da, db);
+            drawArrow(p, da, db, ink);
+            drawArrow(p, db, da, ink);
+            badge(c.id, (da + db) / 2.0, dimensionText(c));
+            break;
+        }
+        case ConstraintKind::PointLineDistance:
+        case ConstraintKind::LineDistance: {
+            const SketchEntity* line = s.entity(c.e1);
+            const SketchEntity* other = c.kind == ConstraintKind::LineDistance ? s.entity(c.e2) : nullptr;
+            if (!line || (c.kind == ConstraintKind::LineDistance && !other))
+                break;
+            const gp_Pnt2d a = s.pos(line->a), b = s.pos(line->b);
+            const gp_Vec2d d(a, b);
+            if (d.Magnitude() < 1e-9)
+                break;
+            // From the point (or the other line's middle) straight across to the line.
+            const gp_Pnt2d from = other ? gp_Pnt2d((s.pos(other->a).XY() + s.pos(other->b).XY()) / 2.0)
+                                        : s.pos(c.p1);
+            const double t = gp_Vec2d(a, from).Dot(d) / d.SquareMagnitude();
+            const gp_Pnt2d foot = a.Translated(d * t);
+            const QPointF sf = screen(from), sfoot = screen(foot);
+            p.drawLine(sf, sfoot);
+            drawArrow(p, sf, sfoot, ink);
+            drawArrow(p, sfoot, sf, ink);
+            if (t < 0.0 || t > 1.0) {
+                // The foot lies past the line's end: extend it there, dashed.
+                QPen dashed(ink, 1.0, Qt::DashLine);
+                p.setPen(dashed);
+                p.drawLine(screen(t < 0.0 ? a : b), sfoot);
+                p.setPen(QPen(ink, 1.2));
+            }
+            badge(c.id, (sf + sfoot) / 2.0, dimensionText(c));
+            break;
+        }
+        case ConstraintKind::Radius:
+        case ConstraintKind::Diameter: {
+            const SketchEntity* e = s.entity(c.e1);
+            if (!e)
+                break;
+            const gp_Pnt2d center = s.pos(e->c);
+            const double r = c.kind == ConstraintKind::Radius ? c.value : c.value / 2.0;
+            double angle = c.offset;
+            if (e->kind == EntityKind::Arc) {
+                // Point the leader at the middle of the arc so it always lands on it.
+                const gp_Pnt2d from = s.pos(e->a), to = s.pos(e->b);
+                const double a0 = std::atan2(from.Y() - center.Y(), from.X() - center.X());
+                double sweep = std::atan2(to.Y() - center.Y(), to.X() - center.X()) - a0;
+                if (sweep <= 0.0)
+                    sweep += 2.0 * M_PI;
+                angle = a0 + sweep / 2.0;
+            }
+            const gp_Vec2d u(std::cos(angle), std::sin(angle));
+            const QPointF rim = screen(center.Translated(u * r));
+            const QPointF sc = screen(center);
+            const QPointF start = c.kind == ConstraintKind::Diameter ? screen(center.Translated(-u * r)) : sc;
+            const QPointF label = rim + unit(rim - sc) * 26.0;
+            p.drawLine(start, label);
+            drawArrow(p, rim, sc, ink);
+            if (c.kind == ConstraintKind::Diameter)
+                drawArrow(p, start, sc, ink);
+            badge(c.id, label, dimensionText(c));
+            break;
+        }
+        case ConstraintKind::Angle: {
+            const SketchEntity* e1 = s.entity(c.e1);
+            const SketchEntity* e2 = s.entity(c.e2);
+            if (!e1 || !e2)
+                break;
+            const gp_Vec2d d1 = rayDirection(s, *e1, c.p1);
+            const gp_Vec2d d2 = rayDirection(s, *e2, c.p1);
+            if (d1.Magnitude() < 1e-9 || d2.Magnitude() < 1e-9)
+                break;
+            // Corner: the shared point, else where the two lines meet.
+            gp_Pnt2d corner;
+            if (c.p1 != kNoId) {
+                corner = s.pos(c.p1);
+            } else {
+                const gp_Pnt2d a1 = s.pos(e1->a), a2 = s.pos(e2->a);
+                const double den = d1.Crossed(d2);
+                if (std::abs(den) < 1e-12)
+                    break;
+                const double t = gp_Vec2d(a1, a2).Crossed(d2) / den;
+                corner = a1.Translated(d1 * t);
+            }
+            const QPointF sc = screen(corner);
+            const QPointF r1 = unit(screen(corner.Translated(d1.Normalized())) - sc);
+            const QPointF r2 = unit(screen(corner.Translated(d2.Normalized())) - sc);
+            // Qt angles are counter-clockwise with y pointing up.
+            const double a1 = std::atan2(-r1.y(), r1.x()) * 180.0 / M_PI;
+            double span = std::atan2(-r2.y(), r2.x()) * 180.0 / M_PI - a1;
+            while (span > 180.0)
+                span -= 360.0;
+            while (span <= -180.0)
+                span += 360.0;
+            constexpr double radius = 48.0;
+            p.drawArc(QRectF(sc - QPointF(radius, radius), QSizeF(2 * radius, 2 * radius)),
+                      qRound(a1 * 16.0), qRound(span * 16.0));
+            // Far enough out along the bisector that the badge clears both the arc and the rays.
+            const double mid = (a1 + span / 2.0) * M_PI / 180.0;
+            badge(c.id, sc + QPointF(std::cos(mid), -std::sin(mid)) * (radius + 44.0), dimensionText(c));
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    // --- Relation glyphs, stacked next to what they constrain -------------------------
+    struct Anchor
+    {
+        QPointF pos;
+        QPointF along;
+        QPointF out;
+    };
+    // Key: (0, entity) / (1, point) / (2, constraint for point pairs without a line).
+    std::map<std::pair<int, int>, std::vector<const SketchConstraint*>> groups;
+    for (const SketchConstraint& c : s.constraints()) {
+        if (isDimension(c.kind))
+            continue;
+        switch (c.kind) {
+        case ConstraintKind::Horizontal:
+        case ConstraintKind::Vertical:
+            groups[c.e1 != kNoId && s.entity(c.e1) ? std::pair(0, c.e1) : std::pair(2, c.id)].push_back(&c);
+            break;
+        case ConstraintKind::PointOnEntity:
+        case ConstraintKind::Midpoint:
+        case ConstraintKind::Fixed:
+            groups[{1, c.p1}].push_back(&c);
+            break;
+        default:
+            groups[{0, c.e1}].push_back(&c);
+            if (c.e2 != kNoId)
+                groups[{0, c.e2}].push_back(&c);
+            break;
+        }
+    }
+
+    auto anchorFor = [&](const std::pair<int, int>& key, const SketchConstraint& first) -> std::optional<Anchor> {
+        if (key.first == 1) {
+            if (!s.point(key.second))
+                return std::nullopt;
+            return Anchor{screen(s.pos(key.second)) + QPointF(14, -14), QPointF(1, 0), QPointF(0, 0)};
+        }
+        if (key.first == 2) {
+            const QPointF a = screen(s.pos(first.p1)), b = screen(s.pos(first.p2));
+            const QPointF t = unit(b - a);
+            QPointF n(-t.y(), t.x());
+            if (n.y() > 0)
+                n = -n;
+            return Anchor{(a + b) / 2.0, t, n * 14.0};
+        }
+        const SketchEntity* e = s.entity(key.second);
+        if (!e)
+            return std::nullopt;
+        if (e->kind == EntityKind::Line) {
+            const QPointF a = screen(s.pos(e->a)), b = screen(s.pos(e->b));
+            const QPointF t = unit(b - a);
+            QPointF n(-t.y(), t.x());
+            if (n.y() > 0)
+                n = -n; // keep glyphs above the line on screen
+            return Anchor{(a + b) / 2.0, t, n * 16.0};
+        }
+        // Circles: on top of the rim; arcs: middle of the arc.
+        const gp_Pnt2d center = s.pos(e->c);
+        double angle = M_PI / 2.0;
+        if (e->kind == EntityKind::Arc) {
+            const gp_Pnt2d from = s.pos(e->a), to = s.pos(e->b);
+            const double a0 = std::atan2(from.Y() - center.Y(), from.X() - center.X());
+            double sweep = std::atan2(to.Y() - center.Y(), to.X() - center.X()) - a0;
+            if (sweep <= 0.0)
+                sweep += 2.0 * M_PI;
+            angle = a0 + sweep / 2.0;
+        }
+        const QPointF rim = screen(center.Translated(gp_Vec2d(std::cos(angle), std::sin(angle)) * e->radius));
+        return Anchor{rim, QPointF(1, 0), unit(rim - screen(center)) * 16.0};
+    };
+
+    constexpr double glyph = 18.0;
+    for (const auto& [key, list] : groups) {
+        const auto anchor = anchorFor(key, *list.front());
+        if (!anchor)
+            continue;
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            const SketchConstraint& c = *list[i];
+            const double shift = (static_cast<double>(i) - (key.first == 1 ? 0.0 : (list.size() - 1) / 2.0)) * (glyph + 3.0);
+            const QPointF at = anchor->pos + anchor->out + anchor->along * shift;
+            const QRectF rect(at - QPointF(glyph / 2, glyph / 2), QSizeF(glyph, glyph));
+            const bool hot = accented(c.id);
+            QColor border = m_colors.glyphInk;
+            border.setAlpha(110);
+            p.setPen(QPen(hot ? m_colors.overlayAccent : border, 1.0));
+            p.setBrush(hot ? m_colors.overlayAccent : m_colors.badgeFill);
+            p.drawRoundedRect(rect, 4, 4);
+            drawGlyph(p, c.kind, rect, hot ? Qt::white : m_colors.glyphInk);
+            m_labels.push_back({c.id, rect});
+        }
+    }
 }

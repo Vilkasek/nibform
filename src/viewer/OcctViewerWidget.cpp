@@ -7,6 +7,7 @@
 #include <QNativeGestureEvent>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QPainter>
 #include <QSurfaceFormat>
 #include <QTabletEvent>
 #include <QTouchEvent>
@@ -16,6 +17,7 @@
 #include <Bnd_Box.hxx>
 #include <Graphic3d_Camera.hxx>
 #include <Aspect_DisplayConnection.hxx>
+#include <Aspect_Grid.hxx>
 #include <Aspect_NeutralWindow.hxx>
 #include <Graphic3d_TransformPers.hxx>
 #include <OpenGl_Context.hxx>
@@ -42,6 +44,31 @@ public:
         OpenGl_FrameBuffer::BindDrawBuffer(ctx);
         ctx->SetFrameBufferSRGB(true, false);
     }
+};
+
+// Transparent widget stacked over the GL surface. Drawing text and dimensions
+// with QPainter here keeps them crisp and leaves OCCT's GL state alone.
+class ViewerOverlay : public QWidget
+{
+public:
+    explicit ViewerOverlay(OcctViewerWidget* viewer)
+        : QWidget(viewer)
+        , m_viewer(viewer)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        m_viewer->paintOverlay(painter);
+    }
+
+private:
+    OcctViewerWidget* m_viewer;
 };
 
 // Touchpad scroll units -> screen pixels, and pinch scale delta -> AIS zoom units
@@ -120,9 +147,7 @@ OcctViewerWidget::OcctViewerWidget(QWidget* parent)
 
     m_view = m_viewer->CreateView();
     m_view->SetImmediateUpdate(false);
-    m_view->SetBgGradientColors(Quantity_Color(0.95, 0.96, 0.97, Quantity_TOC_sRGB),
-                                Quantity_Color(0.80, 0.83, 0.87, Quantity_TOC_sRGB),
-                                Aspect_GradientFillMethod_Vertical);
+    setDark(false);
     m_view->ChangeRenderingParams().NbMsaaSamples = 4;
     m_view->ChangeRenderingParams().IsAntialiasingEnabled = true;
 
@@ -142,6 +167,8 @@ OcctViewerWidget::OcctViewerWidget(QWidget* parent)
     setFocusPolicy(Qt::StrongFocus);
     setUpdatesEnabled(true);
     setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+
+    m_overlay = new ViewerOverlay(this);
 
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
@@ -198,12 +225,47 @@ void OcctViewerWidget::fitAll()
     updateView();
 }
 
+void OcctViewerWidget::setDark(bool dark)
+{
+    auto srgb = [](double r, double g, double b) { return Quantity_Color(r, g, b, Quantity_TOC_sRGB); };
+    if (dark) {
+        m_view->SetBgGradientColors(srgb(0.19, 0.20, 0.22), srgb(0.11, 0.12, 0.13), Aspect_GradientFillMethod_Vertical);
+        m_viewer->Grid()->SetColors(srgb(0.28, 0.30, 0.33), srgb(0.38, 0.41, 0.45));
+    } else {
+        m_view->SetBgGradientColors(srgb(0.95, 0.96, 0.97), srgb(0.80, 0.83, 0.87), Aspect_GradientFillMethod_Vertical);
+        m_viewer->Grid()->SetColors(srgb(0.70, 0.72, 0.75), srgb(0.52, 0.55, 0.59));
+    }
+    m_view->Invalidate();
+    update();
+}
+
 void OcctViewerWidget::setProjection(V3d_TypeOfOrientation orientation)
 {
     if (m_view.IsNull())
         return;
     m_view->SetProj(orientation, false);
     fitAll();
+}
+
+QPointF OcctViewerWidget::project(const gp_Pnt& p) const
+{
+    if (m_view.IsNull())
+        return {};
+    const gp_Pnt ndc = m_view->Camera()->Project(p);
+    return {(ndc.X() + 1.0) * 0.5 * width(), (1.0 - ndc.Y()) * 0.5 * height()};
+}
+
+void OcctViewerWidget::paintOverlay(QPainter& painter)
+{
+    if (m_interaction && !m_view.IsNull())
+        m_interaction->paintOverlay(painter);
+}
+
+void OcctViewerWidget::resizeEvent(QResizeEvent* e)
+{
+    QOpenGLWidget::resizeEvent(e);
+    if (m_overlay)
+        m_overlay->setGeometry(rect());
 }
 
 void OcctViewerWidget::initializeGL()
@@ -279,6 +341,10 @@ void OcctViewerWidget::paintGL()
 
     m_view->InvalidateImmediate();
     FlushViewEvents(m_context, m_view, true);
+
+    // The overlay projects model points, so it has to follow every camera change.
+    if (m_overlay)
+        m_overlay->update();
 }
 
 void OcctViewerWidget::handleViewRedraw(const Handle(AIS_InteractiveContext)& ctx,
@@ -288,6 +354,12 @@ void OcctViewerWidget::handleViewRedraw(const Handle(AIS_InteractiveContext)& ct
     // Animations (view cube, inertia) ask for more frames.
     if (myToAskNextFrame)
         updateView();
+}
+
+bool OcctViewerWidget::isViewCubeAt(const Graphic3d_Vec2i& pixel)
+{
+    m_context->MoveTo(pixel.x(), pixel.y(), m_view, false);
+    return m_context->HasDetected() && m_context->DetectedInteractive() == m_viewCube;
 }
 
 Aspect_Drawable OcctViewerWidget::nativeDrawable() const
@@ -354,6 +426,7 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
         }
         switch (point.state()) {
         case QEventPoint::Pressed:
+            setFocus(Qt::MouseFocusReason);
             AddTouchPoint(id, pos);
             break;
         case QEventPoint::Updated:
@@ -398,7 +471,7 @@ void OcctViewerWidget::mousePressEvent(QMouseEvent* e)
     if (m_view.IsNull())
         return;
 
-    if (e->button() == Qt::LeftButton && m_interaction) {
+    if (e->button() == Qt::LeftButton && m_interaction && !isViewCubeAt(toPixels(e->position()))) {
         const PointerEvent pe = makePointer(PointerEvent::Source::Mouse, e->position(), 1.0, e->modifiers());
         if (m_interaction->wantsPress(pe)) {
             m_primaryGrab = true;
@@ -575,7 +648,9 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
     if (m_interaction && !sample.barrelButton) {
         switch (e->type()) {
         case QEvent::TabletPress:
-            if (m_interaction->wantsPress(pe)) {
+            // Pen taps don't move keyboard focus by themselves; shortcuts like Esc need it here.
+            setFocus(Qt::MouseFocusReason);
+            if (!isViewCubeAt(pt) && m_interaction->wantsPress(pe)) {
                 m_primaryGrab = true;
                 redraw = m_interaction->press(pe);
                 handled = true;
@@ -619,19 +694,11 @@ void OcctViewerWidget::keyPressEvent(QKeyEvent* e)
         QOpenGLWidget::keyPressEvent(e);
         return;
     }
+    // Window-wide keys (Esc, Enter, F, tools) are QAction shortcuts in MainWindow,
+    // so they work whichever widget has focus.
     if (m_interaction && m_interaction->key(e)) {
         updateView();
         return;
     }
-    switch (e->key()) {
-    case Qt::Key_F:
-        fitAll();
-        return;
-    case Qt::Key_Escape:
-        m_context->ClearSelected(true);
-        updateView();
-        return;
-    default:
-        QOpenGLWidget::keyPressEvent(e);
-    }
+    QOpenGLWidget::keyPressEvent(e);
 }
