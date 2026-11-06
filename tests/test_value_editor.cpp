@@ -92,7 +92,7 @@ private slots:
     void typingReportsLiveValues()
     {
         std::vector<double> seen;
-        m_editor->open(QStringLiteral("Odległość [mm]"), 10.0, -100.0, 100.0, {300, 200},
+        m_editor->open([] { return QStringLiteral("Distance [mm]"); }, 10.0, -100.0, 100.0, {300, 200},
                        [](double) {}, {}, [&seen](double v) { seen.push_back(v); });
         QTRY_VERIFY(field()->hasFocus());
         type("-2,5");
@@ -110,7 +110,7 @@ private slots:
     {
         std::vector<double> seen;
         m_editor->setKeypad(true);
-        m_editor->open(QStringLiteral("Odległość [mm]"), 10.0, -100.0, 100.0, {300, 200},
+        m_editor->open([] { return QStringLiteral("Distance [mm]"); }, 10.0, -100.0, 100.0, {300, 200},
                        [this](double v) { m_accepted = v; }, {}, [&seen](double v) { seen.push_back(v); });
         auto press = [this](const QString& key) {
             auto* button = m_editor->findChild<QToolButton*>(QStringLiteral("key_") + key);
@@ -138,7 +138,7 @@ private slots:
 private:
     void open(double value)
     {
-        m_editor->open(QStringLiteral("Długość [mm]"), value, 1e-3, 1000.0, {300, 200},
+        m_editor->open([] { return QStringLiteral("Length [mm]"); }, value, 1e-3, 1000.0, {300, 200},
                        [this](double v) { m_accepted = v; }, [this] { m_cancelled = true; });
         QApplication::processEvents(); // the field takes focus on the next event loop pass
         QTRY_VERIFY(field()->hasFocus());

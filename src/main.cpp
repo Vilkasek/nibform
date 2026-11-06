@@ -1,7 +1,9 @@
+#include "app/Language.h"
 #include "app/MainWindow.h"
 
 #include <QApplication>
 #include <QDebug>
+#include <QIcon>
 #include <QInputDevice>
 
 int main(int argc, char** argv)
@@ -26,7 +28,9 @@ int main(int argc, char** argv)
     // Fusion honours application palettes everywhere, which the light / dark themes rely on.
     QApplication::setStyle(QStringLiteral("Fusion"));
     QApplication::setApplicationVersion(QStringLiteral(PROJECT_VERSION));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/shapr-linux.png")));
 
+    applyLanguage(savedLanguage()); // before any text is made
     MainWindow window;
     window.resize(1400, 900);
     // Dev aid: SHAPR_WINDOW_SIZE=800x1280 tries a portrait (rotated tablet) layout.

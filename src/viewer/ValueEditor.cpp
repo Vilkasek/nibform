@@ -19,6 +19,7 @@ ValueEditor::ValueEditor(QWidget* parent)
     , m_label(new QLabel(this))
     , m_edit(new QLineEdit(this))
     , m_keypad(new QWidget(this))
+    , m_choices(new QWidget(this))
 {
     setObjectName(QStringLiteral("valueEditor")); // styled by the window's style sheet
     setFrameShape(QFrame::StyledPanel);
@@ -26,11 +27,11 @@ ValueEditor::ValueEditor(QWidget* parent)
 
     auto* ok = new QToolButton(this);
     ok->setText(QStringLiteral("✓"));
-    ok->setToolTip(tr("Zatwierdź (Enter)"));
     ok->setObjectName(QStringLiteral("valueAccept"));
     auto* no = new QToolButton(this);
     no->setText(QStringLiteral("✕"));
-    no->setToolTip(tr("Anuluj (Esc)"));
+    no->setObjectName(QStringLiteral("valueCancel"));
+    retranslate();
     connect(ok, &QToolButton::clicked, this, &ValueEditor::accept);
     connect(no, &QToolButton::clicked, this, &ValueEditor::cancel);
 
@@ -68,22 +69,29 @@ ValueEditor::ValueEditor(QWidget* parent)
         }
     }
     m_keypad->hide();
+    auto* choiceRow = new QHBoxLayout(m_choices);
+    choiceRow->setContentsMargins(0, 0, 0, 0);
+    choiceRow->setSpacing(2);
+    m_choices->hide();
 
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(6, 4, 4, 4);
     outer->setSpacing(4);
     outer->addLayout(row);
+    outer->addWidget(m_choices);
     outer->addWidget(m_keypad);
     hide();
 }
 
-void ValueEditor::open(const QString& label, double value, double min, double max, const QPointF& anchor,
+void ValueEditor::open(std::function<QString()> label, double value, double min, double max, const QPointF& anchor,
                        std::function<void(double)> accept, std::function<void()> cancel,
                        std::function<void(double)> changed)
 {
     if (isOpen())
         this->cancel();
-    m_label->setText(label);
+    clearChoices();
+    m_labelText = std::move(label);
+    m_label->setText(m_labelText());
     m_min = min;
     m_max = max;
     m_anchor = anchor;
@@ -94,9 +102,10 @@ void ValueEditor::open(const QString& label, double value, double min, double ma
     m_edit->selectAll(); // right away: the first key or keypad tap replaces the value
     m_edit->setStyleSheet(QString());
 
+    // Sized once shown: only then do the style sheet's fonts apply, sized before the label clips.
+    show();
     adjustSize();
     moveClamped(anchor.x() - width() / 2.0, anchor.y() - height() / 2.0);
-    show();
     raise();
     refocus();
 }
@@ -114,6 +123,69 @@ void ValueEditor::placeBeside(const QPointF& point)
     // To the right of the point; on the left when it wouldn't fit there (narrow windows).
     const bool fitsRight = point.x() + 20.0 + width() <= parentWidget()->width() - 4;
     moveClamped(fitsRight ? point.x() + 20.0 : point.x() - 20.0 - width(), point.y() - height() / 2.0);
+}
+
+void ValueEditor::retranslate()
+{
+    findChild<QToolButton*>(QStringLiteral("valueAccept"))->setToolTip(tr("Accept (Enter)"));
+    findChild<QToolButton*>(QStringLiteral("valueCancel"))->setToolTip(tr("Cancel (Esc)"));
+}
+
+void ValueEditor::changeEvent(QEvent* event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        retranslate();
+        if (m_labelText) {
+            m_label->setText(m_labelText());
+            refreshChoices();
+            adjustSize();
+        }
+    }
+    QFrame::changeEvent(event);
+}
+
+void ValueEditor::setChoices(std::function<QStringList()> labels, int current, std::function<void(int)> chosen)
+{
+    clearChoices();
+    m_choiceLabels = std::move(labels);
+    const QStringList texts = m_choiceLabels();
+    for (int i = 0; i < texts.size(); ++i) {
+        auto* button = new QToolButton(m_choices);
+        button->setObjectName(QStringLiteral("valueChoice"));
+        button->setText(texts[i]);
+        button->setCheckable(true);
+        button->setAutoExclusive(true);
+        button->setChecked(i == current);
+        button->setFocusPolicy(Qt::NoFocus); // typing goes on in the field
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        connect(button, &QToolButton::clicked, this, [chosen, i] {
+            if (chosen)
+                chosen(i);
+        });
+        m_choices->layout()->addWidget(button);
+    }
+    m_choices->setVisible(!texts.isEmpty());
+    if (isOpen())
+        adjustSize();
+}
+
+void ValueEditor::refreshChoices()
+{
+    if (!m_choiceLabels)
+        return;
+    const QStringList texts = m_choiceLabels();
+    const QList<QToolButton*> buttons = m_choices->findChildren<QToolButton*>();
+    for (int i = 0; i < std::min<int>(texts.size(), buttons.size()); ++i)
+        buttons[i]->setText(texts[i]);
+    if (isOpen())
+        adjustSize();
+}
+
+void ValueEditor::clearChoices()
+{
+    m_choiceLabels = nullptr;
+    qDeleteAll(m_choices->findChildren<QToolButton*>());
+    m_choices->hide();
 }
 
 void ValueEditor::setKeypad(bool on)

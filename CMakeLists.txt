@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Test LinguistTools)
 find_package(OpenCASCADE REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 
@@ -63,6 +63,8 @@ add_executable(shapr_linux
   src/app/MainWindow.cpp
   src/app/Icons.cpp
   src/app/Icons.h
+  src/app/Language.cpp
+  src/app/Language.h
   src/app/MainWindow.h
   src/app/Theme.cpp
   src/app/Theme.h
@@ -92,6 +94,18 @@ target_link_libraries(shapr_linux PRIVATE
   TKG3d TKBRep TKGeomBase TKTopAlgo TKPrim TKBO TKFillet
   TKService TKV3d TKOpenGl
 )
+
+# Translations: English in the sources, the other languages in translations/*.ts
+# (Qt Linguist). `cmake --build build --target update_translations` refreshes the .ts
+# files from the sources; the build compiles them into the app (:/i18n/).
+# The window icon (drawn from docs/assets/logo.svg: rsvg-convert -w 256 -h 256).
+qt_add_resources(shapr_linux "app_icon" PREFIX "/" BASE src/app FILES src/app/shapr-linux.png)
+
+qt_add_translations(TARGETS shapr_linux
+  TS_FILES translations/shapr_pl.ts
+  SOURCE_TARGETS shapr_linux shapr_core shapr_io
+  RESOURCE_PREFIX /i18n
+  LUPDATE_OPTIONS -no-obsolete -locations none)
 
 enable_testing()
 foreach(name sketch solver trim offset model features input)

@@ -1,4 +1,5 @@
 #include "model/Features.h"
+#include "model/Tr.h"
 
 #include "model/Profiles.h"
 
@@ -199,7 +200,7 @@ ModelResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_
         for (const RegionPick& r : f.regions) {
             const auto face = findRegion(sketches, r);
             if (!face) {
-                missing.error = "Nie ma już obszaru szkicu, który był wyciągany";
+                missing.error = QT_TRANSLATE_NOOP("Model", "The sketch region that was extruded is gone");
                 return missing;
             }
             profiles.push_back({*face, sketches(r.sketch)->plane().Direction(), -1});
@@ -207,7 +208,7 @@ ModelResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_
         for (const FacePick& p : f.faces) {
             const auto face = findFace(bodies, p);
             if (!face) {
-                missing.error = "Nie ma już ściany, która była wyciągana";
+                missing.error = QT_TRANSLATE_NOOP("Model", "The face that was extruded is gone");
                 return missing;
             }
             profiles.push_back({face->first, *planarNormal(face->first), face->second});
@@ -220,7 +221,7 @@ ModelResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_
         for (const EdgePick& p : f.edges) {
             const auto edge = findEdge(bodies, p);
             if (!edge) {
-                missing.error = "Nie ma już krawędzi, która była zaokrąglana";
+                missing.error = QT_TRANSLATE_NOOP("Model", "The edge that was rounded is gone");
                 return missing;
             }
             edges.push_back(*edge);
@@ -233,7 +234,7 @@ ModelResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_
         for (const FacePick& p : f.faces) {
             const auto face = findFace(bodies, p);
             if (!face) {
-                missing.error = "Nie ma już ściany, która była otwierana";
+                missing.error = QT_TRANSLATE_NOOP("Model", "The face that was opened is gone");
                 return missing;
             }
             open.push_back({face->second, face->first});
@@ -246,7 +247,7 @@ ModelResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_
         for (const gp_Pnt& p : f.bodies) {
             const auto body = findBody(bodies, p);
             if (!body) {
-                missing.error = "Nie ma już bryły, której to dotyczyło";
+                missing.error = QT_TRANSLATE_NOOP("Model", "The body this applied to is gone");
                 return missing;
             }
             picked.push_back(*body);

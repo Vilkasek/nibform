@@ -3,6 +3,8 @@
 #include "sketch/Offset.h"
 #include "sketch/Trim.h"
 
+#include <QCoreApplication>
+
 #include <cmath>
 
 namespace {
@@ -63,11 +65,11 @@ public:
     QString hint() const override
     {
         if (!m_start)
-            return QStringLiteral("Linia: wskaż początek");
+            return QCoreApplication::translate("SketchTool", "Line: pick the start");
         const double dx = m_cursor.X() - m_start->pos.X();
         const double dy = m_cursor.Y() - m_start->pos.Y();
         const double angle = std::atan2(dy, dx) * 180.0 / M_PI;
-        return QStringLiteral("Linia: %1, kąt %2°  ·  Esc kończy")
+        return QCoreApplication::translate("SketchTool", "Line: %1, angle %2°  ·  Esc finishes")
             .arg(mm(std::hypot(dx, dy)))
             .arg(angle, 0, 'f', 1);
     }
@@ -171,8 +173,8 @@ public:
     QString hint() const override
     {
         if (!m_first)
-            return QStringLiteral("Prostokąt: wskaż pierwszy narożnik");
-        return QStringLiteral("Prostokąt: %1 × %2")
+            return QCoreApplication::translate("SketchTool", "Rectangle: pick the first corner");
+        return QCoreApplication::translate("SketchTool", "Rectangle: %1 × %2")
             .arg(mm(std::abs(m_cursor.X() - m_first->pos.X())))
             .arg(mm(std::abs(m_cursor.Y() - m_first->pos.Y())));
     }
@@ -215,9 +217,9 @@ public:
     QString hint() const override
     {
         if (!m_first)
-            return QStringLiteral("Okrąg: wskaż środek");
+            return QCoreApplication::translate("SketchTool", "Circle: pick the center");
         const double r = m_first->pos.Distance(m_cursor);
-        return QStringLiteral("Okrąg: promień %1, średnica %2").arg(mm(r), mm(2.0 * r));
+        return QCoreApplication::translate("SketchTool", "Circle: radius %1, diameter %2").arg(mm(r), mm(2.0 * r));
     }
 
 protected:
@@ -300,12 +302,12 @@ public:
     QString hint() const override
     {
         if (!m_start)
-            return QStringLiteral("Łuk: wskaż początek");
+            return QCoreApplication::translate("SketchTool", "Arc: pick the start");
         if (!m_end)
-            return QStringLiteral("Łuk: wskaż koniec");
+            return QCoreApplication::translate("SketchTool", "Arc: pick the end");
         if (auto c = circumcenter(m_start->pos, m_end->pos, m_cursor))
-            return QStringLiteral("Łuk: promień %1").arg(mm(c->Distance(m_start->pos)));
-        return QStringLiteral("Łuk: wskaż punkt na łuku");
+            return QCoreApplication::translate("SketchTool", "Arc: radius %1").arg(mm(c->Distance(m_start->pos)));
+        return QCoreApplication::translate("SketchTool", "Arc: pick a point on the arc");
     }
 
 private:
@@ -387,7 +389,7 @@ public:
 
     QString hint() const override
     {
-        return QStringLiteral("Przytnij: dotknij fragmentu, by go usunąć  ·  przeciągnij przez kilka naraz");
+        return QCoreApplication::translate("SketchTool", "Trim: tap a piece to remove it  ·  drag across several at once");
     }
 
 private:
@@ -464,12 +466,12 @@ public:
     QString hint() const override
     {
         if (!m_chain)
-            return QStringLiteral("Odsunięcie: dotknij krzywej (weźmie cały połączony łańcuch)");
+            return QCoreApplication::translate("SketchTool", "Offset: tap a curve (takes its whole connected chain)");
         if (m_failed)
-            return QStringLiteral("Odsunięcie: za duże – krzywe by się wywinęły  ·  Esc anuluje");
+            return QCoreApplication::translate("SketchTool", "Offset: too far, the curves would fold over  ·  Esc cancels");
         if (m_editing)
-            return QStringLiteral("Odsunięcie: wpisz odległość  ·  Enter zatwierdza, Esc anuluje");
-        return QStringLiteral("Odsunięcie: %1  ·  dotknij, by wpisać dokładną wartość  ·  Esc anuluje")
+            return QCoreApplication::translate("SketchTool", "Offset: type the distance  ·  Enter accepts, Esc cancels");
+        return QCoreApplication::translate("SketchTool", "Offset: %1  ·  tap to type an exact value  ·  Esc cancels")
             .arg(mm(std::abs(distance())));
     }
 
@@ -492,7 +494,7 @@ private:
         m_editing = true;
         const double side = m_frozen < 0.0 ? -1.0 : 1.0;
         m_host.askValue(
-            QStringLiteral("Odsunięcie [mm]"), std::round(std::abs(m_frozen) * 100.0) / 100.0, 1e-3, 1e6,
+            [] { return QCoreApplication::translate("SketchTool", "Offset [mm]"); }, std::round(std::abs(m_frozen) * 100.0) / 100.0, 1e-3, 1e6,
             [this, side](double value) {
                 m_editing = false;
                 apply(side * value);
@@ -578,6 +580,7 @@ std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
     case ToolKind::Offset:
         return std::make_unique<OffsetTool>(host);
     case ToolKind::Select:
+    case ToolKind::Dimension:
     case ToolKind::PushPull:
     case ToolKind::Fillet:
     case ToolKind::Chamfer:

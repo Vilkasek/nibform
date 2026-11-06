@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Shapr Linux">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <!-- A block, its top face a sketch being pulled up -->
+  <path d="M146 253 L256 316 L256 426 L146 363 Z" fill="#ffffff" fill-opacity="0.92"/>
+  <path d="M256 316 L366 253 L366 363 L256 426 Z" fill="#ffffff" fill-opacity="0.68"/>
+  <path d="M256 190 L366 253 L256 316 L146 253 Z" fill="#f97316"/>
+  <path d="M256 190 L366 253 L256 316 L146 253 Z" fill="none" stroke="#ffffff" stroke-width="10" stroke-linejoin="round"/>
+  <!-- The extrude arrow -->
+  <path d="M256 253 V118" stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+  <path d="M256 70 L290 124 L222 124 Z" fill="#ffffff" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+  <circle cx="256" cy="253" r="17" fill="#f97316" stroke="#ffffff" stroke-width="9"/>
+</svg>

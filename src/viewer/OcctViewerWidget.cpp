@@ -336,8 +336,7 @@ void OcctViewerWidget::initializeGL()
 
     Handle(OpenGl_Context) glCtx = new OpenGl_Context();
     if (!glCtx->Init(m_coreProfile)) {
-        emit glFailed(QStringLiteral("Nie udało się podpiąć OpenCASCADE do kontekstu OpenGL "
-                                     "(spróbuj SHAPR_GL_CORE=1)."));
+        emit glFailed(tr("Could not attach OpenCASCADE to the OpenGL context (try SHAPR_GL_CORE=1)."));
         return;
     }
 
@@ -385,7 +384,7 @@ void OcctViewerWidget::paintGL()
     }
     if (!fbo->InitWrapper(glCtx)) {
         fbo.Nullify();
-        emit glFailed(QStringLiteral("Nie udało się opakować framebuffera Qt."));
+        emit glFailed(tr("Could not wrap the Qt framebuffer."));
         return;
     }
 

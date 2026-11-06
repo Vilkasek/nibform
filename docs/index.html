@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shapr Linux – pen-first CAD for Linux</title>
+<meta name="description" content="Sketch with a stylus, constrain, push and pull solids. A native Qt 6 and OpenCASCADE CAD app for Linux tablets like the Framework 12.">
+<meta property="og:title" content="Shapr Linux – pen-first CAD for Linux">
+<meta property="og:description" content="Sketch with a stylus, constrain, push and pull solids. Native Qt 6 + OpenCASCADE.">
+<meta property="og:image" content="https://vilkasek.github.io/shapr3d/img/og.png">
+<meta property="og:url" content="https://vilkasek.github.io/shapr3d/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<style>
+:root {
+  --bg: #0f1115; --bg2: #161920; --panel: #1c1f26; --border: #2b2f38;
+  --text: #e6e8ec; --muted: #9aa1ad; --accent: #3b82f6; --accent-2: #f97316;
+  --code: #12141a; --shadow: 0 20px 60px rgba(0,0,0,.45);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f7f8fa; --bg2: #ffffff; --panel: #ffffff; --border: #e2e5ea;
+    --text: #1b1f27; --muted: #5d6573; --accent: #2563eb; --accent-2: #ea580c;
+    --code: #f1f3f6; --shadow: 0 20px 50px rgba(20,30,60,.15);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Noto Sans", sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; height: auto; display: block; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+/* Language: both are in the page, one shows. */
+html[data-lang="en"] [lang="pl"], html[data-lang="pl"] [lang="en"] { display: none !important; }
+
+header { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+header .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); font-size: 18px; white-space: nowrap; }
+.brand img { width: 32px; height: 32px; }
+.brand:hover { text-decoration: none; }
+nav { display: flex; gap: 20px; margin-left: auto; align-items: center; }
+nav a { color: var(--muted); font-size: 15px; }
+nav a:hover { color: var(--text); text-decoration: none; }
+.lang { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.lang button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px;
+  padding: 4px 10px; cursor: pointer; }
+html[data-lang="en"] .lang [data-set="en"], html[data-lang="pl"] .lang [data-set="pl"] {
+  background: var(--accent); color: #fff; }
+
+.hero { padding-top: 72px; padding-bottom: 40px; text-align: center; }
+.hero .logo { width: 104px; height: 104px; margin: 0 auto 24px; filter: drop-shadow(0 12px 30px rgba(37,99,235,.35)); }
+h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.08; margin: 0 0 18px; letter-spacing: -0.02em; }
+h1 .pen { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text;
+  background-clip: text; color: transparent; }
+.lead { font-size: 19px; color: var(--muted); max-width: 680px; margin: 0 auto 30px; }
+.buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 10px;
+  font-weight: 600; border: 1px solid var(--border); color: var(--text); background: var(--panel); }
+.btn:hover { text-decoration: none; border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn svg { width: 18px; height: 18px; fill: currentColor; }
+.badges { margin-top: 18px; color: var(--muted); font-size: 14px; }
+.shot { margin: 48px auto 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
+  box-shadow: var(--shadow); }
+
+section { padding: 72px 0; }
+section.alt { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+h2 { font-size: clamp(26px, 4vw, 36px); margin: 0 0 10px; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0 0 36px; max-width: 700px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+.card h3 { margin: 12px 0 6px; font-size: 17px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.icon.orange { background: color-mix(in srgb, var(--accent-2) 16%, transparent); color: var(--accent-2); }
+.icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+kbd { font: 12px/1 ui-monospace, "JetBrains Mono", monospace; padding: 3px 6px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--code); color: var(--text); }
+
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; counter-reset: step; }
+.step { position: relative; padding: 22px 20px 20px; border-radius: 14px; border: 1px solid var(--border); background: var(--panel); }
+.step::before { counter-increment: step; content: counter(step); position: absolute; top: -14px; left: 20px;
+  width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700;
+  display: grid; place-items: center; font-size: 14px; }
+.step h3 { margin: 4px 0 6px; font-size: 16px; }
+.step p { margin: 0; color: var(--muted); font-size: 15px; }
+
+.gallery { display: grid; grid-template-columns: 1fr 1fr 0.62fr; gap: 16px; align-items: start; }
+.gallery figure { margin: 0; }
+.gallery img { border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.gallery figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+@media (max-width: 860px) { .gallery { grid-template-columns: 1fr; } .gallery .tall img { max-width: 360px; } }
+
+pre { background: var(--code); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px;
+  overflow-x: auto; font: 14px/1.6 ui-monospace, "JetBrains Mono", "Fira Code", monospace; margin: 0; }
+pre .c { color: var(--muted); }
+.two { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: start; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+.note { color: var(--muted); font-size: 15px; }
+ul.check { list-style: none; padding: 0; margin: 0; }
+ul.check li { padding: 7px 0 7px 30px; position: relative; border-bottom: 1px solid var(--border); }
+ul.check li:last-child { border-bottom: 0; }
+ul.check li::before { content: "✓"; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
+ul.check b { font-weight: 600; }
+
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+td { padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td:first-child { white-space: nowrap; width: 1%; }
+
+footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
+footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; align-items: center; }
+footer .brand { font-size: 15px; }
+footer .brand img { width: 24px; height: 24px; }
+@media (max-width: 640px) { nav a.hide-sm { display: none; } nav { gap: 14px; } header .wrap { gap: 12px; } .hero { padding-top: 48px; } .lead { font-size: 17px; } }
+</style>
+<script>
+  // English or Polish: a saved choice, else the browser's language.
+  (function () {
+    var lang = null;
+    try { lang = localStorage.getItem("lang"); } catch (e) {}
+    if (lang !== "en" && lang !== "pl")
+      lang = (navigator.language || "").toLowerCase().indexOf("pl") === 0 ? "pl" : "en";
+    document.documentElement.setAttribute("data-lang", lang);
+    document.documentElement.lang = lang;
+  })();
+</script>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/logo.svg" alt="">Shapr Linux</a>
+    <nav>
+      <a class="hide-sm" href="#features"><span lang="en">Features</span><span lang="pl">Funkcje</span></a>
+      <a class="hide-sm" href="#screens"><span lang="en">Screenshots</span><span lang="pl">Zrzuty</span></a>
+      <a class="hide-sm" href="#build"><span lang="en">Build</span><span lang="pl">Instalacja</span></a>
+      <a href="https://github.com/Vilkasek/shapr3d">GitHub</a>
+      <div class="lang" role="group" aria-label="Language / Język">
+        <button data-set="en" type="button">EN</button><button data-set="pl" type="button">PL</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero wrap">
+    <img class="logo" src="assets/logo.svg" alt="Shapr Linux logo">
+    <h1 lang="en">CAD you draw<br>with <span class="pen">a pen</span>.</h1>
+    <h1 lang="pl">CAD, który rysujesz<br><span class="pen">rysikiem</span>.</h1>
+    <p class="lead" lang="en">Sketch with a stylus, constrain and dimension, then push and pull sketches into solids.
+      A native Linux app built on Qt&nbsp;6 and OpenCASCADE, made for pen tablets like the Framework&nbsp;12.</p>
+    <p class="lead" lang="pl">Szkicuj rysikiem, nadawaj więzy i wymiary, a potem wyciągaj szkice w bryły.
+      Natywna aplikacja na Linuksa oparta na Qt&nbsp;6 i OpenCASCADE, stworzona z myślą o tabletach z rysikiem, takich jak Framework&nbsp;12.</p>
+    <div class="buttons">
+      <a class="btn primary" href="https://github.com/Vilkasek/shapr3d">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span lang="en">Source on GitHub</span><span lang="pl">Kod na GitHubie</span></a>
+      <a class="btn" href="#build"><span lang="en">Build it</span><span lang="pl">Zbuduj</span></a>
+    </div>
+    <div class="badges">C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen ·
+      <span lang="en">English &amp; Polish</span><span lang="pl">polski i angielski</span></div>
+    <div class="shot">
+      <img src="img/model.webp" width="1400" height="900"
+           alt="Shapr Linux: a plate with a boss and a hole, a disc being extruded with its arrow and value field">
+    </div>
+  </div>
+
+  <section id="features" class="alt">
+    <div class="wrap">
+      <h2 lang="en">Everything from sketch to solid</h2>
+      <h2 lang="pl">Wszystko od szkicu do bryły</h2>
+      <p class="sub" lang="en">Two modes keep it simple: <b>Sketch</b> to draw and constrain, <b>Model</b> to turn closed regions into bodies.</p>
+      <p class="sub" lang="pl">Dwa tryby: <b>Szkic</b> do rysowania i więzów, <b>Bryła</b> do zamieniania zamkniętych obszarów w bryły.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="icon orange"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></div>
+          <h3 lang="en">Sketch with a pen</h3><h3 lang="pl">Szkic rysikiem</h3>
+          <p lang="en">Lines, rectangles, circles, arcs, offset and Fusion-style trim. Tap-tap or drag, with snapping that leaves constraints behind.</p>
+          <p lang="pl">Linie, prostokąty, okręgi, łuki, odsunięcie i przycinanie jak we Fusionie. Tap-tap albo przeciągnięcie, a przyciąganie zostawia więzy.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M3 8v8M21 8v8"/><path d="M7 12l-2-2M7 12l-2 2M17 12l2-2M17 12l2 2"/></svg></div>
+          <h3 lang="en">Constraints &amp; dimensions</h3><h3 lang="pl">Więzy i wymiary</h3>
+          <p lang="en">Horizontal, parallel, tangent, coincident and more, plus lengths, gaps, angles and diameters. Press <kbd>D</kbd> and tap. Fully defined geometry turns green.</p>
+          <p lang="pl">Poziomo, równoległe, styczne, wspólny punkt i więcej, do tego długości, odstępy, kąty i średnice. Wciśnij <kbd>D</kbd> i dotknij. W pełni określona geometria robi się zielona.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v10"/><path d="M8 7l4-4 4 4"/><path d="M4 15l8 5 8-5-8-4z"/></svg></div>
+          <h3 lang="en">Push &amp; pull</h3><h3 lang="pl">Wyciąganie</h3>
+          <p lang="en">Drag the arrow or type a value with a live preview. Automatic mode joins, cuts or makes a new body, and you can always pick yourself.</p>
+          <p lang="pl">Przeciągnij strzałkę albo wpisz wartość, z podglądem na żywo. Tryb automatyczny dodaje, odejmuje albo tworzy nową bryłę, a zawsze możesz wybrać sam.</p>
+        </div>
+        <div class="card">
+          <div class="icon orange"><svg viewBox="0 0 24 24"><path d="M4 20V10a6 6 0 016-6h10"/><path d="M4 20h16V4"/></svg></div>
+          <h3 lang="en">Fillet, chamfer, shell</h3><h3 lang="pl">Zaokrąglenie, faza, skorupa</h3>
+          <p lang="en">Tap edges or faces, drag the handle into the material. Sketch on any flat face, with its edges projected as references.</p>
+          <p lang="pl">Dotknij krawędzi albo ścian i przeciągnij uchwyt w głąb. Szkicuj na każdej płaskiej ścianie, a jej krawędzie trafią do szkicu jako odniesienie.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 12h3M14 12h3"/></svg></div>
+          <h3 lang="en">Parametric history</h3><h3 lang="pl">Historia parametryczna</h3>
+          <p lang="en">Every operation is on the timeline. Double-tap to reopen a sketch or change a value, and the model rebuilds after it.</p>
+          <p lang="pl">Każda operacja jest na osi historii. Stuknij dwa razy, by otworzyć szkic albo zmienić wartość, a model przeliczy się sam.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 14l3 3 3-3M12 10v7"/></svg></div>
+          <h3 lang="en">Projects &amp; export</h3><h3 lang="pl">Projekty i eksport</h3>
+          <p lang="en">Readable JSON <code>.shapr</code> projects with the whole history. Export bodies to STEP for CAD or STL for 3D printing.</p>
+          <p lang="pl">Czytelne projekty JSON <code>.shapr</code> z całą historią. Eksport brył do STEP dla CAD albo STL do druku 3D.</p>
+        </div>
+        <div class="card">
+          <div class="icon orange"><svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+          <h3 lang="en">Made for tablets</h3><h3 lang="pl">Stworzony dla tabletów</h3>
+          <p lang="en">Palm rejection, the pen's eraser trims, a tablet mode with big buttons and a keypad, and a layout that follows screen rotation.</p>
+          <p lang="pl">Odrzucanie dłoni, gumka rysika przycina, tryb tabletu z dużymi przyciskami i klawiaturą numeryczną, a układ podąża za obrotem ekranu.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
+          <h3 lang="en">Light, dark, two languages</h3><h3 lang="pl">Jasny, ciemny, dwa języki</h3>
+          <p lang="en">Follows the desktop's light or dark mode. English and Polish, switched on the fly.</p>
+          <p lang="pl">Podąża za jasnym lub ciemnym trybem pulpitu. Polski i angielski, przełączane bez restartu.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 lang="en">A part in four steps</h2>
+      <h2 lang="pl">Część w czterech krokach</h2>
+      <p class="sub" lang="en">Every step works with a pen, a finger or a mouse, and with keyboard shortcuts.</p>
+      <p class="sub" lang="pl">Każdy krok działa rysikiem, palcem albo myszą, a także ze skrótów klawiszowych.</p>
+      <div class="steps">
+        <div class="step"><h3 lang="en">New sketch <kbd>K</kbd></h3><h3 lang="pl">Nowy szkic <kbd>K</kbd></h3>
+          <p lang="en">On the ground or on a body's face. The view turns to face it.</p>
+          <p lang="pl">Na podłożu albo na ścianie bryły. Widok obraca się na wprost niego.</p></div>
+        <div class="step"><h3 lang="en">Draw &amp; dimension</h3><h3 lang="pl">Rysuj i wymiaruj</h3>
+          <p lang="en"><kbd>L</kbd> <kbd>R</kbd> <kbd>C</kbd> <kbd>A</kbd> to draw, <kbd>D</kbd> to dimension, constraints from the second bar.</p>
+          <p lang="pl"><kbd>L</kbd> <kbd>R</kbd> <kbd>C</kbd> <kbd>A</kbd> rysują, <kbd>D</kbd> wymiaruje, więzy na drugim pasku.</p></div>
+        <div class="step"><h3 lang="en">Finish <kbd>Ctrl+Enter</kbd></h3><h3 lang="pl">Zamknij <kbd>Ctrl+Enter</kbd></h3>
+          <p lang="en">Closed areas become regions you can tap.</p>
+          <p lang="pl">Zamknięte obszary stają się regionami, które można dotknąć.</p></div>
+        <div class="step"><h3 lang="en">Extrude <kbd>W</kbd></h3><h3 lang="pl">Wyciągnij <kbd>W</kbd></h3>
+          <p lang="en">Pull the arrow, type a value, <kbd>Enter</kbd>. Round it off with <kbd>G</kbd>.</p>
+          <p lang="pl">Pociągnij strzałkę, wpisz wartość, <kbd>Enter</kbd>. Zaokrąglij przez <kbd>G</kbd>.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens" class="alt">
+    <div class="wrap">
+      <h2 lang="en">Screenshots</h2><h2 lang="pl">Zrzuty ekranu</h2>
+      <p class="sub" lang="en">Straight from the app, no mockups.</p>
+      <p class="sub" lang="pl">Prosto z aplikacji, bez makiet.</p>
+      <div class="gallery">
+        <figure>
+          <img src="img/sketch.webp" width="1400" height="900" loading="lazy" alt="Sketch mode with drawing tools and the constraints bar">
+          <figcaption lang="en">Sketch mode: drawing tools, constraints, degrees of freedom.</figcaption>
+          <figcaption lang="pl">Tryb szkicu: narzędzia rysowania, więzy, stopnie swobody.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/light.webp" width="1400" height="900" loading="lazy" alt="The model in the light theme">
+          <figcaption lang="en">The light theme, with the extrude field and its operation choice.</figcaption>
+          <figcaption lang="pl">Jasny motyw, z polem wyciągania i wyborem operacji.</figcaption>
+        </figure>
+        <figure class="tall">
+          <img src="img/tablet.webp" width="800" height="1280" loading="lazy" alt="Portrait tablet mode with big buttons and a numeric keypad">
+          <figcaption lang="en">Tablet mode in portrait: side bar and keypad.</figcaption>
+          <figcaption lang="pl">Tryb tabletu w pionie: boczny pasek i klawiatura.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="build">
+    <div class="wrap two">
+      <div>
+        <h2 lang="en">Build it</h2><h2 lang="pl">Zbuduj</h2>
+        <p class="sub" lang="en">No packages yet: build from source. On Arch Linux:</p>
+        <p class="sub" lang="pl">Paczek jeszcze nie ma: zbuduj ze źródeł. Na Arch Linuksie:</p>
+<pre><span class="c"># dependencies</span>
+sudo pacman -S --needed qt6-base qt6-tools opencascade eigen cmake ninja
+
+<span class="c"># build and run</span>
+git clone https://github.com/Vilkasek/shapr3d.git
+cd shapr3d
+cmake -S . -B build -G Ninja
+cmake --build build
+./build/shapr_linux
+
+<span class="c"># tests</span>
+ctest --test-dir build</pre>
+        <p class="note" lang="en">Other distributions work too: you need Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen and CMake. On Wayland the app runs through XWayland, as Arch's OpenCASCADE is built for GLX.</p>
+        <p class="note" lang="pl">Inne dystrybucje też zadziałają: potrzebne są Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen i CMake. Na Waylandzie aplikacja działa przez XWayland, bo OpenCASCADE z Archa jest zbudowany pod GLX.</p>
+      </div>
+      <div>
+        <h2 lang="en">Status</h2><h2 lang="pl">Stan prac</h2>
+        <p class="sub" lang="en">Early, but the whole plan is in:</p>
+        <p class="sub" lang="pl">Wczesna wersja, ale cały plan jest zrobiony:</p>
+        <ul class="check">
+          <li><b>M0</b> <span lang="en">Qt window, OpenCASCADE view, navigation</span><span lang="pl">okno Qt, widok OpenCASCADE, nawigacja</span></li>
+          <li><b>M1</b> <span lang="en">pen sketching, snapping</span><span lang="pl">szkicowanie rysikiem, przyciąganie</span></li>
+          <li><b>M2</b> <span lang="en">constraints, dimensions, solver</span><span lang="pl">więzy, wymiary, solver</span></li>
+          <li><b>M3</b> <span lang="en">regions, push/pull, booleans</span><span lang="pl">obszary, wyciąganie, operacje logiczne</span></li>
+          <li><b>M4</b> <span lang="en">parametric history, projects, STEP/STL</span><span lang="pl">historia parametryczna, projekty, STEP/STL</span></li>
+          <li><b>M5</b> <span lang="en">sketch on face, fillet, chamfer, shell</span><span lang="pl">szkic na ścianie, zaokrąglenie, faza, skorupa</span></li>
+          <li><b>M6</b> <span lang="en">tablet polish: palm rejection, rotation, tablet mode</span><span lang="pl">dopracowanie pod tablet: odrzucanie dłoni, obrót, tryb tabletu</span></li>
+          <li><b>i18n</b> <span lang="en">English and Polish</span><span lang="pl">polski i angielski</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap">
+      <h2 lang="en">Getting around</h2><h2 lang="pl">Poruszanie się</h2>
+      <p class="sub" lang="en">The view follows whatever you hold.</p>
+      <p class="sub" lang="pl">Widok reaguje na to, czego używasz.</p>
+      <table>
+        <tr><td lang="en">Pen</td><td lang="pl">Rysik</td>
+            <td lang="en">the tip draws; with the button held, it orbits; the eraser trims</td>
+            <td lang="pl">końcówka rysuje, z przyciskiem obraca widok, gumka przycina</td></tr>
+        <tr><td lang="en">Fingers</td><td lang="pl">Palce</td>
+            <td lang="en">one orbits, two pan and pinch-zoom</td>
+            <td lang="pl">jeden obraca, dwa przesuwają i przybliżają</td></tr>
+        <tr><td lang="en">Mouse &amp; touchpad</td><td lang="pl">Mysz i touchpad</td>
+            <td lang="en">right button or two-finger scroll orbits, middle button or Shift pans, wheel or pinch zooms</td>
+            <td lang="pl">prawy przycisk albo przewijanie dwoma palcami obraca, środkowy albo Shift przesuwa, kółko albo szczypanie przybliża</td></tr>
+        <tr><td><kbd>1</kbd>–<kbd>6</kbd></td>
+            <td lang="en">top, front, right, back, left, bottom, with <kbd>Ctrl</kbd> for corners and <kbd>Shift</kbd> for edges, all animated</td>
+            <td lang="pl">góra, przód, prawo, tył, lewo, dół; z <kbd>Ctrl</kbd> narożniki, z <kbd>Shift</kbd> krawędzie, wszystko z animacją</td></tr>
+        <tr><td><kbd>F</kbd></td><td lang="en">fit the view</td><td lang="pl">dopasuj widok</td></tr>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/logo.svg" alt="">Shapr Linux</a>
+    <span lang="en">An independent open-source project, not affiliated with Shapr3D.</span>
+    <span lang="pl">Niezależny projekt open source, niezwiązany z Shapr3D.</span>
+    <a href="https://github.com/Vilkasek/shapr3d">github.com/Vilkasek/shapr3d</a>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll(".lang button").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var lang = button.getAttribute("data-set");
+      document.documentElement.setAttribute("data-lang", lang);
+      document.documentElement.lang = lang;
+      try { localStorage.setItem("lang", lang); } catch (e) {}
+    });
+  });
+</script>
+</body>
+</html>

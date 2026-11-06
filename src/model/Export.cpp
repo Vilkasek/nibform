@@ -1,4 +1,5 @@
 #include "model/Export.h"
+#include "model/Tr.h"
 
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -28,31 +29,31 @@ TopoDS_Compound compoundOf(const std::vector<TopoDS_Shape>& bodies)
 std::string exportStep(const std::vector<TopoDS_Shape>& bodies, const std::string& path)
 {
     if (bodies.empty())
-        return "Brak brył do eksportu";
+        return QT_TRANSLATE_NOOP("Model", "No bodies to export");
     STEPControl_Writer writer;
     Interface_Static::SetCVal("write.step.unit", "MM");
     for (const TopoDS_Shape& b : bodies) {
         if (writer.Transfer(b, STEPControl_AsIs) != IFSelect_RetDone)
-            return "Nie udało się przygotować bryły do zapisu STEP";
+            return QT_TRANSLATE_NOOP("Model", "Could not prepare a body for STEP");
     }
     if (writer.Write(path.c_str()) != IFSelect_RetDone)
-        return "Nie udało się zapisać pliku STEP";
+        return QT_TRANSLATE_NOOP("Model", "Could not write the STEP file");
     return {};
 }
 
 std::string exportStl(const std::vector<TopoDS_Shape>& bodies, const std::string& path)
 {
     if (bodies.empty())
-        return "Brak brył do eksportu";
+        return QT_TRANSLATE_NOOP("Model", "No bodies to export");
     // Mesh a copy, so the model's own (coarser, display) triangulation is left alone.
     const TopoDS_Shape shape = BRepBuilderAPI_Copy(compoundOf(bodies)).Shape();
     BRepMesh_IncrementalMesh mesh(shape, 0.05, false, 0.5 * M_PI / 180.0, true);
     if (!mesh.IsDone())
-        return "Nie udało się zbudować siatki do STL";
+        return QT_TRANSLATE_NOOP("Model", "Could not mesh the bodies for STL");
     StlAPI_Writer writer;
     writer.ASCIIMode() = false;
     if (!writer.Write(shape, path.c_str()))
-        return "Nie udało się zapisać pliku STL";
+        return QT_TRANSLATE_NOOP("Model", "Could not write the STL file");
     return {};
 }
 
@@ -62,7 +63,7 @@ std::vector<TopoDS_Shape> importStep(const std::string& path, std::string* error
     STEPControl_Reader reader;
     if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
         if (error)
-            *error = "Nie udało się odczytać pliku STEP";
+            *error = QT_TRANSLATE_NOOP("Model", "Could not read the STEP file");
         return solids;
     }
     reader.TransferRoots();

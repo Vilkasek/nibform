@@ -5,6 +5,7 @@
 #include "viewer/OcctViewerWidget.h"
 #include "viewer/ValueEditor.h"
 
+#include <QCoreApplication>
 #include <QLineF>
 #include <QPainter>
 #include <QPainterPath>
@@ -452,7 +453,7 @@ void SketchEditor::applyConstraint(ConstraintCommand command)
     if (m_active < 0)
         return;
     if (m_selection.points.empty() && m_selection.entities.empty()) {
-        emit message(tr("Najpierw zaznacz geometrię, potem wybierz więz"));
+        emit message(tr("Select geometry first, then pick a constraint"));
         return;
     }
 
@@ -461,12 +462,12 @@ void SketchEditor::applyConstraint(ConstraintCommand command)
     const CommandResult r =
         applyCommand(command, candidate, m_selection, pixelsToModel(kDimensionOffsetPx));
     if (!r.applied) {
-        emit message(tr("Ten więz nie pasuje do zaznaczenia"));
+        emit message(tr("This constraint doesn't fit the selection"));
         return;
     }
     const bool merged = candidate.points().size() < sketch().points().size();
     if (!merged && candidate.constraints().size() == constraintsBefore) {
-        emit message(tr("Ten więz już istnieje"));
+        emit message(tr("This constraint already exists"));
         return;
     }
 
@@ -492,7 +493,81 @@ void SketchEditor::applyConstraint(ConstraintCommand command)
                     [apply, candidate, dimension](double value) mutable {
                         candidate.constraint(dimension)->value = value;
                         apply(candidate);
+                    },
+                    [this] {
+                        // The Dimension tool starts over, unless the field closed for a
+                        // tap that adds to what is being dimensioned.
+                        if (m_toolKind == ToolKind::Dimension && !m_chainingDimension) {
+                            setSelection({});
+                            refreshSketches();
+                        }
+                        updateHint();
                     });
+    updateHint();
+}
+
+void SketchEditor::dimension()
+{
+    if (mode() != EditorMode::Sketch)
+        return;
+    if (canApply(ConstraintCommand::Dimension)) {
+        applyConstraint(ConstraintCommand::Dimension); // selection first, then D
+        return;
+    }
+    // A lone point picked before D is the first pick of the tool.
+    const SketchSelection kept = m_selection;
+    setTool(ToolKind::Dimension);
+    if (kept.entities.empty() && kept.constraints.empty() && kept.points.size() == 1) {
+        setSelection(kept);
+        refreshSketches();
+        updateHint();
+    }
+}
+
+bool SketchEditor::fitsDimension(const SketchSelection& selection) const
+{
+    Sketch probe = sketch();
+    return applyCommand(ConstraintCommand::Dimension, probe, selection, 1.0).applied;
+}
+
+void SketchEditor::dimensionTap(const Hit& hit)
+{
+    if (hit.kind == Hit::Kind::Constraint) {
+        const SketchConstraint* c = sketch().constraint(hit.id);
+        if (c && isDimension(c->kind))
+            editDimension(hit.id); // an existing dimension: change its value
+        return;
+    }
+    if (hit.kind != Hit::Kind::Point && hit.kind != Hit::Kind::Entity) {
+        setSelection({}); // empty space: start over
+        refreshSketches();
+        updateHint();
+        return;
+    }
+    auto add = [&hit](SketchSelection& s) {
+        (hit.kind == Hit::Kind::Point ? s.points : s.entities).insert(hit.id);
+    };
+    SketchSelection next = m_selection;
+    next.constraints.clear();
+    if ((hit.kind == Hit::Kind::Point ? next.points : next.entities).erase(hit.id)) {
+        setSelection(next); // tapped again: dropped
+        refreshSketches();
+        updateHint();
+        return;
+    }
+    add(next);
+    // What doesn't go with the earlier picks starts a new dimension. A lone point waits
+    // for a second point or a line.
+    const bool waiting = next.entities.empty() && next.points.size() == 1;
+    if (!waiting && !fitsDimension(next)) {
+        next = {};
+        add(next);
+    }
+    setSelection(next);
+    refreshSketches();
+    if (fitsDimension(next))
+        applyConstraint(ConstraintCommand::Dimension); // asks for the value right away
+    updateHint();
 }
 
 void SketchEditor::editDimension(ConstraintId id)
@@ -520,45 +595,36 @@ bool SketchEditor::validate(Sketch& candidate)
 {
     const SolveResult after = solve(candidate);
     if (!after.ok) {
-        emit message(tr("Więzy są sprzeczne – zmiana odrzucona"));
+        emit message(tr("The constraints conflict; change rejected"));
         return false;
     }
     // Each new equation (and each merged point) should take away one degree of freedom;
     // if fewer went, the change only restates something already determined.
     const int expected = (after.equations - m_analysis.equations) + (m_analysis.variables - after.variables);
     if (m_analysis.dof - after.dof < expected) {
-        emit message(tr("Więz nadmiarowy – ta geometria jest już określona"));
+        emit message(tr("Redundant constraint: this geometry is already defined"));
         return false;
     }
     return true;
 }
 
 void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anchor,
-                                   std::function<void(double)> accepted)
+                                   std::function<void(double)> accepted, std::function<void()> cancelled)
 {
     const double current = measure(sketch(), c);
     // Distances to a line and angles are signed: keep the side / turning direction.
     const double sign = current < 0.0 ? -1.0 : 1.0;
-    QString label;
     double shown = std::abs(current);
     double max = 1e6;
     double toSolver = 1.0;
     switch (c.kind) {
     case ConstraintKind::Distance:
-        label = tr("Długość [mm]");
-        break;
     case ConstraintKind::PointLineDistance:
     case ConstraintKind::LineDistance:
-        label = tr("Odległość [mm]");
-        break;
     case ConstraintKind::Radius:
-        label = tr("Promień [mm]");
-        break;
     case ConstraintKind::Diameter:
-        label = tr("Średnica [mm]");
         break;
     case ConstraintKind::Angle:
-        label = tr("Kąt [°]");
         shown *= 180.0 / M_PI;
         max = 180.0;
         toSolver = M_PI / 180.0;
@@ -566,11 +632,26 @@ void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anc
     default:
         return;
     }
+    auto label = [kind = c.kind, ofLine = c.e1 != kNoId] {
+        switch (kind) {
+        case ConstraintKind::Distance:
+            return ofLine ? tr("Length [mm]") : tr("Distance [mm]"); // a line, or two points
+        case ConstraintKind::Radius:
+            return tr("Radius [mm]");
+        case ConstraintKind::Diameter:
+            return tr("Diameter [mm]");
+        case ConstraintKind::Angle:
+            return tr("Angle [°]");
+        default:
+            return tr("Distance [mm]");
+        }
+    };
     m_valueEditor->open(label, shown, 1e-3, max, anchor,
                         [this, accepted, sign, toSolver](double value) {
                             accepted(sign * value * toSolver);
                             m_viewer->update();
-                        });
+                        },
+                        std::move(cancelled));
 }
 
 std::optional<gp_Pnt2d> SketchEditor::toSketch(const Graphic3d_Vec2i& pixel) const
@@ -619,7 +700,7 @@ double SketchEditor::pixelsToModel(double logicalPixels) const
     return d > 0.0 ? d : logicalPixels * 0.2;
 }
 
-void SketchEditor::askValue(const QString& label, double value, double min, double max,
+void SketchEditor::askValue(std::function<QString()> label, double value, double min, double max,
                             std::function<void(double)> accept, std::function<void()> cancel)
 {
     auto refresh = [this] {
@@ -628,7 +709,7 @@ void SketchEditor::askValue(const QString& label, double value, double min, doub
         m_viewer->update();
     };
     // Just above the pointer, so the field doesn't cover what is being offset.
-    m_valueEditor->open(label, value, min, max, m_pointerPos - QPointF(0, 40),
+    m_valueEditor->open(std::move(label), value, min, max, m_pointerPos - QPointF(0, 40),
                         [accept, refresh](double v) {
                             accept(v);
                             refresh();
@@ -695,6 +776,17 @@ bool SketchEditor::press(const PointerEvent& e)
     }
     if (mode() == EditorMode::Model)
         return modelPress(e); // the field there stays open while picking / dragging
+    if (m_valueEditor->isOpen() && m_toolKind == ToolKind::Dimension) {
+        // Dimension tool: tapping more geometry while the value is asked turns it into a
+        // dimension to that (a line's length into the gap to another line, ...).
+        const Hit hit = hitAt(e);
+        if (hit.kind == Hit::Kind::Point || hit.kind == Hit::Kind::Entity) {
+            m_chainingDimension = true;
+            m_valueEditor->cancel();
+            m_chainingDimension = false;
+            return selectPress(e);
+        }
+    }
     if (m_valueEditor->isOpen()) {
         // The second tap of a double tap lands where the field opened: keep typing.
         // A tap anywhere else drops the edit, and does nothing more.
@@ -858,6 +950,10 @@ bool SketchEditor::selectRelease(const PointerEvent& e)
 
     // Tapping a dimension that is already selected opens it for editing.
     const SketchConstraint* c = hit.kind == Hit::Kind::Constraint ? sketch().constraint(hit.id) : nullptr;
+    if (m_toolKind == ToolKind::Dimension) {
+        dimensionTap(hit);
+        return true;
+    }
     if (c && isDimension(c->kind) && m_selection.constraints.count(hit.id)) {
         editDimension(hit.id);
         return true;
@@ -922,7 +1018,7 @@ void SketchEditor::cancel()
     } else if (m_tool && m_tool->cancel()) {
         refreshOverlay();
         updateHint();
-    } else if (m_tool) {
+    } else if (m_tool || (m_toolKind == ToolKind::Dimension && m_selection.empty())) {
         setTool(ToolKind::Select);
     } else {
         setSelection({});
@@ -1033,39 +1129,48 @@ void SketchEditor::refreshOverlay()
     ctx->Redisplay(m_overlayPrs, false);
 }
 
+QString SketchEditor::modelText(const std::string& message)
+{
+    // Messages from the model core are English, marked with QT_TRANSLATE_NOOP("Model", ...).
+    return message.empty() ? QString() : QCoreApplication::translate("Model", message.c_str());
+}
+
+void SketchEditor::retranslate()
+{
+    updateHint();
+    updateStatus();
+    emit historyChanged(); // the timeline's names
+}
+
 void SketchEditor::updateHint()
 {
     if (mode() == EditorMode::Model) {
         const bool open = m_session.kind != ValueSession::Kind::None;
-        const QString error = QString::fromStdString(m_session.error);
+        const QString error = modelText(m_session.error);
         switch (m_toolKind) {
         case ToolKind::PushPull:
-            emit hintChanged(open ? QStringLiteral("Wyciągnij: przeciągnij strzałkę albo wpisz odległość  ·  "
-                                                   "Enter zatwierdza, Esc anuluje")
-                                  : QStringLiteral("Wyciągnij: dotknij obszaru szkicu albo płaskiej ściany bryły"));
+            emit hintChanged(open ? tr("Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels")
+                                  : tr("Extrude: tap a sketch region or a flat face of a body"));
             return;
         case ToolKind::Fillet:
-        case ToolKind::Chamfer:
-        case ToolKind::Shell: {
-            const QString name = m_toolKind == ToolKind::Fillet  ? QStringLiteral("Zaokrąglij")
-                               : m_toolKind == ToolKind::Chamfer ? QStringLiteral("Fazuj")
-                                                                 : QStringLiteral("Skorupa");
-            if (m_toolKind == ToolKind::Shell && !open && error.isEmpty()) {
-                emit hintChanged(name + QStringLiteral(": dotknij ścian, które mają być otwarte"));
-                return;
-            }
-            if (!error.isEmpty())
-                emit hintChanged(name + QStringLiteral(": ") + error);
-            else if (open)
-                emit hintChanged(name + QStringLiteral(": dotykaj kolejnych krawędzi, wpisz wartość  ·  Enter zatwierdza"));
-            else
-                emit hintChanged(name + QStringLiteral(": dotknij krawędzi bryły"));
+            emit hintChanged(!error.isEmpty() ? tr("Fillet: %1").arg(error)
+                             : open ? tr("Fillet: tap more edges, type the radius  ·  Enter accepts")
+                                    : tr("Fillet: tap edges of a body"));
             return;
-        }
+        case ToolKind::Chamfer:
+            emit hintChanged(!error.isEmpty() ? tr("Chamfer: %1").arg(error)
+                             : open ? tr("Chamfer: tap more edges, type the size  ·  Enter accepts")
+                                    : tr("Chamfer: tap edges of a body"));
+            return;
+        case ToolKind::Shell:
+            emit hintChanged(!error.isEmpty() ? tr("Shell: %1").arg(error)
+                             : open ? tr("Shell: tap more faces to open, type the wall thickness  ·  Enter accepts")
+                                    : tr("Shell: tap the faces to open"));
+            return;
         default:
-            emit hintChanged(open ? QStringLiteral("Przeciągnij strzałkę albo wpisz odległość  ·  Enter wyciąga, Esc anuluje")
-                                  : QStringLiteral("Dotknij obszaru szkicu, by go wyciągnąć, albo ściany bryły  ·  "
-                                                   "Stwórz szkic, by rysować"));
+            emit hintChanged(open ? tr("Drag the arrow or type the distance  ·  Enter extrudes, Esc cancels")
+                                  : tr("Tap a sketch region to extrude it, or a face of a body  ·  "
+                                       "New Sketch to draw"));
             return;
         }
     }
@@ -1073,35 +1178,45 @@ void SketchEditor::updateHint()
         QString hint = m_tool->hint();
         if (m_snap) {
             switch (m_snap->kind) {
-            case SnapResult::Kind::Point:    hint += QStringLiteral("  ·  punkt"); break;
-            case SnapResult::Kind::Midpoint: hint += QStringLiteral("  ·  środek odcinka"); break;
-            case SnapResult::Kind::Origin:   hint += QStringLiteral("  ·  początek układu"); break;
-            case SnapResult::Kind::Aligned:  hint += QStringLiteral("  ·  wyrównanie"); break;
+            case SnapResult::Kind::Point:    hint += tr("  ·  point"); break;
+            case SnapResult::Kind::Midpoint: hint += tr("  ·  midpoint"); break;
+            case SnapResult::Kind::Origin:   hint += tr("  ·  origin"); break;
+            case SnapResult::Kind::Aligned:  hint += tr("  ·  aligned"); break;
             case SnapResult::Kind::None:     break;
             }
         }
         emit hintChanged(hint);
         return;
     }
-    emit hintChanged(QStringLiteral("Zaznacz: dotknij, by dodać  ·  przeciągnij, by przesunąć  ·  "
-                                    "zaznaczony wymiar: dotknij, by zmienić"));
+    if (m_toolKind == ToolKind::Dimension) {
+        if (m_valueEditor->isOpen())
+            emit hintChanged(tr("Dimension: type the value, or tap another point or line to measure to it  ·  "
+                                "Enter accepts, Esc cancels"));
+        else if (m_selection.entities.empty() && m_selection.points.size() == 1)
+            emit hintChanged(tr("Dimension: tap a second point, or a line"));
+        else
+            emit hintChanged(tr("Dimension: tap a line, circle or arc, or two points, a point and a line, two lines"
+                                "  ·  Esc goes back to Select"));
+        return;
+    }
+    emit hintChanged(tr("Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it"));
 }
 
 void SketchEditor::updateStatus()
 {
     if (m_active < 0) {
-        emit statusChanged(tr("Model: %n brył(y)", nullptr, bodyCount()));
+        emit statusChanged(tr("Bodies: %1").arg(bodyCount()));
         return;
     }
     const Sketch& s = sketch();
     if (s.entities().empty())
-        emit statusChanged(tr("Szkic pusty"));
+        emit statusChanged(tr("Sketch: empty"));
     else if (!m_analysis.ok)
-        emit statusChanged(tr("Szkic: sprzeczne więzy"));
+        emit statusChanged(tr("Sketch: conflicting constraints"));
     else if (m_analysis.dof == 0)
-        emit statusChanged(tr("Szkic w pełni określony"));
+        emit statusChanged(tr("Sketch: fully defined"));
     else
-        emit statusChanged(tr("Szkic: %n st. swobody", nullptr, m_analysis.dof));
+        emit statusChanged(tr("Sketch: %1 DOF").arg(m_analysis.dof));
 }
 
 void SketchEditor::paintOverlay(QPainter& p)
@@ -1355,3 +1470,4 @@ void SketchEditor::paintOverlay(QPainter& p)
         }
     }
 }
+

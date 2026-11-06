@@ -1,5 +1,6 @@
 #include "io/ProjectFile.h"
 
+#include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -116,7 +117,7 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
         const auto kind = fromName<EntityKind>(e.value("kind").toString(), kEntityKinds);
         if (!kind) {
             if (error)
-                *error = QStringLiteral("Nieznany rodzaj krzywej: %1").arg(e.value("kind").toString());
+                *error = QCoreApplication::translate("ProjectFile", "Unknown curve kind: %1").arg(e.value("kind").toString());
             return std::nullopt;
         }
         c.entities.push_back({e.value("id").toInt(), *kind, e.value("a").toInt(kNoId), e.value("b").toInt(kNoId),
@@ -128,7 +129,7 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
         const auto kind = fromName<ConstraintKind>(k.value("kind").toString(), kConstraintKinds);
         if (!kind) {
             if (error)
-                *error = QStringLiteral("Nieznany rodzaj więzu: %1").arg(k.value("kind").toString());
+                *error = QCoreApplication::translate("ProjectFile", "Unknown constraint kind: %1").arg(k.value("kind").toString());
             return std::nullopt;
         }
         SketchConstraint sc;
@@ -176,7 +177,7 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
     const auto kind = fromName<Feature::Kind>(o.value("kind").toString(), kFeatureKinds);
     if (!kind) {
         if (error)
-            *error = QStringLiteral("Nieznany rodzaj operacji: %1").arg(o.value("kind").toString());
+            *error = QCoreApplication::translate("ProjectFile", "Unknown feature kind: %1").arg(o.value("kind").toString());
         return std::nullopt;
     }
     Feature f;
@@ -220,12 +221,12 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
     const QJsonObject root = doc.object();
     if (parse.error != QJsonParseError::NoError || root.value("format").toString() != kFormat) {
         if (error)
-            *error = QStringLiteral("To nie jest plik projektu Shapr Linux");
+            *error = QCoreApplication::translate("ProjectFile", "Not a Shapr Linux project file");
         return std::nullopt;
     }
     if (root.value("version").toInt() > kVersion) {
         if (error)
-            *error = QStringLiteral("Projekt zapisany nowszą wersją programu");
+            *error = QCoreApplication::translate("ProjectFile", "The project was saved by a newer version of the app");
         return std::nullopt;
     }
     ProjectData project;
@@ -249,10 +250,10 @@ QString saveProject(const QString& path, const ProjectData& project)
     // Written next to the target and renamed into place: a failed save keeps the old file.
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
-        return QStringLiteral("Nie można zapisać %1: %2").arg(path, file.errorString());
+        return QCoreApplication::translate("ProjectFile", "Can't save %1: %2").arg(path, file.errorString());
     file.write(projectToJson(project));
     if (!file.commit())
-        return QStringLiteral("Nie można zapisać %1: %2").arg(path, file.errorString());
+        return QCoreApplication::translate("ProjectFile", "Can't save %1: %2").arg(path, file.errorString());
     return {};
 }
 
@@ -261,7 +262,7 @@ std::optional<ProjectData> loadProject(const QString& path, QString* error)
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         if (error)
-            *error = QStringLiteral("Nie można otworzyć %1: %2").arg(path, file.errorString());
+            *error = QCoreApplication::translate("ProjectFile", "Can't open %1: %2").arg(path, file.errorString());
         return std::nullopt;
     }
     return projectFromJson(file.readAll(), error);

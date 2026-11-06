@@ -34,10 +34,14 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void changeEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void buildUi();   // menus, bars and actions (again after a language change)
+    void syncUi();    // ... set to the current state
+    void rebuildUi();
     void buildActions();
     void onPenInput(const PenSample& sample);
     void updateEditActions();
@@ -84,6 +88,8 @@ private:
     std::map<ThemeMode, QAction*> m_themeActions;
     std::vector<std::pair<QAction*, std::function<QIcon(const QColor&, const QColor&)>>> m_icons;
     QFrame* m_contextBar = nullptr;
+    QObject* m_uiRoot = nullptr; // owns the window-level actions of the current UI build
+    bool m_rebuildPending = false;
     QToolBar* m_timelineBar = nullptr;
     QToolBar* m_quickBar = nullptr;
     QToolBar* m_viewBar = nullptr;

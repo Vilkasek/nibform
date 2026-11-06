@@ -1,6 +1,7 @@
 #include "app/MainWindow.h"
 
 #include "app/Icons.h"
+#include "app/Language.h"
 #include "model/Export.h"
 #include "sketch/SketchEditor.h"
 #include "viewer/OcctViewerWidget.h"
@@ -48,24 +49,7 @@ MainWindow::MainWindow(QWidget* parent)
     statusBar()->addPermanentWidget(m_inputLabel);
     statusBar()->addPermanentWidget(m_glLabel);
 
-    buildActions();
-    buildContextBar(); // before the theme, which gives it icons
-
-    // Tablet mode: the keys a keyboard would give, as big buttons along the left edge.
-    m_quickBar = new QToolBar(QStringLiteral("Szybkie"), this);
-    m_quickBar->setObjectName(QStringLiteral("quickBar"));
-    m_quickBar->setMovable(false);
-    m_quickBar->setOrientation(Qt::Vertical);
-    m_quickBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    m_quickBar->setIconSize(QSize(32, 32));
-    for (QAction* action : {m_undoAction, m_redoAction, m_deleteAction, m_cancelAction, m_confirmAction, m_fitAction})
-        m_quickBar->addAction(action);
-    addToolBar(Qt::LeftToolBarArea, m_quickBar);
-    m_timelineBar = new QToolBar(QStringLiteral("Historia"), this);
-    m_timelineBar->setObjectName(QStringLiteral("timeline"));
-    m_timelineBar->setMovable(false);
-    m_timelineBar->setIconSize(QSize(18, 18));
-    addToolBar(Qt::BottomToolBarArea, m_timelineBar);
+    buildUi();
 
 
     // Messages take the hint's place for a moment (a status bar message would be
@@ -109,11 +93,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_editor, &SketchEditor::modeChanged, this, &MainWindow::updateContextBar);
     connect(m_editor, &SketchEditor::hintChanged, this, &MainWindow::updateContextBar); // session open / closed
     m_editor->setTool(ToolKind::Select);
-    updateMode(m_editor->mode());
-    updateTimeline();
-    updateTitle();
-    applyTabletMode();
-    updateEditActions();
+    syncUi();
 
     connect(m_viewer, &OcctViewerWidget::glReady, this, [this](const QString& info) {
         m_glLabel->setText(info);
@@ -137,41 +117,116 @@ MainWindow::MainWindow(QWidget* parent)
         }
     });
     connect(m_viewer, &OcctViewerWidget::glFailed, this, [this](const QString& reason) {
-        QMessageBox::critical(this, QStringLiteral("Błąd OpenGL"), reason);
+        QMessageBox::critical(this, tr("OpenGL error"), reason);
     });
     connect(m_viewer, &OcctViewerWidget::penInput, this, &MainWindow::onPenInput);
+}
+
+void MainWindow::buildUi()
+{
+    // Everything here is rebuilt when the language changes (see changeEvent()).
+    m_uiRoot = new QObject(this); // parent of the window-level actions, deleted with them
+    buildActions();
+    buildContextBar();
+
+    // Tablet mode: the keys a keyboard would give, as big buttons along the left edge.
+    m_quickBar = new QToolBar(tr("Quick"), this);
+    m_quickBar->setObjectName(QStringLiteral("quickBar"));
+    m_quickBar->setMovable(false);
+    m_quickBar->setOrientation(Qt::Vertical);
+    m_quickBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    m_quickBar->setIconSize(QSize(32, 32));
+    for (QAction* action : {m_undoAction, m_redoAction, m_deleteAction, m_cancelAction, m_confirmAction, m_fitAction})
+        m_quickBar->addAction(action);
+    addToolBar(Qt::LeftToolBarArea, m_quickBar);
+    m_timelineBar = new QToolBar(tr("History"), this);
+    m_timelineBar->setObjectName(QStringLiteral("timeline"));
+    m_timelineBar->setMovable(false);
+    m_timelineBar->setIconSize(QSize(18, 18));
+    addToolBar(Qt::BottomToolBarArea, m_timelineBar);
+}
+
+void MainWindow::syncUi()
+{
+    // Freshly built bars and menus take the current state.
+    m_themeActions[m_theme]->setChecked(true);
+    applyTheme(); // icons and style sheet
+    if (QAction* action = m_toolActions[m_editor->tool()])
+        action->setChecked(true);
+    updateMode(m_editor->mode());
+    updateTimeline();
+    updateTitle();
+    applyTabletMode();
+    updateEditActions();
+}
+
+void MainWindow::rebuildUi()
+{
+    m_rebuildPending = false;
+    // Toolbars and the context bar don't own the actions they show; the menu bar, its
+    // menus and m_uiRoot do. Bars first, then their actions.
+    delete m_contextBar;
+    m_contextBar = nullptr;
+    m_contextButtons.clear();
+    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_constraintBar, m_timelineBar, m_quickBar}) {
+        removeToolBar(bar);
+        delete bar;
+    }
+    m_modelBar = m_sketchBar = m_viewBar = m_constraintBar = m_timelineBar = m_quickBar = nullptr;
+    delete m_uiRoot;
+    setMenuBar(new QMenuBar(this)); // deletes the old one, its menus and their actions
+    m_toolActions.clear();
+    m_constraintActions.clear();
+    m_bodyActions.clear();
+    m_themeActions.clear();
+    m_icons.clear();
+
+    buildUi();
+    syncUi();
+    m_editor->retranslate(); // hint, status and timeline names
+    updateLayout();
+}
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    // Installing / removing translators sends a few of these; rebuild once.
+    if (event->type() == QEvent::LanguageChange && m_uiRoot && !m_rebuildPending) {
+        m_rebuildPending = true;
+        QTimer::singleShot(0, this, &MainWindow::rebuildUi);
+    }
+    QMainWindow::changeEvent(event);
 }
 
 void MainWindow::buildActions()
 {
     // --- File menu -------------------------------------------------------------------
-    QMenu* file = menuBar()->addMenu(QStringLiteral("&Plik"));
-    file->addAction(QStringLiteral("Nowy"), QKeySequence::New, this, &MainWindow::newFile);
-    file->addAction(QStringLiteral("Otwórz…"), QKeySequence::Open, this, &MainWindow::openFile);
+    QMenu* file = menuBar()->addMenu(tr("&File"));
+    file->addAction(tr("New"), QKeySequence::New, this, &MainWindow::newFile);
+    file->addAction(tr("Open…"), QKeySequence::Open, this, &MainWindow::openFile);
     file->addSeparator();
-    file->addAction(QStringLiteral("Zapisz"), QKeySequence::Save, this, &MainWindow::save);
-    file->addAction(QStringLiteral("Zapisz jako…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this,
+    file->addAction(tr("Save"), QKeySequence::Save, this, &MainWindow::save);
+    file->addAction(tr("Save As…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this,
                     &MainWindow::saveAs);
     file->addSeparator();
-    m_exportStepAction = file->addAction(QStringLiteral("Eksportuj STEP…"), this, [this] { exportBodies(true); });
-    m_exportStlAction = file->addAction(QStringLiteral("Eksportuj STL…"), this, [this] { exportBodies(false); });
+    m_exportStepAction = file->addAction(tr("Export STEP…"), this, [this] { exportBodies(true); });
+    m_exportStlAction = file->addAction(tr("Export STL…"), this, [this] { exportBodies(false); });
     file->addSeparator();
-    file->addAction(QStringLiteral("Zakończ"), QKeySequence::Quit, this, &QWidget::close);
+    file->addAction(tr("Quit"), QKeySequence::Quit, this, &QWidget::close);
 
     // --- Edit menu -------------------------------------------------------------------
-    QMenu* edit = menuBar()->addMenu(QStringLiteral("&Edycja"));
-    m_undoAction = edit->addAction(QStringLiteral("Cofnij"), m_editor, &SketchEditor::undo);
+    QMenu* edit = menuBar()->addMenu(tr("&Edit"));
+    m_undoAction = edit->addAction(tr("Undo"), m_editor, &SketchEditor::undo);
     m_undoAction->setShortcut(QKeySequence::Undo);
-    m_redoAction = edit->addAction(QStringLiteral("Ponów"), m_editor, &SketchEditor::redo);
+    m_redoAction = edit->addAction(tr("Redo"), m_editor, &SketchEditor::redo);
     m_redoAction->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::Key_Y)});
     edit->addSeparator();
-    m_deleteAction = edit->addAction(QStringLiteral("Usuń zaznaczone"), m_editor, &SketchEditor::deleteSelection);
+    m_deleteAction = edit->addAction(tr("Delete Selected"), m_editor, &SketchEditor::deleteSelection);
     m_deleteAction->setShortcuts({QKeySequence::Delete, QKeySequence(Qt::Key_Backspace)});
-    m_clearSketchAction = edit->addAction(QStringLiteral("Wyczyść szkic"), m_editor, &SketchEditor::clearActiveSketch);
+    m_clearSketchAction = edit->addAction(tr("Clear Sketch"), m_editor, &SketchEditor::clearActiveSketch);
     edit->addSeparator();
-    m_cancelAction = edit->addAction(QStringLiteral("Przerwij / odznacz"), m_editor, &SketchEditor::cancel);
+    m_cancelAction = edit->addAction(tr("Cancel / Deselect"), m_editor, &SketchEditor::cancel);
     m_cancelAction->setShortcut(QKeySequence(Qt::Key_Escape));
-    m_confirmAction = edit->addAction(QStringLiteral("Zakończ / edytuj wymiar"), m_editor, &SketchEditor::confirm);
+    m_confirmAction = edit->addAction(tr("Finish / Edit Dimension"), m_editor, &SketchEditor::confirm);
     m_confirmAction->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     iconize(m_undoAction, Icon::Undo);
     iconize(m_redoAction, Icon::Redo);
@@ -187,9 +242,9 @@ void MainWindow::buildActions()
         bar->setIconSize(QSize(24, 24));
         return bar;
     };
-    m_modelBar = makeBar(QStringLiteral("Bryła"));
-    m_sketchBar = makeBar(QStringLiteral("Szkic"));
-    QToolBar* bar = makeBar(QStringLiteral("Widok"));
+    m_modelBar = makeBar(tr("Model"));
+    m_sketchBar = makeBar(tr("Sketch"));
+    QToolBar* bar = makeBar(tr("View"));
     m_viewBar = bar;
 
     // Which mode the window is in, at the start of its bar.
@@ -199,12 +254,12 @@ void MainWindow::buildActions()
         label->setProperty("mode", QString::fromLatin1(mode)); // colored by the style sheet
         toolbar->addWidget(label);
     };
-    badge(m_modelBar, QStringLiteral("BRYŁA"), "model");
-    badge(m_sketchBar, QStringLiteral("SZKIC"), "sketch");
+    badge(m_modelBar, tr("MODEL"), "model");
+    badge(m_sketchBar, tr("SKETCH"), "sketch");
 
-    auto* tools = new QActionGroup(this);
+    auto* tools = new QActionGroup(m_uiRoot);
     auto makeTool = [&](ToolKind kind, const QString& name, const QKeySequence& key, Icon icon) {
-        auto* action = new QAction(name, this);
+        auto* action = new QAction(name, m_uiRoot);
         iconize(action, icon);
         action->setCheckable(true);
         action->setShortcut(key);
@@ -214,28 +269,28 @@ void MainWindow::buildActions()
         m_toolActions[kind] = action;
         return action;
     };
-    QAction* select = makeTool(ToolKind::Select, QStringLiteral("Zaznacz"), QKeySequence(Qt::Key_S), Icon::Select);
+    QAction* select = makeTool(ToolKind::Select, tr("Select"), QKeySequence(Qt::Key_S), Icon::Select);
 
     // Model: start / reopen sketches, pull them into bodies, round edges.
     m_modelBar->addAction(select);
     m_modelBar->addSeparator();
-    m_newSketchAction = new QAction(QStringLiteral("Stwórz szkic"), this);
+    m_newSketchAction = new QAction(tr("New Sketch"), m_uiRoot);
     m_newSketchAction->setShortcut(QKeySequence(Qt::Key_K));
     iconize(m_newSketchAction, Icon::NewSketch);
-    m_newSketchAction->setToolTip(QStringLiteral("Stwórz szkic (K) – na zaznaczonej płaskiej ścianie, "
-                                                 "inaczej na podłożu; strzałka obok: wybór płaszczyzny"));
+    m_newSketchAction->setToolTip(tr("New Sketch (K): on the selected flat face, otherwise on the ground; "
+                                     "the arrow next to it picks the plane"));
     connect(m_newSketchAction, &QAction::triggered, this, [this] {
         if (m_editor->canSketchOnFace())
             m_editor->createSketchOnFace();
         else
             m_editor->createSketch(SketchEditor::basePlane(SketchPlane::XY));
     });
-    auto* planes = new QMenu(this);
-    m_faceSketchAction = planes->addAction(QStringLiteral("Na zaznaczonej ścianie"), m_editor,
+    auto* planes = new QMenu(m_modelBar);
+    m_faceSketchAction = planes->addAction(tr("On the Selected Face"), m_editor,
                                            &SketchEditor::createSketchOnFace);
-    for (const auto& [plane, name] : {std::pair(SketchPlane::XY, QStringLiteral("Podłoże (XY)")),
-                                      std::pair(SketchPlane::XZ, QStringLiteral("Przód (XZ)")),
-                                      std::pair(SketchPlane::YZ, QStringLiteral("Prawo (YZ)"))}) {
+    for (const auto& [plane, name] : {std::pair(SketchPlane::XY, tr("Ground (XY)")),
+                                      std::pair(SketchPlane::XZ, tr("Front (XZ)")),
+                                      std::pair(SketchPlane::YZ, tr("Right (YZ)"))}) {
         planes->addAction(name, this, [this, plane] { m_editor->createSketch(SketchEditor::basePlane(plane)); });
     }
     auto* newSketch = new QToolButton(m_modelBar);
@@ -246,97 +301,127 @@ void MainWindow::buildActions()
     newSketch->setFocusPolicy(Qt::NoFocus);
     newSketch->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     m_modelBar->addWidget(newSketch);
-    m_editSketchAction = m_modelBar->addAction(QStringLiteral("Edytuj szkic"), m_editor, &SketchEditor::editSketch);
-    m_editSketchAction->setToolTip(QStringLiteral("Otwiera szkic, którego obszar jest zaznaczony"));
+    m_editSketchAction = m_modelBar->addAction(tr("Edit Sketch"), m_editor, &SketchEditor::editSketch);
+    m_editSketchAction->setToolTip(tr("Opens the sketch whose region is selected"));
     iconize(m_editSketchAction, Icon::EditSketch);
     m_modelBar->addSeparator();
     m_modelBar->addAction(
-        makeTool(ToolKind::PushPull, QStringLiteral("Wyciągnij"), QKeySequence(Qt::Key_W), Icon::Extrude));
+        makeTool(ToolKind::PushPull, tr("Extrude"), QKeySequence(Qt::Key_W), Icon::Extrude));
     m_modelBar->addAction(
-        makeTool(ToolKind::Fillet, QStringLiteral("Zaokrąglij"), QKeySequence(Qt::Key_G), Icon::Fillet));
+        makeTool(ToolKind::Fillet, tr("Fillet"), QKeySequence(Qt::Key_G), Icon::Fillet));
     m_modelBar->addAction(
-        makeTool(ToolKind::Chamfer, QStringLiteral("Fazuj"), QKeySequence(Qt::Key_B), Icon::Chamfer));
+        makeTool(ToolKind::Chamfer, tr("Chamfer"), QKeySequence(Qt::Key_B), Icon::Chamfer));
     m_modelBar->addAction(
-        makeTool(ToolKind::Shell, QStringLiteral("Skorupa"), QKeySequence(Qt::Key_J), Icon::Shell));
+        makeTool(ToolKind::Shell, tr("Shell"), QKeySequence(Qt::Key_J), Icon::Shell));
 
     // What extruding does to the bodies it meets.
     m_modelBar->addSeparator();
     // Hidden in compact layouts through its toolbar action (the widget itself can't be).
-    m_operationLabel = m_modelBar->addWidget(new QLabel(QStringLiteral(" Bryła: "), m_modelBar));
+    m_operationLabel = m_modelBar->addWidget(new QLabel(tr(" Operation: "), m_modelBar));
     auto* operation = new QComboBox(m_modelBar);
     operation->setFocusPolicy(Qt::NoFocus);
-    operation->setToolTip(QStringLiteral("Automatycznie: wciśnięcie w bryłę odejmuje, wyciągnięcie z niej "
-                                         "albo przy niej dodaje,\na z dala od brył powstaje nowa bryła"));
-    operation->addItem(QStringLiteral("Automatycznie"), static_cast<int>(BodyOperation::Auto));
-    operation->addItem(QStringLiteral("Nowa bryła"), static_cast<int>(BodyOperation::NewBody));
-    operation->addItem(QStringLiteral("Dodaj"), static_cast<int>(BodyOperation::Join));
-    operation->addItem(QStringLiteral("Odejmij"), static_cast<int>(BodyOperation::Cut));
+    operation->setToolTip(tr("Automatic: pushing into a body cuts, pulling out of it or next to it joins,\n"
+                             "and away from bodies a new body is made"));
+    operation->addItem(tr("Automatic"), static_cast<int>(BodyOperation::Auto));
+    operation->addItem(tr("New Body"), static_cast<int>(BodyOperation::NewBody));
+    operation->addItem(tr("Join"), static_cast<int>(BodyOperation::Join));
+    operation->addItem(tr("Cut"), static_cast<int>(BodyOperation::Cut));
+    operation->setCurrentIndex(operation->findData(static_cast<int>(m_editor->bodyOperation())));
     connect(operation, &QComboBox::currentIndexChanged, this, [this, operation](int index) {
         m_editor->setBodyOperation(static_cast<BodyOperation>(operation->itemData(index).toInt()));
+    });
+    // Also chosen under the value field while extruding.
+    connect(m_editor, &SketchEditor::bodyOperationChanged, operation, [operation](BodyOperation op) {
+        const QSignalBlocker block(operation);
+        operation->setCurrentIndex(operation->findData(static_cast<int>(op)));
     });
     m_modelBar->addWidget(operation);
 
     // Sketch: drawing tools, then the way back to the model.
     m_sketchBar->addAction(select);
     m_sketchBar->addSeparator();
-    m_sketchBar->addAction(makeTool(ToolKind::Line, QStringLiteral("Linia"), QKeySequence(Qt::Key_L), Icon::Line));
+    m_sketchBar->addAction(makeTool(ToolKind::Line, tr("Line"), QKeySequence(Qt::Key_L), Icon::Line));
     m_sketchBar->addAction(
-        makeTool(ToolKind::Rectangle, QStringLiteral("Prostokąt"), QKeySequence(Qt::Key_R), Icon::Rectangle));
-    m_sketchBar->addAction(makeTool(ToolKind::Circle, QStringLiteral("Okrąg"), QKeySequence(Qt::Key_C), Icon::Circle));
-    m_sketchBar->addAction(makeTool(ToolKind::Arc, QStringLiteral("Łuk"), QKeySequence(Qt::Key_A), Icon::Arc));
-    m_sketchBar->addAction(makeTool(ToolKind::Trim, QStringLiteral("Przytnij"), QKeySequence(Qt::Key_X), Icon::Trim));
+        makeTool(ToolKind::Rectangle, tr("Rectangle"), QKeySequence(Qt::Key_R), Icon::Rectangle));
+    m_sketchBar->addAction(makeTool(ToolKind::Circle, tr("Circle"), QKeySequence(Qt::Key_C), Icon::Circle));
+    m_sketchBar->addAction(makeTool(ToolKind::Arc, tr("Arc"), QKeySequence(Qt::Key_A), Icon::Arc));
+    m_sketchBar->addAction(makeTool(ToolKind::Trim, tr("Trim"), QKeySequence(Qt::Key_X), Icon::Trim));
     m_sketchBar->addAction(
-        makeTool(ToolKind::Offset, QStringLiteral("Odsunięcie"), QKeySequence(Qt::Key_U), Icon::Offset));
-    m_constructionAction = m_sketchBar->addAction(QStringLiteral("Konstrukcyjna"), m_editor,
+        makeTool(ToolKind::Offset, tr("Offset"), QKeySequence(Qt::Key_U), Icon::Offset));
+    m_constructionAction = m_sketchBar->addAction(tr("Construction"), m_editor,
                                                   &SketchEditor::toggleConstruction);
     m_constructionAction->setShortcut(QKeySequence(Qt::Key_Q));
-    m_constructionAction->setToolTip(QStringLiteral("Konstrukcyjna (Q) – zaznaczone krzywe stają się pomocnicze "
-                                                    "(przerywane, nie tworzą obszarów) albo z powrotem zwykłe"));
+    m_constructionAction->setToolTip(tr("Construction (Q): the selected curves become reference geometry "
+                                        "(dashed, never bounding a region), or back to regular"));
     iconize(m_constructionAction, Icon::Construction);
     m_sketchBar->addSeparator();
-    m_closeSketchAction = m_sketchBar->addAction(QStringLiteral("Zamknij szkic"), m_editor, &SketchEditor::closeSketch);
+    m_closeSketchAction = m_sketchBar->addAction(tr("Finish Sketch"), m_editor, &SketchEditor::closeSketch);
     m_closeSketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
-    m_closeSketchAction->setToolTip(QStringLiteral("Wraca do brył (Ctrl+Enter)"));
+    m_closeSketchAction->setToolTip(tr("Back to the model (Ctrl+Enter)"));
     iconize(m_closeSketchAction, Icon::CloseSketch);
     if (QWidget* button = m_sketchBar->widgetForAction(m_closeSketchAction))
         button->setObjectName(QStringLiteral("closeSketch")); // the accent button of the sketch bar
 
     bar->addSeparator();
-    QAction* fit = bar->addAction(QStringLiteral("Dopasuj"), m_viewer, &OcctViewerWidget::fitAll);
+    QAction* fit = bar->addAction(tr("Fit"), m_viewer, &OcctViewerWidget::fitAll);
     m_fitAction = fit;
     fit->setShortcut(QKeySequence(Qt::Key_F));
-    fit->setToolTip(QStringLiteral("Dopasuj widok (F)"));
+    fit->setToolTip(tr("Fit the view (F)"));
     iconize(fit, Icon::Fit);
 
     // --- Views: digits = faces, Ctrl+digit = corners, Shift+digit = edges --------------
-    QMenu* views = menuBar()->addMenu(QStringLiteral("Wi&dok"));
+    QMenu* views = menuBar()->addMenu(tr("&View"));
     views->addAction(fit);
 
     // Pen and touch: without a keyboard, and with a hand resting on the screen.
-    m_tabletAction = views->addAction(QStringLiteral("Tryb tabletu"), this, [this](bool on) {
+    m_tabletAction = views->addAction(tr("Tablet Mode"), this, [this](bool on) {
         QSettings().setValue(QStringLiteral("tabletMode"), on);
         applyTabletMode();
     });
     m_tabletAction->setCheckable(true);
     m_tabletAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
-    m_tabletAction->setToolTip(QStringLiteral("Większe przyciski i pola trafień, pasek Cofnij / Usuń / Gotowe "
-                                              "z boku i klawiatura numeryczna przy wartościach"));
+    m_tabletAction->setToolTip(tr("Bigger buttons and pick areas, an Undo / Delete / Done bar on the side "
+                                  "and a numeric keypad for values"));
     m_tabletAction->setChecked(QSettings().value(QStringLiteral("tabletMode"), false).toBool());
-    QAction* palm = views->addAction(QStringLiteral("Odrzucanie dłoni"), this, [this](bool on) {
+    QAction* palm = views->addAction(tr("Palm Rejection"), this, [this](bool on) {
         QSettings().setValue(QStringLiteral("palmRejection"), on);
         m_viewer->setPalmRejection(on);
     });
     palm->setCheckable(true);
-    palm->setToolTip(QStringLiteral("Dotyk jest ignorowany, gdy rysik jest przy ekranie, i dla szerokich kontaktów"));
+    palm->setToolTip(tr("Touch is ignored while the pen is near the screen, and for wide contacts"));
     palm->setChecked(QSettings().value(QStringLiteral("palmRejection"), true).toBool());
     m_viewer->setPalmRejection(palm->isChecked());
+    QAction* usedRegions = views->addAction(tr("Show Extruded Regions"), this, [this](bool on) {
+        QSettings().setValue(QStringLiteral("showUsedRegions"), on);
+        m_editor->setShowUsedRegions(on);
+    });
+    usedRegions->setCheckable(true);
+    usedRegions->setToolTip(tr("Sketch regions already extruded are hidden, so the faces under them can be "
+                               "picked; show them to extrude one again"));
+    usedRegions->setChecked(QSettings().value(QStringLiteral("showUsedRegions"), false).toBool());
+    m_editor->setShowUsedRegions(usedRegions->isChecked());
     views->addSeparator();
 
-    QMenu* themes = views->addMenu(QStringLiteral("Motyw"));
-    auto* themeGroup = new QActionGroup(this);
-    for (const auto& [mode, name] : {std::pair(ThemeMode::System, QStringLiteral("Systemowy")),
-                                     std::pair(ThemeMode::Light, QStringLiteral("Jasny")),
-                                     std::pair(ThemeMode::Dark, QStringLiteral("Ciemny"))}) {
+    // Not translated, so it can be found whatever language is showing.
+    QMenu* languages = views->addMenu(QStringLiteral("Język / Language"));
+    auto* languageGroup = new QActionGroup(m_uiRoot);
+    for (const auto& [code, name] : {std::pair(QStringLiteral("system"), tr("System")),
+                                     std::pair(QStringLiteral("pl"), QStringLiteral("Polski")),
+                                     std::pair(QStringLiteral("en"), QStringLiteral("English"))}) {
+        QAction* action = languages->addAction(name, this, [code] {
+            saveLanguage(code);
+            applyLanguage(code); // every widget gets a LanguageChange: see changeEvent()
+        });
+        action->setCheckable(true);
+        action->setChecked(code == savedLanguage());
+        languageGroup->addAction(action);
+    }
+
+    QMenu* themes = views->addMenu(tr("Theme"));
+    auto* themeGroup = new QActionGroup(m_uiRoot);
+    for (const auto& [mode, name] : {std::pair(ThemeMode::System, tr("System")),
+                                     std::pair(ThemeMode::Light, tr("Light")),
+                                     std::pair(ThemeMode::Dark, tr("Dark"))}) {
         QAction* action = themes->addAction(name, this, [this, mode] { setTheme(mode); });
         action->setCheckable(true);
         themeGroup->addAction(action);
@@ -351,45 +436,45 @@ void MainWindow::buildActions()
     const Qt::Key digits[] = {Qt::Key_1, Qt::Key_2, Qt::Key_3, Qt::Key_4, Qt::Key_5,
                               Qt::Key_6, Qt::Key_7, Qt::Key_8, Qt::Key_9, Qt::Key_0};
 
-    views->addSection(QStringLiteral("Ściany"));
+    views->addSection(tr("Faces"));
     const std::pair<const char*, V3d_TypeOfOrientation> faces[] = {
-        {"Góra", V3d_Zpos}, {"Przód", V3d_Yneg}, {"Prawo", V3d_Xpos},
-        {"Tył", V3d_Ypos},  {"Lewo", V3d_Xneg},  {"Dół", V3d_Zneg},
+        {QT_TR_NOOP("Top"), V3d_Zpos},   {QT_TR_NOOP("Front"), V3d_Yneg}, {QT_TR_NOOP("Right"), V3d_Xpos},
+        {QT_TR_NOOP("Back"), V3d_Ypos},  {QT_TR_NOOP("Left"), V3d_Xneg},  {QT_TR_NOOP("Bottom"), V3d_Zneg},
     };
     std::vector<QAction*> faceActions;
     for (int i = 0; i < 6; ++i)
-        faceActions.push_back(addView(QString::fromUtf8(faces[i].first), faces[i].second, QKeySequence(digits[i])));
+        faceActions.push_back(addView(tr(faces[i].first), faces[i].second, QKeySequence(digits[i])));
 
     // Top ring first, then the bottom one, both going front-right -> back-right -> back-left -> front-left.
-    views->addSection(QStringLiteral("Narożniki"));
+    views->addSection(tr("Corners"));
     const std::pair<const char*, V3d_TypeOfOrientation> corners[] = {
-        {"Góra-przód-prawo", V3d_XposYnegZpos}, {"Góra-tył-prawo", V3d_XposYposZpos},
-        {"Góra-tył-lewo", V3d_XnegYposZpos},    {"Góra-przód-lewo", V3d_XnegYnegZpos},
-        {"Dół-przód-prawo", V3d_XposYnegZneg},  {"Dół-tył-prawo", V3d_XposYposZneg},
-        {"Dół-tył-lewo", V3d_XnegYposZneg},     {"Dół-przód-lewo", V3d_XnegYnegZneg},
+        {QT_TR_NOOP("Top-front-right"), V3d_XposYnegZpos},    {QT_TR_NOOP("Top-back-right"), V3d_XposYposZpos},
+        {QT_TR_NOOP("Top-back-left"), V3d_XnegYposZpos},      {QT_TR_NOOP("Top-front-left"), V3d_XnegYnegZpos},
+        {QT_TR_NOOP("Bottom-front-right"), V3d_XposYnegZneg}, {QT_TR_NOOP("Bottom-back-right"), V3d_XposYposZneg},
+        {QT_TR_NOOP("Bottom-back-left"), V3d_XnegYposZneg},   {QT_TR_NOOP("Bottom-front-left"), V3d_XnegYnegZneg},
     };
     std::vector<QAction*> cornerActions;
     for (int i = 0; i < 8; ++i) {
-        cornerActions.push_back(addView(QString::fromUtf8(corners[i].first), corners[i].second,
+        cornerActions.push_back(addView(tr(corners[i].first), corners[i].second,
                                         QKeySequence(Qt::CTRL | digits[i])));
     }
 
     // Twelve edges but ten digits: the two least used bottom edges go to Ctrl+Shift+9 / 0.
-    views->addSection(QStringLiteral("Krawędzie"));
+    views->addSection(tr("Edges"));
     const std::pair<const char*, V3d_TypeOfOrientation> edges[] = {
-        {"Góra-przód", V3d_YnegZpos},   {"Góra-prawo", V3d_XposZpos},
-        {"Góra-tył", V3d_YposZpos},     {"Góra-lewo", V3d_XnegZpos},
-        {"Przód-prawo", V3d_XposYneg},  {"Tył-prawo", V3d_XposYpos},
-        {"Tył-lewo", V3d_XnegYpos},     {"Przód-lewo", V3d_XnegYneg},
-        {"Dół-przód", V3d_YnegZneg},    {"Dół-tył", V3d_YposZneg},
+        {QT_TR_NOOP("Top-front"), V3d_YnegZpos},    {QT_TR_NOOP("Top-right"), V3d_XposZpos},
+        {QT_TR_NOOP("Top-back"), V3d_YposZpos},     {QT_TR_NOOP("Top-left"), V3d_XnegZpos},
+        {QT_TR_NOOP("Front-right"), V3d_XposYneg},  {QT_TR_NOOP("Back-right"), V3d_XposYpos},
+        {QT_TR_NOOP("Back-left"), V3d_XnegYpos},    {QT_TR_NOOP("Front-left"), V3d_XnegYneg},
+        {QT_TR_NOOP("Bottom-front"), V3d_YnegZneg}, {QT_TR_NOOP("Bottom-back"), V3d_YposZneg},
     };
     for (int i = 0; i < 10; ++i)
-        addView(QString::fromUtf8(edges[i].first), edges[i].second, QKeySequence(Qt::SHIFT | digits[i]));
-    addView(QStringLiteral("Dół-prawo"), V3d_XposZneg, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_9));
-    addView(QStringLiteral("Dół-lewo"), V3d_XnegZneg, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_0));
+        addView(tr(edges[i].first), edges[i].second, QKeySequence(Qt::SHIFT | digits[i]));
+    addView(tr("Bottom-right"), V3d_XposZneg, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_9));
+    addView(tr("Bottom-left"), V3d_XnegZneg, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_0));
 
     // The toolbar keeps its quick buttons, sharing the menu's actions (and shortcuts).
-    QAction* iso = bar->addAction(QStringLiteral("Izometria"));
+    QAction* iso = bar->addAction(tr("Isometric"));
     iso->setToolTip(cornerActions[0]->toolTip());
     iconize(iso, Icon::Iso);
     iconize(faceActions[0], Icon::Top);
@@ -402,27 +487,27 @@ void MainWindow::buildActions()
 
     // --- Constraints: select geometry, then pick what should hold -----------------------
     addToolBarBreak();
-    QToolBar* constraints = addToolBar(QStringLiteral("Więzy"));
+    QToolBar* constraints = addToolBar(tr("Constraints"));
     m_constraintBar = constraints;
     constraints->setMovable(false);
     constraints->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     constraints->setIconSize(QSize(20, 20));
     // --- Bodies: picked through their faces ----------------------------------------------
-    QMenu* bodies = menuBar()->addMenu(QStringLiteral("&Bryły"));
+    QMenu* bodies = menuBar()->addMenu(tr("&Bodies"));
     m_bodiesMenu = bodies;
     auto addBoolean = [&](BooleanKind kind, const QString& name, const QString& help) {
         QAction* action = bodies->addAction(name, this, [this, kind] { m_editor->combineBodies(kind); });
         action->setToolTip(help);
         m_bodyActions.push_back(action);
     };
-    addBoolean(BooleanKind::Union, QStringLiteral("Połącz"), QStringLiteral("Zaznaczone bryły w jedną"));
-    addBoolean(BooleanKind::Subtract, QStringLiteral("Odejmij"),
-               QStringLiteral("Od pierwszej zaznaczonej bryły odejmuje pozostałe"));
-    addBoolean(BooleanKind::Intersect, QStringLiteral("Część wspólna"),
-               QStringLiteral("Zostawia tylko to, co zaznaczone bryły mają wspólne"));
+    addBoolean(BooleanKind::Union, tr("Union"), tr("The selected bodies into one"));
+    addBoolean(BooleanKind::Subtract, tr("Cut"),
+               tr("Subtracts the other selected bodies from the first"));
+    addBoolean(BooleanKind::Intersect, tr("Intersect"),
+               tr("Keeps only what the selected bodies share"));
     bodies->setToolTipsVisible(true);
 
-    QMenu* constraintMenu = menuBar()->addMenu(QStringLiteral("&Więzy"));
+    QMenu* constraintMenu = menuBar()->addMenu(tr("&Constraints"));
     m_constraintMenu = constraintMenu;
     auto addConstraint = [&](ConstraintCommand command, const QString& name, Qt::Key key, const QString& help) {
         QAction* action = constraints->addAction(name);
@@ -433,30 +518,45 @@ void MainWindow::buildActions()
         m_constraintActions[command] = action;
         iconize(action, command);
     };
-    addConstraint(ConstraintCommand::Dimension, QStringLiteral("Wymiar"), Qt::Key_D,
-                  QStringLiteral("Linia lub 2 punkty: odległość · punkt i linia: odległość od linii · "
-                                 "2 równoległe linie: odstęp · 2 inne linie: kąt · okrąg: średnica · łuk: promień"));
+    addConstraint(ConstraintCommand::Dimension, tr("Dimension"), Qt::Key_D,
+                  tr("A line or 2 points: distance · a point and a line: distance to the line · "
+                     "2 parallel lines: gap · 2 other lines: angle · circle: diameter · arc: radius\n"
+                     "With nothing selected: a tool, tap what to dimension"));
+    {
+        // Dimensions the selection, or else becomes a tool: checked like the drawing tools.
+        QAction* dimension = m_constraintActions[ConstraintCommand::Dimension];
+        disconnect(dimension, &QAction::triggered, this, nullptr);
+        dimension->setCheckable(true);
+        tools->addAction(dimension);
+        m_toolActions[ToolKind::Dimension] = dimension;
+        connect(dimension, &QAction::triggered, this, [this] {
+            m_editor->dimension();
+            // Applied to the selection: the tool stays what it was.
+            if (QAction* current = m_toolActions[m_editor->tool()])
+                current->setChecked(true);
+        });
+    }
     constraints->addSeparator();
     constraintMenu->addSeparator();
-    addConstraint(ConstraintCommand::Horizontal, QStringLiteral("Poziomo"), Qt::Key_H,
-                  QStringLiteral("Linie albo 2 punkty"));
-    addConstraint(ConstraintCommand::Vertical, QStringLiteral("Pionowo"), Qt::Key_V,
-                  QStringLiteral("Linie albo 2 punkty"));
-    addConstraint(ConstraintCommand::Parallel, QStringLiteral("Równoległe"), Qt::Key_P, QStringLiteral("2+ linie"));
-    addConstraint(ConstraintCommand::Perpendicular, QStringLiteral("Prostopadłe"), Qt::Key_N,
-                  QStringLiteral("2 linie"));
-    addConstraint(ConstraintCommand::Equal, QStringLiteral("Równe"), Qt::Key_E,
-                  QStringLiteral("2+ linie (długość) albo 2+ okręgi/łuki (promień)"));
-    addConstraint(ConstraintCommand::Tangent, QStringLiteral("Styczne"), Qt::Key_T,
-                  QStringLiteral("Linia i okrąg/łuk albo 2 okręgi/łuki"));
-    addConstraint(ConstraintCommand::Concentric, QStringLiteral("Współśrodkowe"), Qt::Key_O,
-                  QStringLiteral("2+ okręgi/łuki"));
-    addConstraint(ConstraintCommand::Coincident, QStringLiteral("Wspólny punkt"), Qt::Key_I,
-                  QStringLiteral("2 punkty (łączy je) albo punkt i krzywa (punkt na krzywej)"));
-    addConstraint(ConstraintCommand::Midpoint, QStringLiteral("Środek"), Qt::Key_M,
-                  QStringLiteral("Punkt i linia"));
-    addConstraint(ConstraintCommand::Fix, QStringLiteral("Zablokuj"), Qt::Key_Z,
-                  QStringLiteral("Punkty albo krzywe: przypina je w obecnym miejscu"));
+    addConstraint(ConstraintCommand::Horizontal, tr("Horizontal"), Qt::Key_H,
+                  tr("Lines or 2 points"));
+    addConstraint(ConstraintCommand::Vertical, tr("Vertical"), Qt::Key_V,
+                  tr("Lines or 2 points"));
+    addConstraint(ConstraintCommand::Parallel, tr("Parallel"), Qt::Key_P, tr("2+ lines"));
+    addConstraint(ConstraintCommand::Perpendicular, tr("Perpendicular"), Qt::Key_N,
+                  tr("2 lines"));
+    addConstraint(ConstraintCommand::Equal, tr("Equal"), Qt::Key_E,
+                  tr("2+ lines (length) or 2+ circles/arcs (radius)"));
+    addConstraint(ConstraintCommand::Tangent, tr("Tangent"), Qt::Key_T,
+                  tr("A line and a circle/arc, or 2 circles/arcs"));
+    addConstraint(ConstraintCommand::Concentric, tr("Concentric"), Qt::Key_O,
+                  tr("2+ circles/arcs"));
+    addConstraint(ConstraintCommand::Coincident, tr("Coincident"), Qt::Key_I,
+                  tr("2 points (merges them) or a point and a curve (point on the curve)"));
+    addConstraint(ConstraintCommand::Midpoint, tr("Midpoint"), Qt::Key_M,
+                  tr("A point and a line"));
+    addConstraint(ConstraintCommand::Fix, tr("Fix"), Qt::Key_Z,
+                  tr("Points or curves: pins them where they are"));
 }
 
 void MainWindow::setTheme(ThemeMode mode)
@@ -497,6 +597,8 @@ QFrame#valueEditor QLabel { color: @text; padding-left: 4px; }
 QFrame#valueEditor QLineEdit { border: 1px solid @accent; border-radius: 6px; padding: 3px 6px;
                                background: @base; color: @text; selection-background-color: @accent; }
 QToolButton#valueAccept { background: @accent; color: white; }
+QToolButton#valueChoice { border: 1px solid @border; border-radius: 6px; padding: 2px 8px; }
+QToolButton#valueChoice:checked { border-color: @accent; }
 QStatusBar { background: @bar; border-top: 1px solid @border; }
 QLabel[message="true"] { color: @checkedText; font-weight: 600; }
 QLabel#statusChip { background: @pressed; color: @checkedText; border-radius: 9px; padding: 2px 10px; }
@@ -573,7 +675,7 @@ void MainWindow::loadDemo()
     if (!plate || !boss || !hole)
         return;
     m_editor->extrudeRegions({*plate, *boss, *hole}, 12.0);
-    m_editor->extrudeRegions({*boss}, 25.0);
+    m_editor->extrudeRegions({*boss}, 25.0, BodyOperation::Join); // Auto would drill it: it starts in the plate
     m_editor->extrudeRegions({*hole}, 12.0);
     m_viewer->setProjection(V3d_XposYnegZpos, false);
     if (const auto loose = m_editor->regionAt(0, {-25, 20}))
@@ -599,12 +701,12 @@ void MainWindow::updateTimeline()
     // it (reopens the sketch / retypes the value, the model following live); the arrow
     // menu offers both and removal.
     m_timelineBar->clear();
-    auto* title = new QLabel(QStringLiteral("Historia"), m_timelineBar);
+    auto* title = new QLabel(tr("History"), m_timelineBar);
     title->setObjectName(QStringLiteral("timelineTitle"));
     m_timelineBar->addWidget(title);
     const std::vector<TimelineItem> items = m_editor->timeline();
     if (items.empty()) {
-        auto* empty = new QLabel(QStringLiteral("pusta – stwórz szkic i wyciągnij go"), m_timelineBar);
+        auto* empty = new QLabel(tr("empty: create a sketch and extrude it"), m_timelineBar);
         empty->setEnabled(false);
         m_timelineBar->addWidget(empty);
     }
@@ -617,8 +719,8 @@ void MainWindow::updateTimeline()
         chip->setText(item.detail.isEmpty() ? item.name : QStringLiteral("%1  ·  %2").arg(item.name, item.detail));
         const bool editable = item.sketch || !item.detail.isEmpty();
         chip->setToolTip(!item.error.isEmpty() ? item.error
-                         : item.sketch         ? QStringLiteral("Dwuklik: edytuj szkic")
-                         : editable            ? QStringLiteral("Dwuklik: zmień wartość")
+                         : item.sketch         ? tr("Double-click: edit the sketch")
+                         : editable            ? tr("Double-click: change the value")
                                                : QString());
         chip->setCheckable(true);
         chip->setChecked(i == m_timelinePick);
@@ -626,12 +728,13 @@ void MainWindow::updateTimeline()
         chip->installEventFilter(this); // double taps
         chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         chip->setFocusPolicy(Qt::NoFocus);
-        const Icon icon = item.sketch                                    ? Icon::EditSketch
-                        : item.name.startsWith(QStringLiteral("Wyciąg")) ? Icon::Extrude
-                        : item.name.startsWith(QStringLiteral("Zaokr"))  ? Icon::Fillet
-                        : item.name.startsWith(QStringLiteral("Faza"))   ? Icon::Chamfer
-                        : item.name.startsWith(QStringLiteral("Skorup")) ? Icon::Shell
-                                                                         : Icon::Coincident;
+        const Icon icon = item.kind == Feature::Kind::Sketch  ? Icon::EditSketch
+                        : item.kind == Feature::Kind::Extrude ? Icon::Extrude
+                        : item.kind == Feature::Kind::Fillet  ? Icon::Fillet
+                        : item.kind == Feature::Kind::Chamfer ? Icon::Chamfer
+                        : item.kind == Feature::Kind::Shell   ? Icon::Shell
+                        : item.kind == Feature::Kind::Delete  ? Icon::Delete
+                                                              : Icon::Coincident;
         chip->setIcon(makeIcon(icon, palette().color(QPalette::WindowText), QColor(m_accent)));
         connect(chip, &QToolButton::clicked, this, [this, i] {
             m_timelinePick = i;
@@ -639,9 +742,9 @@ void MainWindow::updateTimeline()
                 other->setChecked(other->property("timelineIndex").toInt() == i);
         });
         auto* menu = new QMenu(chip);
-        menu->addAction(QStringLiteral("Edytuj"), this, [this, i] { m_editor->activateTimelineItem(i); })
+        menu->addAction(tr("Edit"), this, [this, i] { m_editor->activateTimelineItem(i); })
             ->setEnabled(editable);
-        menu->addAction(QStringLiteral("Usuń"), this, [this, i] {
+        menu->addAction(tr("Delete"), this, [this, i] {
             m_timelinePick = -1;
             m_editor->removeTimelineItem(i);
         });
@@ -684,9 +787,9 @@ void MainWindow::applyTabletMode()
     m_quickBar->setVisible(tablet);
     m_editor->setTabletMode(tablet);
     // Short labels on the side bar: they sit under big icons.
-    m_cancelAction->setIconText(QStringLiteral("Anuluj"));
-    m_confirmAction->setIconText(QStringLiteral("Gotowe"));
-    m_deleteAction->setIconText(QStringLiteral("Usuń"));
+    m_cancelAction->setIconText(tr("Cancel"));
+    m_confirmAction->setIconText(tr("Done"));
+    m_deleteAction->setIconText(tr("Delete"));
     updateLayout();
 }
 
@@ -722,7 +825,7 @@ void MainWindow::resizeEvent(QResizeEvent* event)
 
 void MainWindow::updateTitle()
 {
-    const QString name = m_path.isEmpty() ? QStringLiteral("Bez nazwy") : QFileInfo(m_path).fileName();
+    const QString name = m_path.isEmpty() ? tr("Untitled") : QFileInfo(m_path).fileName();
     setWindowTitle(QStringLiteral("%1%2 – Shapr Linux").arg(name, m_editor->isModified() ? QStringLiteral("*") : QString()));
 }
 
@@ -741,7 +844,7 @@ bool MainWindow::maybeSave()
     if (!m_editor->isModified())
         return true;
     const auto answer = QMessageBox::question(
-        this, QStringLiteral("Niezapisane zmiany"), QStringLiteral("Zapisać zmiany w projekcie?"),
+        this, tr("Unsaved Changes"), tr("Save the changes to the project?"),
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
     if (answer == QMessageBox::Save)
         return save();
@@ -761,8 +864,8 @@ void MainWindow::openFile()
 {
     if (!maybeSave())
         return;
-    const QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Otwórz projekt"), lastDirectory(),
-                                                      QStringLiteral("Projekty Shapr Linux (*.shapr)"));
+    const QString path = QFileDialog::getOpenFileName(this, tr("Open Project"), lastDirectory(),
+                                                      tr("Shapr Linux projects (*.shapr)"));
     if (!path.isEmpty())
         openPath(path);
 }
@@ -772,7 +875,7 @@ void MainWindow::openPath(const QString& path)
     QString error;
     auto project = ::loadProject(path, &error);
     if (!project) {
-        QMessageBox::warning(this, QStringLiteral("Nie można otworzyć"), error);
+        QMessageBox::warning(this, tr("Can't Open"), error);
         return;
     }
     m_editor->loadProject(std::move(*project));
@@ -780,7 +883,7 @@ void MainWindow::openPath(const QString& path)
     rememberDirectory(path);
     updateTitle();
     m_viewer->fitAll();
-    showMessage(QStringLiteral("Otwarto %1").arg(QFileInfo(path).fileName()));
+    showMessage(tr("Opened %1").arg(QFileInfo(path).fileName()));
 }
 
 bool MainWindow::save()
@@ -789,19 +892,19 @@ bool MainWindow::save()
         return saveAs();
     const QString error = saveProject(m_path, m_editor->project());
     if (!error.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("Nie można zapisać"), error);
+        QMessageBox::warning(this, tr("Can't Save"), error);
         return false;
     }
     m_editor->markSaved();
-    showMessage(QStringLiteral("Zapisano %1").arg(QFileInfo(m_path).fileName()));
+    showMessage(tr("Saved %1").arg(QFileInfo(m_path).fileName()));
     return true;
 }
 
 bool MainWindow::saveAs()
 {
-    QString path = QFileDialog::getSaveFileName(this, QStringLiteral("Zapisz projekt"),
+    QString path = QFileDialog::getSaveFileName(this, tr("Save Project"),
                                                 m_path.isEmpty() ? lastDirectory() : m_path,
-                                                QStringLiteral("Projekty Shapr Linux (*.shapr)"));
+                                                tr("Shapr Linux projects (*.shapr)"));
     if (path.isEmpty())
         return false;
     if (!path.endsWith(QStringLiteral(".shapr")))
@@ -818,8 +921,8 @@ void MainWindow::exportBodies(bool step)
     const QString suggested = m_path.isEmpty() ? lastDirectory() + QStringLiteral("/model") + suffix
                                                : QFileInfo(m_path).absolutePath() + QLatin1Char('/')
                                                      + QFileInfo(m_path).completeBaseName() + suffix;
-    QString path = QFileDialog::getSaveFileName(this, step ? QStringLiteral("Eksportuj STEP")
-                                                           : QStringLiteral("Eksportuj STL"),
+    QString path = QFileDialog::getSaveFileName(this, step ? tr("Export STEP")
+                                                           : tr("Export STL"),
                                                 suggested, filter);
     if (path.isEmpty())
         return;
@@ -829,9 +932,9 @@ void MainWindow::exportBodies(bool step)
     const std::string error = step ? exportStep(m_editor->bodies(), path.toStdString())
                                    : exportStl(m_editor->bodies(), path.toStdString());
     if (!error.empty())
-        QMessageBox::warning(this, QStringLiteral("Eksport nieudany"), QString::fromStdString(error));
+        QMessageBox::warning(this, tr("Export Failed"), QString::fromStdString(error));
     else
-        showMessage(QStringLiteral("Wyeksportowano %1").arg(QFileInfo(path).fileName()));
+        showMessage(tr("Exported %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)
@@ -892,11 +995,11 @@ void MainWindow::buildContextBar()
         m_contextButtons.push_back({button, icon});
         return button;
     };
-    m_ctxFillet = add(QStringLiteral("Zaokrąglij"), Icon::Fillet, [this] { m_editor->setTool(ToolKind::Fillet); });
-    m_ctxChamfer = add(QStringLiteral("Fazuj"), Icon::Chamfer, [this] { m_editor->setTool(ToolKind::Chamfer); });
-    m_ctxSketch = add(QStringLiteral("Szkic na ścianie"), Icon::NewSketch, [this] { m_editor->createSketchOnFace(); });
-    m_ctxPull = add(QStringLiteral("Wyciągnij"), Icon::Extrude, [this] { m_editor->setTool(ToolKind::PushPull); });
-    m_ctxShell = add(QStringLiteral("Skorupa"), Icon::Shell, [this] { m_editor->setTool(ToolKind::Shell); });
+    m_ctxFillet = add(tr("Fillet"), Icon::Fillet, [this] { m_editor->setTool(ToolKind::Fillet); });
+    m_ctxChamfer = add(tr("Chamfer"), Icon::Chamfer, [this] { m_editor->setTool(ToolKind::Chamfer); });
+    m_ctxSketch = add(tr("Sketch on Face"), Icon::NewSketch, [this] { m_editor->createSketchOnFace(); });
+    m_ctxPull = add(tr("Extrude"), Icon::Extrude, [this] { m_editor->setTool(ToolKind::PushPull); });
+    m_ctxShell = add(tr("Shell"), Icon::Shell, [this] { m_editor->setTool(ToolKind::Shell); });
     m_contextBar->hide();
 }
 
@@ -960,14 +1063,14 @@ void MainWindow::updateEditActions()
     // silently, while the enabled one explains why the constraint doesn't fit.
     for (const auto& [command, action] : m_constraintActions) {
         if (QWidget* button = m_constraintBar->widgetForAction(action))
-            button->setEnabled(m_editor->canApply(command));
+            button->setEnabled(command == ConstraintCommand::Dimension || m_editor->canApply(command));
     }
 }
 
 void MainWindow::onPenInput(const PenSample& sample)
 {
-    m_inputLabel->setText(QStringLiteral("Rysik%1: nacisk %2%3")
-                              .arg(sample.eraser ? QStringLiteral(" [gumka]") : QString())
+    m_inputLabel->setText(tr("Pen%1: pressure %2%3")
+                              .arg(sample.eraser ? tr(" [eraser]") : QString())
                               .arg(sample.pressure, 0, 'f', 2)
-                              .arg(sample.barrelButton ? QStringLiteral(" [przycisk]") : QString()));
+                              .arg(sample.barrelButton ? tr(" [button]") : QString()));
 }

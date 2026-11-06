@@ -1,4 +1,5 @@
 #include "model/Solids.h"
+#include "model/Tr.h"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -108,7 +109,7 @@ ModelResult roundEdges(const std::vector<TopoDS_Shape>& bodies, const std::vecto
     ModelResult result;
     result.bodies = bodies;
     if (edges.empty() || size <= 0.0) {
-        result.error = "Zaznacz krawędzie bryły";
+        result.error = QT_TRANSLATE_NOOP("Model", "Pick edges of a body");
         return result;
     }
     std::map<int, std::vector<TopoDS_Edge>> byBody;
@@ -183,21 +184,45 @@ double volumeOf(const TopoDS_Shape& shape)
     return std::abs(props.Mass());
 }
 
+bool startsInside(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles, double distance)
+{
+    // A thin slab off each profile, the way the extrusion goes: mostly in a body means the
+    // extrusion begins in material (a sketch on a face pushed in, or a sketch inside a
+    // body), however far it goes after that.
+    if (std::abs(distance) < 1e-9)
+        return false;
+    const double depth = std::copysign(std::min(std::abs(distance), 0.05), distance);
+    double total = 0.0;
+    double inside = 0.0;
+    for (const Profile& p : profiles) {
+        BRepPrimAPI_MakePrism slab(p.face, gp_Vec(p.normal) * depth);
+        if (!slab.IsDone())
+            continue;
+        total += volumeOf(slab.Shape());
+        for (const TopoDS_Shape& body : bodies)
+            inside += overlap(body, slab.Shape());
+    }
+    // Some of it is enough: a circle across a face's edge cuts a half-round notch.
+    return total > 0.0 && inside > 0.1 * total;
+}
+
 ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles,
                     double distance, BodyOperation operation)
 {
     ModelResult result;
     if (profiles.empty() || std::abs(distance) < 1e-9) {
-        result.error = "Nic do wyciągnięcia";
+        result.error = QT_TRANSLATE_NOOP("Model", "Nothing to extrude");
         return result;
     }
 
     // One prism per profile, grouped by the body its face came from (-1: sketch).
     std::map<int, TopTools_ListOfShape> prisms;
+    std::map<int, std::vector<Profile>> groups;
     for (const Profile& p : profiles) {
+        groups[p.body].push_back(p);
         BRepPrimAPI_MakePrism prism(p.face, gp_Vec(p.normal) * distance);
         if (!prism.IsDone()) {
-            result.error = "Nie udało się wyciągnąć profilu";
+            result.error = QT_TRANSLATE_NOOP("Model", "Could not extrude the profile");
             return result;
         }
         prisms[p.body].Append(prism.Shape());
@@ -215,7 +240,7 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
             rest.RemoveFirst();
             const auto fused = boolean(BooleanKind::Union, tool, rest);
             if (!fused) {
-                result.error = "Nie udało się połączyć profili";
+                result.error = QT_TRANSLATE_NOOP("Model", "Could not merge the profiles");
                 return result;
             }
             tool = *fused;
@@ -224,6 +249,7 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
         // Which bodies the tool meets (overlapping, or just touching, e.g. a sketch on a
         // body's face pulled outward), and what to do with them.
         std::vector<int> touched;
+        std::vector<TopoDS_Shape> untouched; // not yet replaced by a result
         double inside = 0.0;
         if (owner >= 0) {
             touched.push_back(owner);
@@ -231,6 +257,7 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
             for (int i = 0; i < static_cast<int>(current.size()); ++i) {
                 if (consumed.count(i))
                     continue;
+                untouched.push_back(current[i]);
                 const double v = overlap(current[i], tool);
                 if (v > kMinVolume || touches(current[i], tool)) {
                     touched.push_back(i);
@@ -245,8 +272,10 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
                 op = distance > 0.0 ? BodyOperation::Join : BodyOperation::Cut;
             else if (touched.empty())
                 op = BodyOperation::NewBody;
+            else if (inside >= 0.99 * volumeOf(tool) || startsInside(untouched, groups[owner], distance))
+                op = BodyOperation::Cut;
             else
-                op = inside >= 0.99 * volumeOf(tool) ? BodyOperation::Cut : BodyOperation::Join;
+                op = BodyOperation::Join;
         }
         if (touched.empty() && op != BodyOperation::Cut)
             op = BodyOperation::NewBody;
@@ -262,7 +291,7 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
             others.Append(tool);
             const auto fused = boolean(BooleanKind::Union, current[touched[0]], others);
             if (!fused) {
-                result.error = "Nie udało się dodać do bryły";
+                result.error = QT_TRANSLATE_NOOP("Model", "Could not join with the body");
                 return result;
             }
             for (int i : touched)
@@ -272,13 +301,13 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
         }
         case BodyOperation::Cut:
             if (touched.empty()) {
-                result.error = "Wycięcie nie trafia w żadną bryłę";
+                result.error = QT_TRANSLATE_NOOP("Model", "The cut doesn't reach any body");
                 return result;
             }
             for (int i : touched) {
                 const auto cut = boolean(BooleanKind::Subtract, current[i], tool);
                 if (!cut) {
-                    result.error = "Nie udało się odjąć od bryły";
+                    result.error = QT_TRANSLATE_NOOP("Model", "Could not cut from the body");
                     return result;
                 }
                 consumed.insert(i);
@@ -301,14 +330,14 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
 ModelResult filletEdges(const std::vector<TopoDS_Shape>& bodies, const std::vector<EdgeRef>& edges, double radius)
 {
     return roundEdges<BRepFilletAPI_MakeFillet>(bodies, edges, radius,
-                                                "Nie da się zaokrąglić – promień za duży dla tych krawędzi");
+                                                QT_TRANSLATE_NOOP("Model", "Can't fillet: the radius is too big for these edges"));
 }
 
 ModelResult chamferEdges(const std::vector<TopoDS_Shape>& bodies, const std::vector<EdgeRef>& edges,
                          double distance)
 {
     return roundEdges<BRepFilletAPI_MakeChamfer>(bodies, edges, distance,
-                                                 "Nie da się sfazować – odległość za duża dla tych krawędzi");
+                                                 QT_TRANSLATE_NOOP("Model", "Can't chamfer: the distance is too big for these edges"));
 }
 
 namespace {
@@ -370,7 +399,7 @@ ModelResult shellBodies(const std::vector<TopoDS_Shape>& bodies, const std::vect
     ModelResult result;
     result.bodies = bodies;
     if (open.empty() || thickness <= 0.0) {
-        result.error = "Zaznacz ściany do otwarcia";
+        result.error = QT_TRANSLATE_NOOP("Model", "Pick the faces to open");
         return result;
     }
     std::map<int, TopTools_ListOfShape> byBody;
@@ -399,7 +428,7 @@ ModelResult shellBodies(const std::vector<TopoDS_Shape>& bodies, const std::vect
         }
         const auto fallback = shellByOffset(bodies[body], faces, thickness);
         if (!fallback || !usable(*fallback)) {
-            result.error = "Nie da się zrobić skorupy tej bryły – spróbuj cieńszej ścianki";
+            result.error = QT_TRANSLATE_NOOP("Model", "Can't shell this body; try thinner walls");
             return result;
         }
         result.bodies[body] = *fallback;
@@ -416,7 +445,7 @@ ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<i
             unique.push_back(i);
     }
     if (unique.size() < 2) {
-        result.error = "Zaznacz co najmniej dwie bryły";
+        result.error = QT_TRANSLATE_NOOP("Model", "Pick at least two bodies");
         return result;
     }
     TopTools_ListOfShape tools;
@@ -424,7 +453,7 @@ ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<i
         tools.Append(bodies[unique[k]]);
     const auto shape = boolean(kind, bodies[unique[0]], tools);
     if (!shape) {
-        result.error = "Operacja na bryłach nie powiodła się";
+        result.error = QT_TRANSLATE_NOOP("Model", "The body operation failed");
         return result;
     }
     for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
@@ -434,6 +463,6 @@ ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<i
     const std::size_t before = result.bodies.size();
     appendSolids(result.bodies, *shape);
     if (result.bodies.size() == before && kind == BooleanKind::Intersect)
-        result.error = "Bryły nie mają części wspólnej";
+        result.error = QT_TRANSLATE_NOOP("Model", "The bodies don't intersect");
     return result;
 }

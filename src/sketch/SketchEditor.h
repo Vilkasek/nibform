@@ -42,7 +42,8 @@ enum class EditorMode { Model, Sketch };
 // One entry of the history timeline shown under the view.
 struct TimelineItem
 {
-    QString name;   // "Szkic 1", "Wyciągnięcie 2", ...
+    Feature::Kind kind = Feature::Kind::Sketch;
+    QString name;   // "Sketch 1", "Extrude 2", ...
     QString detail; // "12 mm", "r 2 mm"; empty when there is no value to edit
     QString error;  // why it didn't apply on the last rebuild, empty if it did
     bool sketch = false;
@@ -78,6 +79,10 @@ public:
     void setDark(bool dark);
     // Tablet mode: bigger pick radii and a keypad in the value field.
     void setTabletMode(bool on);
+    // Re-emits the hint, status and timeline in the current language.
+    void retranslate();
+    // A message from the model core, in the current language.
+    static QString modelText(const std::string& message);
 
     // --- Modes ----------------------------------------------------------------------
     EditorMode mode() const { return m_active >= 0 ? EditorMode::Sketch : EditorMode::Model; }
@@ -111,6 +116,9 @@ public:
     // Whether `command` fits the current selection (the toolbar enables buttons with this).
     bool canApply(ConstraintCommand command) const;
     void applyConstraint(ConstraintCommand command);
+    // D: dimensions the selection when it fits (as applyConstraint() does); otherwise
+    // switches to the Dimension tool, which dimensions what is tapped next.
+    void dimension();
     void editDimension(ConstraintId id);
     // Switches the selected curves between real and construction (reference) geometry.
     bool canToggleConstruction() const { return m_active >= 0 && !m_selection.entities.empty(); }
@@ -125,7 +133,9 @@ public:
     void combineBodies(BooleanKind kind);
     // Region of sketch `sketch` at `p` (sketch coordinates), and pulling regions directly.
     std::optional<RegionRef> regionAt(int sketch, const gp_Pnt2d& p) const;
-    void extrudeRegions(const std::vector<RegionRef>& regions, double distance);
+    // With the toolbar's operation unless `operation` is given.
+    void extrudeRegions(const std::vector<RegionRef>& regions, double distance,
+                        std::optional<BodyOperation> operation = std::nullopt);
     // Picks a region as a tap in Select would (showing its arrow and distance field).
     void selectRegion(const RegionRef& region);
 
@@ -135,6 +145,9 @@ public:
     bool valueSessionOpen() const { return m_session.kind != ValueSession::Kind::None; }
     QPointF pointerPos() const { return m_pointerPos; }
     int sketchCount() const { return static_cast<int>(m_slots.size()); }
+    // Shows the sketch regions already extruded (hidden by default, so the faces they
+    // lie on can be picked), e.g. to extrude one again.
+    void setShowUsedRegions(bool on);
     const std::vector<TopoDS_Shape>& bodies() const { return m_bodies; }
 
     // --- History and project ----------------------------------------------------------
@@ -153,7 +166,7 @@ public:
     const Sketch& sketch() const override;
     void commit(const std::function<void(Sketch&)>& change, bool extendLastStep = false) override;
     double pickTolerance() const override;
-    void askValue(const QString& label, double value, double min, double max, std::function<void(double)> accept,
+    void askValue(std::function<QString()> label, double value, double min, double max, std::function<void(double)> accept,
                   std::function<void()> cancel) override;
 
     // ViewerInteraction
@@ -172,6 +185,7 @@ signals:
     void selectionChanged();
     void statusChanged(const QString& status); // DOF of the open sketch / body count
     void message(const QString& text);         // short-lived feedback (rejected constraint, ...)
+    void bodyOperationChanged(BodyOperation operation);
 
 private:
     struct Slot
@@ -225,6 +239,9 @@ private:
         double dragStartValue = 0.0;
         double dragStartParam = 0.0;
         std::string error; // why the previewed value doesn't work (fillet too big, ...)
+        // Extrude: whether the sketch profiles start inside a body, for the value's sign
+        // (it only changes with the picks or the direction).
+        std::optional<std::pair<bool, bool>> startsInside;
     };
     // Screen rectangle of a constraint glyph or dimension label, from the last overlay paint.
     struct Label
@@ -244,6 +261,9 @@ private:
     bool selectPress(const PointerEvent& e);
     bool selectMove(const PointerEvent& e, bool pressed);
     bool selectRelease(const PointerEvent& e);
+    void dimensionTap(const Hit& hit);
+    bool fitsDimension(const SketchSelection& selection) const;
+    bool m_chainingDimension = false; // the dimension field closes for a pick that extends it
     void toggle(const Hit& hit, bool additive);
 
     // Solves `candidate` and checks it is consistent and not redundant compared with
@@ -251,7 +271,8 @@ private:
     bool validate(Sketch& candidate);
     // Opens the value field for `c` near `anchor`; `accepted` gets the new value in
     // solver units, on the same side / turning direction as the current one.
-    void promptDimension(const SketchConstraint& c, const QPointF& anchor, std::function<void(double)> accepted);
+    void promptDimension(const SketchConstraint& c, const QPointF& anchor, std::function<void(double)> accepted,
+                         std::function<void()> cancelled = {});
 
     void enterSketch(int index, bool lookAt);
     void setSelection(SketchSelection selection);
@@ -298,13 +319,25 @@ private:
     Bnd_Box bodiesBox() const;
     SketchLookup sketchLookup() const;
     std::optional<Feature> featureFromSession(double value) const;
+    // What Automatic does with the extrusion being previewed, when known before applying
+    // it (cut / join); empty when it depends on how far it reaches.
+    std::optional<BodyOperation> sessionAutoOperation();
+    // The operation choices under the value field; Automatic names what it will do.
+    static QStringList operationLabels(std::optional<BodyOperation> automatic);
     void pushUndo(); // before any change of sketches or history
     Snapshot snapshot() const;
     void restore(Snapshot snapshot);
     void refreshBodies();
     void updateSelectionModes();
     void refreshRegions(int sketch);
-    void showRegions(); // redraws region fills (selection changed)
+    void showRegions(); // redraws region fills (selection changed, features changed)
+    // Regions an extrusion was made from (that applied). In the model they are hidden and
+    // can't be picked, unless m_showUsedRegions: they would lie on the body's faces,
+    // covering them.
+    std::set<RegionRef> usedRegions() const;
+    bool regionShown(const RegionRef& region) const;
+    std::set<RegionRef> m_usedRegions; // as of the last showRegions()
+    bool m_showUsedRegions = false;
     void applyModelColors();
 
     OcctViewerWidget* m_viewer;

@@ -22,7 +22,7 @@ public:
     virtual double pickTolerance() const = 0;
     // Asks the user for a number without blocking: `accept` runs with it, or
     // `cancel` when the user drops it (or the tool is switched away first).
-    virtual void askValue(const QString& label, double value, double min, double max,
+    virtual void askValue(std::function<QString()> label, double value, double min, double max,
                           std::function<void(double)> accept, std::function<void()> cancel) = 0;
 };
 
@@ -62,10 +62,11 @@ protected:
 };
 
 // Sketch tools draw on the open sketch. PushPull, Fillet and Chamfer work on regions
-// and bodies in model mode, so the editor handles them itself, like Select:
-// makeTool() gives no SketchTool for those.
-enum class ToolKind { Select, Line, Rectangle, Circle, Arc, Trim, Offset, PushPull, Fillet, Chamfer, Shell };
+// and bodies in model mode, so the editor handles them itself, like Select and
+// Dimension (picking, like Select): makeTool() gives no SketchTool for those.
+enum class ToolKind { Select, Line, Rectangle, Circle, Arc, Trim, Offset, Dimension, PushPull, Fillet, Chamfer, Shell };
 
+// Whether the tool belongs to sketch mode (Select works in both).
 inline bool isSketchTool(ToolKind kind)
 {
     return kind != ToolKind::Select && kind != ToolKind::PushPull && kind != ToolKind::Fillet

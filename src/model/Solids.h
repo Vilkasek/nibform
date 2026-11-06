@@ -15,8 +15,9 @@
 enum class BodyOperation
 {
     Auto,    // pulled out of a body face: join; pushed into one: cut. From a sketch:
-             // cut when it lies inside a body, join when it overlaps or touches one,
-             // else a new body
+             // cut when it starts inside a body (e.g. a sketch on a face pushed into
+             // it, even if it comes out the other side), join when it overlaps or
+             // touches one, else a new body
     NewBody, // always a separate body
     Join,    // fuse with the bodies it touches (a new body when it touches none)
     Cut,     // subtract from the bodies it touches
@@ -51,6 +52,9 @@ struct ModelResult
 std::optional<gp_Dir> planarNormal(const TopoDS_Face& face);
 
 double volumeOf(const TopoDS_Shape& shape);
+
+// Whether extruding sketch profiles by `distance` starts inside material: then Auto cuts.
+bool startsInside(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles, double distance);
 
 // Extrudes the profiles by `distance` along their normals (negative goes the other way)
 // and applies the result to `bodies`.

@@ -138,6 +138,7 @@ void SketchEditor::rebuildModel()
     m_featureErrors.resize(m_features.size());
     std::copy(result.errors.begin(), result.errors.end(), m_featureErrors.begin());
     refreshBodies();
+    showRegions(); // what is extruded now hides, what failed shows
     updateStatus();
     m_viewer->update();
 }
@@ -147,7 +148,7 @@ bool SketchEditor::commitFeature(const Feature& feature)
     // Applied on top of the current bodies: the same as a full rebuild, without replaying.
     ModelResult result = applyFeature(sketchLookup(), m_bodies, feature);
     if (!result.ok()) {
-        emit message(QString::fromStdString(result.error));
+        emit message(modelText(result.error));
         return false;
     }
     m_valueEditor->cancel();
@@ -157,6 +158,7 @@ bool SketchEditor::commitFeature(const Feature& feature)
     m_bodies = std::move(result.bodies);
     refreshBodies();
     clearModelSelection();
+    showRegions(); // the extruded regions hide
     updateStatus();
     emit historyChanged();
     m_viewer->update();
@@ -313,13 +315,55 @@ void SketchEditor::refreshRegions(int sketch)
     showRegions();
 }
 
+std::set<RegionRef> SketchEditor::usedRegions() const
+{
+    std::set<RegionRef> used;
+    const std::size_t count = m_rollback >= 0 && m_active >= 0 ? static_cast<std::size_t>(m_rollback) : m_features.size();
+    for (std::size_t f = 0; f < count && f < m_features.size(); ++f) {
+        const Feature& feature = m_features[f];
+        // One that failed keeps its region in sight, to see what went wrong.
+        if (feature.kind != Feature::Kind::Extrude || (f < m_featureErrors.size() && !m_featureErrors[f].empty()))
+            continue;
+        for (const RegionPick& pick : feature.regions) {
+            for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
+                if (m_slots[s].id != pick.sketch)
+                    continue;
+                if (const auto index = ::regionAt(m_slots[s].regions, m_slots[s].sketch.to3d(pick.inside)))
+                    used.insert({s, static_cast<int>(*index)});
+            }
+        }
+    }
+    return used;
+}
+
+bool SketchEditor::regionShown(const RegionRef& region) const
+{
+    // While a sketch is open, all of its regions show: it is being drawn, not used.
+    return m_showUsedRegions || region.sketch == m_active || !m_usedRegions.count(region);
+}
+
+void SketchEditor::setShowUsedRegions(bool on)
+{
+    m_showUsedRegions = on;
+    if (!on) {
+        // Hidden regions can't stay picked.
+        std::erase_if(m_regionSelection, [this](const RegionRef& r) { return !regionShown(r); });
+        syncValueSession();
+    }
+    showRegions();
+    m_viewer->update();
+}
+
 void SketchEditor::showRegions()
 {
     const auto& ctx = m_viewer->aisContext();
+    m_usedRegions = usedRegions();
     TopoDS_Compound plain = compound(), picked = compound();
     bool anyPlain = false, anyPicked = false;
     for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
         for (int i = 0; i < static_cast<int>(m_slots[s].regions.size()); ++i) {
+            if (!regionShown({s, i}))
+                continue;
             const bool selected = m_regionSelection.count({s, i}) > 0;
             BRep_Builder().Add(selected ? picked : plain, m_slots[s].regions[i]);
             (selected ? anyPicked : anyPlain) = true;
@@ -388,7 +432,7 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
             if (!p)
                 continue;
             const auto region = ::regionAt(m_slots[s].regions, *p);
-            if (region && depth(*p) < bestDepth) {
+            if (region && regionShown({s, static_cast<int>(*region)}) && depth(*p) < bestDepth) {
                 best = {Hit::Kind::Region};
                 best.region = {s, static_cast<int>(*region)};
                 bestDepth = depth(*p);
@@ -618,6 +662,47 @@ void SketchEditor::toggleFaceEdges(const Hit& face)
 
 // --- Value sessions: extrude / fillet / chamfer -------------------------------------
 
+namespace {
+// In the order the value field offers them.
+constexpr BodyOperation kOperations[] = {BodyOperation::Auto, BodyOperation::NewBody, BodyOperation::Join,
+                                         BodyOperation::Cut};
+
+int operationIndex(BodyOperation operation)
+{
+    return static_cast<int>(std::find(std::begin(kOperations), std::end(kOperations), operation)
+                            - std::begin(kOperations));
+}
+} // namespace
+
+QStringList SketchEditor::operationLabels(std::optional<BodyOperation> automatic)
+{
+    QString autoLabel = tr("Automatic");
+    if (automatic == BodyOperation::Cut)
+        autoLabel = tr("Automatic: cut");
+    else if (automatic == BodyOperation::Join)
+        autoLabel = tr("Automatic: join");
+    return {autoLabel, tr("New Body"), tr("Join"), tr("Cut")};
+}
+
+std::optional<BodyOperation> SketchEditor::sessionAutoOperation()
+{
+    if (m_session.kind != ValueSession::Kind::Extrude || std::abs(m_session.value) < 1e-6)
+        return std::nullopt;
+    std::vector<Profile> sketchProfiles;
+    for (const Profile& p : selectedProfiles()) {
+        if (p.body < 0)
+            sketchProfiles.push_back(p);
+    }
+    if (sketchProfiles.empty())
+        return m_session.value > 0.0 ? BodyOperation::Join : BodyOperation::Cut; // body faces
+    const bool forward = m_session.value > 0.0;
+    if (!m_session.startsInside || m_session.startsInside->first != forward)
+        m_session.startsInside = std::pair(forward, startsInside(m_bodies, sketchProfiles, m_session.value));
+    if (m_session.startsInside->second)
+        return BodyOperation::Cut;
+    return std::nullopt; // joins what it reaches, or makes a new body
+}
+
 void SketchEditor::syncValueSession()
 {
     using Kind = ValueSession::Kind;
@@ -661,6 +746,7 @@ void SketchEditor::syncValueSession()
         }
     };
     if (m_session.kind == want) {
+        m_session.startsInside.reset(); // other picks
         placeArrow();
         showSessionPreview(); // more / fewer picks, same value
         return;
@@ -672,19 +758,14 @@ void SketchEditor::syncValueSession()
     m_session.value = want == Kind::Extrude ? 10.0 : 1.0;
     showSessionPreview();
 
-    QString label = tr("Odległość [mm]");
-    double min = -1e5;
+    const double min = want == Kind::Extrude ? -1e5 : 1e-3;
     QPointF anchor = m_pointerPos - QPointF(0, 40);
-    if (want == Kind::Shell) {
-        label = tr("Grubość [mm]");
-        min = 1e-3;
-    } else if (want == Kind::Fillet) {
-        label = tr("Promień [mm]");
-        min = 1e-3;
-    } else if (want == Kind::Chamfer) {
-        label = tr("Faza [mm]");
-        min = 1e-3;
-    }
+    auto label = [want] {
+        return want == Kind::Shell     ? tr("Wall thickness [mm]")
+             : want == Kind::Fillet    ? tr("Radius [mm]")
+             : want == Kind::Chamfer   ? tr("Chamfer [mm]")
+                                       : tr("Distance [mm]");
+    };
     m_valueEditor->open(
         label, m_session.value, min, 1e5, anchor, [this](double value) { applySession(value); },
         [this] {
@@ -698,6 +779,19 @@ void SketchEditor::syncValueSession()
             m_session.value = value;
             showSessionPreview();
         });
+    if (want == Kind::Extrude) {
+        // What the extrusion does, right where the value is typed.
+        m_valueEditor->setChoices(
+            [this] {
+                return operationLabels(m_bodyOperation == BodyOperation::Auto ? sessionAutoOperation()
+                                                                              : std::nullopt);
+            },
+            operationIndex(m_bodyOperation),
+            [this](int index) {
+                setBodyOperation(kOperations[index]);
+                showSessionPreview();
+            });
+    }
     if (const auto arrow = arrowOnScreen())
         m_valueEditor->placeBeside(arrow->second); // next to the arrow's head, not over it
     updateHint();
@@ -785,9 +879,15 @@ void SketchEditor::showSessionPreview()
             m_previewPrs3d->SetShape(shapes);
             ctx->Redisplay(m_previewPrs3d, false);
         }
-        ctx->SetColor(m_previewPrs3d, solid ? m_colors.body : m_colors.preview, false);
+        // A cut shows red, anything that adds material blue.
+        const std::optional<BodyOperation> effective =
+            m_bodyOperation == BodyOperation::Auto ? sessionAutoOperation() : m_bodyOperation;
+        const bool cut = m_session.kind == Kind::Extrude && effective == BodyOperation::Cut;
+        ctx->SetColor(m_previewPrs3d, solid ? m_colors.body : cut ? m_colors.trim : m_colors.preview, false);
         ctx->SetTransparency(m_previewPrs3d, solid ? 0.0 : 0.55, false);
     }
+    if (m_valueEditor->isOpen())
+        m_valueEditor->refreshChoices(); // "Automatic: cut" as the value turns around
     updateHint();
     m_viewer->update();
 }
@@ -808,7 +908,7 @@ void SketchEditor::applySession(double value)
     const std::optional<Feature> feature = featureFromSession(value);
     endValueSession(true);
     if (!feature) {
-        emit message(tr("Nie udało się zapamiętać zaznaczenia"));
+        emit message(tr("Couldn't record the picks"));
         syncValueSession();
         return;
     }
@@ -819,15 +919,19 @@ void SketchEditor::applySession(double value)
 
 void SketchEditor::setBodyOperation(BodyOperation operation)
 {
+    if (m_bodyOperation == operation)
+        return;
     m_bodyOperation = operation;
+    emit bodyOperationChanged(operation);
 }
 
-void SketchEditor::extrudeRegions(const std::vector<RegionRef>& regions, double distance)
+void SketchEditor::extrudeRegions(const std::vector<RegionRef>& regions, double distance,
+                                  std::optional<BodyOperation> operation)
 {
     Feature f;
     f.kind = Feature::Kind::Extrude;
     f.value = distance;
-    f.operation = m_bodyOperation;
+    f.operation = operation.value_or(m_bodyOperation);
     for (const RegionRef& r : regions) {
         if (r.sketch < 0 || r.sketch >= sketchCount() || r.index >= static_cast<int>(m_slots[r.sketch].regions.size()))
             continue;
@@ -868,40 +972,41 @@ std::vector<TimelineItem> SketchEditor::timeline() const
     for (std::size_t i = 0; i < m_features.size(); ++i) {
         const Feature& f = m_features[i];
         TimelineItem item;
+        item.kind = f.kind;
         QString base;
         switch (f.kind) {
         case Feature::Kind::Sketch:
-            base = tr("Szkic");
+            base = tr("Sketch");
             item.sketch = true;
             break;
         case Feature::Kind::Extrude:
-            base = tr("Wyciągnięcie");
+            base = tr("Extrude");
             item.detail = mm(f.value) + QStringLiteral(" mm");
             break;
         case Feature::Kind::Fillet:
-            base = tr("Zaokrąglenie");
+            base = tr("Fillet");
             item.detail = QStringLiteral("r ") + mm(f.value) + QStringLiteral(" mm");
             break;
         case Feature::Kind::Chamfer:
-            base = tr("Faza");
+            base = tr("Chamfer");
             item.detail = mm(f.value) + QStringLiteral(" mm");
             break;
         case Feature::Kind::Combine:
-            base = f.boolean == BooleanKind::Union      ? tr("Połączenie")
-                 : f.boolean == BooleanKind::Subtract   ? tr("Odjęcie")
-                                                        : tr("Część wspólna");
+            base = f.boolean == BooleanKind::Union      ? tr("Union")
+                 : f.boolean == BooleanKind::Subtract   ? tr("Subtract")
+                                                        : tr("Intersect");
             break;
         case Feature::Kind::Delete:
-            base = tr("Usunięcie");
+            base = tr("Delete");
             break;
         case Feature::Kind::Shell:
-            base = tr("Skorupa");
+            base = tr("Shell");
             item.detail = mm(f.value) + QStringLiteral(" mm");
             break;
         }
         item.name = QStringLiteral("%1 %2").arg(base).arg(++counts[base]);
         if (i < m_featureErrors.size())
-            item.error = QString::fromStdString(m_featureErrors[i]);
+            item.error = modelText(m_featureErrors[i]);
         item.rolledBack = m_active >= 0 && m_rollback >= 0 && static_cast<int>(i) > m_rollback;
         items.push_back(item);
     }
@@ -951,28 +1056,43 @@ void SketchEditor::activateTimelineItem(int index)
     const gp_Dir up = std::abs(eye.Dot(gp::DZ())) > 0.99 ? gp::DY() : gp::DZ();
     m_viewer->animateCamera(eye, up, bodiesBox());
 
-    // The whole model follows the value as it is typed; Esc puts it back.
-    auto preview = [this, index](double value) {
+    // The whole model follows the value (and for an extrusion, the operation) as it is
+    // changed; Esc puts it back.
+    auto operation = std::make_shared<BodyOperation>(feature.operation);
+    auto typed = std::make_shared<double>(feature.value);
+    auto preview = [this, index, operation, typed](double value) {
+        *typed = value;
         std::vector<Feature> features = m_features;
         features[index].value = value;
+        features[index].operation = *operation;
         RebuildResult result = rebuild(sketchLookup(), features);
         m_bodies = std::move(result.bodies);
         refreshBodies();
         m_viewer->update();
     };
-    const QString label = extrusion                              ? tr("Odległość [mm]")
-                        : feature.kind == Feature::Kind::Fillet ? tr("Promień [mm]")
-                        : feature.kind == Feature::Kind::Shell  ? tr("Grubość [mm]")
-                                                                : tr("Faza [mm]");
+    auto label = [extrusion, kind = feature.kind] {
+        return extrusion                    ? tr("Distance [mm]")
+             : kind == Feature::Kind::Fillet ? tr("Radius [mm]")
+             : kind == Feature::Kind::Shell  ? tr("Wall thickness [mm]")
+                                             : tr("Chamfer [mm]");
+    };
     m_valueEditor->open(label, feature.value, extrusion ? -1e5 : 1e-3, 1e5,
                         QPointF(m_viewer->width() / 2.0, m_viewer->height() - 60.0),
-                        [this, index](double value) {
+                        [this, index, operation](double value) {
                             pushUndo();
                             m_features[index].value = value;
+                            m_features[index].operation = *operation;
                             rebuildModel();
                             emit historyChanged();
                         },
                         [this] { rebuildModel(); }, preview);
+    if (extrusion) {
+        m_valueEditor->setChoices([] { return operationLabels(std::nullopt); }, operationIndex(*operation),
+                                  [operation, typed, preview](int choice) {
+                                      *operation = kOperations[choice];
+                                      preview(*typed);
+                                  });
+    }
 }
 
 void SketchEditor::removeTimelineItem(int index)

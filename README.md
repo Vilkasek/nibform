@@ -1,9 +1,13 @@
 # Shapr Linux
 
-Natywny, pen-first CAD dla Linuksa w duchu Shapr3D (docelowo: Framework 12 z rysikiem).
+A native, pen-first CAD app for Linux in the spirit of Shapr3D (target: the Framework 12 with a stylus).
 C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen.
 
-## Budowanie
+**Website:** https://vilkasek.github.io/shapr3d/ (from `docs/`: GitHub Pages, *Deploy from a branch*, `main` / `/docs`).
+The logo is `docs/assets/logo.svg`; the window icon `src/app/shapr-linux.png` is drawn from it
+(`rsvg-convert -w 256 -h 256 docs/assets/logo.svg -o src/app/shapr-linux.png`).
+
+## Building
 
 ```sh
 sudo pacman -S --needed qt6-base qt6-tools opencascade eigen cmake ninja
@@ -12,170 +16,205 @@ cmake --build build
 ./build/shapr_linux
 ```
 
-OpenCASCADE z Archa jest zbudowany pod GLX, więc aplikacja sama wymusza `QT_QPA_PLATFORM=xcb`
-(na Waylandzie działa przez XWayland). Domyślnie używany jest profil OpenGL compatibility
-(w core Mesa ogranicza grubość linii do 1 px); profil core: `SHAPR_GL_CORE=1`.
-`SHAPR_SCREENSHOT=plik.png` renderuje jedną klatkę, zapisuje ją i kończy działanie.
-`SHAPR_DEBUG_INPUT=1` wypisuje urządzenia wejścia i zdarzenia scrolla/gestów,
-`SHAPR_INVERT_SCROLL=1` odwraca kierunek obrotu/przesuwania z touchpada.
+Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb` itself
+(on Wayland it runs through XWayland). The OpenGL compatibility profile is used by default
+(in core, Mesa limits line width to 1 px); for the core profile: `SHAPR_GL_CORE=1`.
+`SHAPR_SCREENSHOT=file.png` renders one frame, saves it and quits.
+`SHAPR_DEBUG_INPUT=1` prints the input devices and scroll/gesture events,
+`SHAPR_INVERT_SCROLL=1` inverts the touchpad's orbit/pan direction.
 
-Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`).
 
-## Dwa tryby: Bryła i Szkic
+## Language
 
-Aplikacja startuje w trybie **Bryła** (pasek „BRYŁA”): bryły, zamknięte obszary szkiców, wyciąganie,
-zaokrąglanie i fazowanie. **Stwórz szkic** (`K`) otwiera nowy szkic – na zaznaczonej płaskiej ścianie
-bryły (jej krawędzie trafiają do szkicu jako zablokowana geometria konstrukcyjna), a bez niej na podłożu; strzałka obok przycisku pozwala wybrać płaszczyznę (XY / XZ / YZ).
-Widok obraca się wtedy na wprost szkicu, a pasek zmienia się na „SZKIC” z narzędziami rysowania
-i więzami. **✓ Zamknij szkic** (`Ctrl+Enter`) wraca do brył (pusty szkic znika). **Edytuj szkic**
-otwiera ponownie szkic, którego obszar jest zaznaczony. Skróty działają tylko w swoim trybie.
+The interface is in English or Polish: *View → Język / Language* offers *System* (Polish when the
+desktop is Polish, English otherwise), *Polski* and *English*. The choice is remembered and applies
+right away, without a restart; standard Qt dialogs and the decimal separator follow it.
 
-## Szkicowanie
+The sources are in English; the Polish text lives in `translations/shapr_pl.ts` (Qt Linguist),
+built into the app. After changing user-facing strings:
 
-| Narzędzie | Skrót | Jak |
+```sh
+cmake --build build --target update_translations   # lupdate: new / changed strings into the .ts
+python3 translations/fill_pl.py                    # fills in the Polish from its dictionary
+```
+
+`fill_pl.py` lists the strings it has no translation for (add them to its dictionary, or
+translate them in Linguist).
+
+## Two modes: Model and Sketch
+
+The app starts in **Model** mode (the "MODEL" badge): bodies, closed sketch regions, extrude,
+fillet and chamfer. **New Sketch** (`K`) opens a new sketch – on the selected planar face of a
+body (its edges come into the sketch as locked construction geometry), or on the ground without
+one; the arrow next to the button picks a plane (XY / XZ / YZ). The view then turns to face the
+sketch and the badge changes to "SKETCH", with drawing tools and constraints. **✓ Finish Sketch**
+(`Ctrl+Enter`) goes back to the bodies (an empty sketch disappears). **Edit Sketch** reopens the
+sketch whose region is selected. Shortcuts only work in their own mode.
+
+## Sketching
+
+| Tool | Shortcut | How |
 |---|---|---|
-| Zaznacz | `S` | dotknij elementu, Shift dodaje; `Delete` usuwa |
-| Linia | `L` | tap-tap rysuje łamaną (kończy się na istniejącym punkcie lub `Esc`/`Enter`); przeciągnięcie = jeden odcinek |
-| Prostokąt | `R` | dwa przeciwległe narożniki |
-| Okrąg | `C` | środek, potem punkt na obwodzie |
-| Łuk | `A` | początek, koniec, punkt na łuku |
-| Odsunięcie | `U` | dotknij krzywej – bierze cały połączony łańcuch (lub okrąg); kopia podąża za kursorem (strona i odległość), kolejne dotknięcie pyta o dokładną wartość. Narożniki są przecinane na nowo, linie dostają „równoległe”, łuki dzielą środek z oryginałem |
-| Konstrukcyjna | `Q` | przełącza zaznaczone krzywe na pomocnicze (przerywane): można do nich przyciągać i je wymiarować, ale nie tworzą obszarów |
-| Przytnij | `X` | jak w Fusionie: podświetla na czerwono fragment między najbliższymi przecięciami, dotknięcie go usuwa; przeciągnięcie usuwa wszystko po drodze (jeden krok cofania). Krzywa bez przecięć znika cała, okrąg zamienia się w łuk |
+| Select | `S` | tap an item, Shift adds; `Delete` removes |
+| Line | `L` | tap-tap draws a polyline (ends on an existing point or with `Esc`/`Enter`); a drag = a single segment |
+| Rectangle | `R` | two opposite corners |
+| Circle | `C` | center, then a point on the circumference |
+| Arc | `A` | start, end, a point on the arc |
+| Offset | `U` | tap a curve – takes the whole connected chain (or circle); the copy follows the cursor (side and distance), another tap asks for an exact value. Corners are intersected again, lines get "parallel", arcs share the center with the original |
+| Construction | `Q` | toggles the selected curves to helper geometry (dashed): you can snap to and dimension them, but they don't make regions |
+| Trim | `X` | like in Fusion: highlights in red the piece between the nearest intersections, a tap removes it; a drag removes everything along the way (one undo step). A curve without intersections disappears whole, a circle turns into an arc |
 
-Przyciąganie: punkty → początek układu → środki odcinków → wyrównanie w poziomie/pionie
-(najpierw do punktu startowego narzędzia). `Alt` wyłącza przyciąganie.
-Przyciąganie zostawia więzy: wyrównana linia dostaje „poziomo”/„pionowo”, prostokąt – oba,
-punkt na środku odcinka – „środek”, punkt w początku układu – „zablokuj”.
-`Esc` przerywa operację, drugi `Esc` wraca do zaznaczania. `Ctrl+Z` / `Ctrl+Shift+Z` cofnij/ponów.
-Siatka leży na płaszczyźnie otwartego szkicu (w trybie Bryła – na podłożu).
+Snapping: points → origin → segment midpoints → horizontal/vertical alignment
+(first with the tool's start point). `Alt` disables snapping.
+Snapping leaves constraints behind: an aligned line gets "horizontal"/"vertical", a rectangle both,
+a point at a segment's middle "midpoint", a point at the origin "fix".
+`Esc` cancels the operation, a second `Esc` goes back to Select. `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo.
+The grid lies on the plane of the open sketch (in Model mode, on the ground).
 
-## Więzy i wymiary
+## Constraints and dimensions
 
-W trybie Zaznacz dotykaj punktów, linii i łuków – każde dotknięcie dodaje element do zaznaczenia,
-dotknięcie pustego miejsca je czyści. Potem wybierz więz z drugiego paska (albo menu *Więzy*);
-przyciski, które nie pasują do zaznaczenia, są wyszarzone.
+In Select, tap points, lines and arcs – every tap adds an item to the selection, tapping empty
+space clears it. Then pick a constraint from the second toolbar (or the *Constraints* menu);
+buttons that don't fit the selection are greyed out.
 
-| Więz | Skrót | Zaznaczenie |
+| Constraint | Shortcut | Selection |
 |---|---|---|
-| Wymiar | `D` | linia / 2 punkty → odległość, punkt + linia → odległość od linii, 2 równoległe linie → odstęp (dodaje „równoległe”, jeśli trzeba), 2 inne linie → kąt, okrąg → średnica, łuk → promień |
-| Poziomo / Pionowo | `H` / `V` | linie albo 2 punkty |
-| Równoległe / Prostopadłe | `P` / `N` | 2+ / 2 linie |
-| Równe | `E` | 2+ linie (długość) albo 2+ okręgi/łuki (promień) |
-| Styczne | `T` | linia i okrąg/łuk albo 2 okręgi/łuki |
-| Współśrodkowe | `O` | 2+ okręgi/łuki |
-| Wspólny punkt | `I` | 2 punkty (zostają połączone) albo punkt i krzywa |
-| Środek | `M` | punkt i linia |
-| Zablokuj | `Z` | punkty albo krzywe (przypina je w miejscu) |
+| Dimension | `D` | line / 2 points → distance, point + line → distance from the line, 2 parallel lines → spacing (adds "parallel" if needed), 2 other lines → angle, circle → diameter, arc → radius |
+| Horizontal / Vertical | `H` / `V` | lines or 2 points |
+| Parallel / Perpendicular | `P` / `N` | 2+ / 2 lines |
+| Equal | `E` | 2+ lines (length) or 2+ circles/arcs (radius) |
+| Tangent | `T` | a line and a circle/arc, or 2 circles/arcs |
+| Concentric | `O` | 2+ circles/arcs |
+| Coincident | `I` | 2 points (merges them) or a point and a curve |
+| Midpoint | `M` | a point and a line |
+| Fix | `Z` | points or curves (pins them where they are) |
 
-Dotknięcie zaznaczonego wymiaru, dwuklik na nim albo `Enter` otwiera pole wartości przy etykiecie:
-`Enter` lub ✓ zatwierdza, `Esc` lub ✕ anuluje (przecinek i kropka działają jako separator). Przeciągnięcie punktu lub krzywej
-przesuwa geometrię, a solver pilnuje więzów. Geometria w pełni określona robi się zielona,
-pasek stanu pokazuje liczbę pozostałych stopni swobody. Więzy sprzeczne albo nadmiarowe
-są odrzucane z komunikatem. Glify więzów i etykiety wymiarów można zaznaczyć i usunąć (`Delete`).
+Or the other way round: **`D` with nothing selected** (or the *Dimension* button) is a tool – tap
+what to dimension. A line, circle or arc asks for its value right away; a point waits for a second
+point or a line. While the field is open, tapping another point or line turns the dimension into
+one between them (a line's length into the gap to a second line, or the angle between them).
+Tapping a dimension changes its value, `Esc` goes back to Select.
 
-Solver (`src/sketch/Solver.cpp`, tylko Eigen): Gauss-Newton z krokiem o minimalnej normie,
-więc przy każdej zmianie geometria przesuwa się jak najmniej; stopnie swobody i „w pełni określone”
-elementy wynikają z jądra jakobianu (SVD).
+Tapping a selected dimension, double-clicking it or `Enter` opens a value field by its label:
+`Enter` or ✓ accepts, `Esc` or ✕ cancels (both comma and point work as the decimal separator).
+Dragging a point or a curve moves the geometry while the solver keeps the constraints. Fully
+defined geometry turns green, and the status bar shows the remaining degrees of freedom.
+Conflicting or redundant constraints are rejected with a message. Constraint glyphs and dimension
+labels can be selected and deleted (`Delete`).
 
-## Bryły
+The solver (`src/sketch/Solver.cpp`, Eigen only): Gauss-Newton with a minimum-norm step,
+so the geometry moves as little as possible on every change; degrees of freedom and "fully defined"
+items come from the Jacobian's null space (SVD).
 
-Zamknięte obszary szkiców (także z dziurami, przecięte liniami, ograniczone łukami) są lekko
-wypełnione. **Dotknięcie obszaru** (w trybie Zaznacz) albo obszaru lub płaskiej ściany w narzędziu
-**Wyciągnij** (`W`) pokazuje strzałkę i pole odległości z podglądem bryły: przeciągnij strzałkę albo
-wpisz wartość (ujemna odwraca kierunek; podgląd nadąża za pisaniem); kolejne dotknięcia dodają
-obszary/ściany. `Enter` lub ✓ wyciąga, `Esc` lub ✕ anuluje.
+## Bodies
 
-| Narzędzie | Skrót | Jak |
+Closed sketch regions (also with holes, split by lines, bounded by arcs) are lightly filled.
+**Tapping a region** (in Select), or a region or a planar face in the **Extrude** tool (`W`),
+shows an arrow and a distance field with a preview of the body: drag the arrow or type a value
+(a negative one flips the direction; the preview keeps up with typing); further taps add
+regions/faces. `Enter` or ✓ extrudes, `Esc` or ✕ cancels.
+
+| Tool | Shortcut | How |
 |---|---|---|
-| Wyciągnij | `W` | obszary szkiców i płaskie ściany brył (push/pull) |
-| Zaokrąglij | `G` | dotykaj krawędzi brył (dotknięcie ściany bierze wszystkie jej krawędzie), przeciągnij uchwyt w głąb materiału albo wpisz promień – podgląd od razu; `Enter` zatwierdza |
-| Fazuj | `B` | jak wyżej, z odległością fazy |
-| Skorupa | `J` | dotknij płaskich ścian do otwarcia, przeciągnij uchwyt w głąb albo wpisz grubość ścianek – bryła zostaje wydrążona (ścianki rosną do środka) |
+| Extrude | `W` | sketch regions and planar body faces (push/pull) |
+| Fillet | `G` | tap body edges (tapping a face takes all its edges), drag the handle into the material or type the radius – previewed right away; `Enter` accepts |
+| Chamfer | `B` | as above, with the chamfer distance |
+| Shell | `J` | tap the planar faces to open, drag the handle inwards or type the wall thickness – the body is hollowed out (the walls grow inwards) |
 
-W trybie Zaznacz ściany i krawędzie brył da się klikać wszędzie (krawędź wygrywa, gdy rysik
-jest blisko niej). Przy zaznaczonych krawędziach obok pojawia się pasek z *Zaokrąglij* / *Fazuj*,
-przy jednej płaskiej ścianie – *Szkic na ścianie* / *Wyciągnij*; narzędzie przejmuje to, co zaznaczone.
+In Select, body faces and edges can be picked anywhere (the edge wins when the pen is close
+to it). With edges selected, a bar with *Fillet* / *Chamfer* appears next to them; with one planar
+face, *Sketch on Face* / *Extrude*; the tool takes over the selection.
 
-Pole *Bryła* na pasku decyduje, co wyciąganie robi z istniejącymi bryłami:
+What extruding does with existing bodies is chosen under the value field (the preview turns red
+for a cut), or in the *Operation* box on the toolbar – they are the same setting:
 
-| Tryb | Działanie |
+| Mode | Effect |
 |---|---|
-| Automatycznie | ściana bryły: wyciągnięcie dodaje, wciśnięcie odejmuje; obszar szkicu: w całości wewnątrz bryły – odejmuje, częściowo lub stykając się z nią (np. szkic na ścianie) – dodaje, z dala od brył – nowa bryła |
-| Nowa bryła / Dodaj / Odejmij | wymusza daną operację |
+| Automatic | a body face: pulling out adds, pushing in removes; a sketch region: starting inside a body – cuts (e.g. a sketch on a face pushed into it, even right through and out the other side, or a circle across the face's edge for a half-round notch), starting outside but reaching or touching a body – joins, away from bodies – a new body. The field shows "Automatic: cut" when it will cut |
+| New Body / Join / Cut | forces that operation |
 
-Menu *Bryły* łączy, odejmuje (od pierwszej zaznaczonej) albo zostawia część wspólną brył,
-których ściany są zaznaczone. `Delete` usuwa bryły o zaznaczonych ścianach i szkice o zaznaczonych
-obszarach. Cofanie obejmuje szkice i bryły razem.
-`SHAPR_DEMO=1` buduje przykładowy model (`SHAPR_DEMO=sketch` dodatkowo otwiera szkic) –
-przydatne z `SHAPR_SCREENSHOT`.
+Editing an extrusion from the history offers the same choice.
 
-## Historia, projekty, eksport
+Regions that have been extruded are hidden in the model, so they don't cover the faces they lie on
+(those can then be picked); *View → Show Extruded Regions* brings them back, e.g. to extrude one again.
+An extrusion that failed leaves its region in sight.
 
-Model jest parametryczny: bryły nie są zapisywane, tylko odtwarzane z historii operacji
-(szkic, wyciągnięcie, zaokrąglenie, faza, operacje na bryłach, usunięcie). Pasek **Historia**
-na dole pokazuje je po kolei. Dotknięcie zaznacza wpis, **dwuklik** (podwójne stuknięcie) go
-edytuje, strzałka obok daje *Edytuj* / *Usuń*:
+The *Bodies* menu unions, subtracts (from the first selected) or intersects the bodies whose faces
+are selected. `Delete` removes bodies with selected faces and sketches with selected regions.
+Undo covers sketches and bodies together.
+`SHAPR_DEMO=1` builds a sample model (`SHAPR_DEMO=sketch` also opens a sketch) –
+handy with `SHAPR_SCREENSHOT`.
 
-- szkic otwiera się ponownie, kamera płynnie ustawia się na wprost niego, a model cofa się do chwili
-  jego powstania – bryły z niego zbudowane (i wszystko późniejsze, przygaszone na pasku) znikają
-  do zamknięcia szkicu, wtedy przeliczają się same;
-- operacja z wartością otwiera pole wartości z podglądem całego modelu na żywo (`Esc` przywraca);
-  kamera kadruje model, a gdy patrzy dokładnie wzdłuż albo w poprzek kierunku operacji,
-  przechodzi na widok izometryczny. Operacja, której wejście zniknęło (np. obszar po zmianie szkicu), świeci na czerwono
-z opisem w podpowiedzi i jest pomijana.
+## History, projects, export
 
-Wejścia operacji są zapamiętane geometrycznie, żeby odnaleźć je po przebudowie: obszar – punktem
-w środku, ściana – środkiem i normalną, krawędź – środkiem i kierunkiem, bryła – punktem w jej wnętrzu.
+The model is parametric: bodies aren't saved but rebuilt from the history of operations
+(sketch, extrude, fillet, chamfer, body operations, delete). The **History** bar at the bottom
+shows them in order. A tap selects an entry, a **double-click** (double tap) edits it, and the
+arrow next to it offers *Edit* / *Delete*:
 
-**Plik**: *Nowy* (`Ctrl+N`), *Otwórz…* (`Ctrl+O`), *Zapisz* (`Ctrl+S`), *Zapisz jako…*
-(`Ctrl+Shift+S`) – projekt `.shapr` to czytelny JSON ze szkicami i historią; `shapr_linux plik.shapr`
-otwiera go od razu. Tytuł okna pokazuje `*` przy niezapisanych zmianach, a zamknięcie pyta o zapis.
-*Eksportuj STEP…* / *Eksportuj STL…* zapisują bryły (STL binarny, siatka 0,05 mm).
+- a sketch reopens, the camera smoothly turns to face it, and the model goes back to the moment
+  it was made – the bodies built from it (and everything later, dimmed on the bar) disappear
+  until the sketch is finished, then rebuild by themselves;
+- an operation with a value opens the value field with a live preview of the whole model (`Esc`
+  restores it); the camera frames the model and, when it looks exactly along or across the
+  operation's direction, switches to an isometric view. An operation whose input is gone (e.g. a
+  region after a sketch change) is shown in red with an explanation in the hint, and is skipped.
 
-## Sterowanie widokiem
+Operation inputs are remembered geometrically so they can be found after a rebuild: a region by a
+point inside it, a face by its middle and normal, an edge by its middle and direction, a body by a
+point inside it.
 
-| Wejście | Akcja |
+**File**: *New* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save As…*
+(`Ctrl+Shift+S`) – a `.shapr` project is readable JSON with the sketches and the history;
+`shapr_linux file.shapr` opens one right away. The window title shows `*` for unsaved changes,
+and closing asks to save. *Export STEP…* / *Export STL…* save the bodies (binary STL, 0.05 mm mesh).
+
+## View controls
+
+| Input | Action |
 |---|---|
-| Rysik (końcówka) | aktywne narzędzie szkicu |
-| Rysik + przycisk | obrót widoku |
-| 1 palec | obrót widoku |
-| 2 palce | przesuwanie + pinch zoom |
-| Mysz LPM / PPM / ŚPM / kółko | narzędzie szkicu / obrót / przesuwanie / zoom |
-| Shift+PPM, Ctrl+PPM | przesuwanie, zoom |
-| Touchpad: przewijanie 2 palcami | obrót widoku (TrackPoint ze środkowym przyciskiem tak samo) |
-| Touchpad: Shift + 2 palce / 3 palce | przesuwanie |
-| Touchpad: szczypanie, Ctrl + 2 palce | zoom |
-| `F` | dopasuj widok |
-| `1`–`6` | ściany: góra, przód, prawo, tył, lewo, dół |
-| `Ctrl+1`–`8` | narożniki: górne (przód-prawo, tył-prawo, tył-lewo, przód-lewo), potem dolne w tej samej kolejności; `Ctrl+1` = izometria |
-| `Shift+1`–`0` | krawędzie: górne (przód, prawo, tył, lewo), pionowe (przód-prawo, tył-prawo, tył-lewo, przód-lewo), dół-przód, dół-tył |
-| `Ctrl+Shift+9` / `0` | krawędzie dół-prawo / dół-lewo |
-| Kostka w rogu | kliknij ścianę, krawędź lub narożnik |
+| Pen (tip) | the active sketch tool |
+| Pen + button | orbit |
+| 1 finger | orbit |
+| 2 fingers | pan + pinch zoom |
+| Mouse LMB / RMB / MMB / wheel | sketch tool / orbit / pan / zoom |
+| Shift+RMB, Ctrl+RMB | pan, zoom |
+| Touchpad: 2-finger scroll | orbit (a TrackPoint with the middle button too) |
+| Touchpad: Shift + 2 fingers / 3 fingers | pan |
+| Touchpad: pinch, Ctrl + 2 fingers | zoom |
+| `F` | fit the view |
+| `1`–`6` | faces: top, front, right, back, left, bottom |
+| `Ctrl+1`–`8` | corners: top (front-right, back-right, back-left, front-left), then bottom in the same order; `Ctrl+1` = isometric |
+| `Shift+1`–`0` | edges: top (front, right, back, left), vertical (front-right, back-right, back-left, front-left), bottom-front, bottom-back |
+| `Ctrl+Shift+9` / `0` | edges bottom-right / bottom-left |
+| Corner cube | click a face, edge or corner |
 
-Wszystkie widoki są też w menu *Widok*; zmiana rzutu (skrótem, przyciskiem albo kostką) przebiega
-płynną animacją kamery. Tam też *Motyw*: systemowy (podąża za jasnym/ciemnym
-trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybór jest zapamiętywany.
+All views are also in the *View* menu; changing the view (by shortcut, button or the cube) is a
+smooth camera animation. The *Theme* is there too: System (follows the desktop's light/dark mode,
+read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 
-## Rysik, dotyk, tablet (Framework 12)
+## Pen, touch, tablet (Framework 12)
 
-- **Odrzucanie dłoni** (*Widok → Odrzucanie dłoni*, domyślnie włączone): gdy rysik jest przy
-  ekranie (unosi się, rysuje albo przed chwilą rysował), dotyk jest ignorowany, a gest dotykowy
-  w toku – przerywany; szerokie kontakty (bok dłoni) są ignorowane zawsze.
-- **Gumka rysika** w szkicu działa jak *Przytnij*: usuwa fragmenty, po których przejedzie
-  (całe pociągnięcie to jeden krok cofania), niezależnie od wybranego narzędzia.
-- **Tryb tabletu** (*Widok → Tryb tabletu*, `Ctrl+T`, zapamiętywany): większe przyciski i pola
-  trafień, boczny pasek *Cofnij / Ponów / Usuń / Anuluj / Gotowe / Dopasuj* (zamiast klawiszy)
-  i klawiatura numeryczna w polu wartości.
-- **Obrót ekranu**: w wąskim oknie (pion) paski pokazują same ikony; po zmianie orientacji
-  model jest kadrowany na nowo. `SHAPR_WINDOW_SIZE=800x1280` pozwala to sprawdzić na zwykłym ekranie.
+- **Palm rejection** (*View → Palm Rejection*, on by default): while the pen is near the screen
+  (hovering, drawing or just drawn), touch is ignored and a touch gesture in progress is
+  cancelled; wide contacts (the side of the palm) are always ignored.
+- **The pen's eraser** in a sketch works like *Trim*: it removes the pieces it passes over
+  (the whole stroke is one undo step), whatever tool is selected.
+- **Tablet mode** (*View → Tablet Mode*, `Ctrl+T`, remembered): bigger buttons and hit areas,
+  a side bar with *Undo / Redo / Delete / Cancel / Done / Fit* (instead of keys)
+  and a numeric keypad in the value field.
+- **Screen rotation**: in a narrow (portrait) window the bars show icons only; after the
+  orientation changes, the model is framed again. `SHAPR_WINDOW_SIZE=800x1280` tries it on a
+  regular screen.
 
 ## Plan
 
-- [x] **M0** – okno Qt + widok OCCT, nawigacja mysz/touchpad/dotyk/rysik
-- [x] **M1** – szkic na płaszczyźnie rysikiem (linia, prostokąt, okrąg, łuk), snapping
-- [x] **M2** – więzy i wymiary, solver
-- [x] **M3** – wykrywanie profili, push/pull, boolean
-- [x] **M4** – parametryczna historia, zapis projektu, eksport STEP/STL
-- [x] **M5** – szkic na ścianie, fillet/chamfer/shell
-- [x] **M6** – polish pod Framework 12 (obrót ekranu, palm rejection, tryb tabletu)
+- [x] **M0** – Qt window + OCCT view, mouse/touchpad/touch/pen navigation
+- [x] **M1** – sketching on a plane with the pen (line, rectangle, circle, arc), snapping
+- [x] **M2** – constraints and dimensions, solver
+- [x] **M3** – profile detection, push/pull, booleans
+- [x] **M4** – parametric history, project files, STEP/STL export
+- [x] **M5** – sketch on face, fillet/chamfer/shell
+- [x] **M6** – Framework 12 polish (screen rotation, palm rejection, tablet mode)
+- [x] **i18n** – English UI with a Polish translation, language switching

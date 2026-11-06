@@ -134,8 +134,15 @@ void testNewBodyAndAutoCutJoin()
     CHECK(cut.ok() && cut.bodies.size() == 1);
     CHECK(near(volumeOf(cut.bodies[0]), 300.0 - cylinder, 1e-6));
 
-    // Sticking out of the top: Auto joins.
-    ModelResult boss = extrude(box.bodies, regionsOf(hole), 8.0, BodyOperation::Auto);
+    // From the bottom face out through the top: it starts in material, so Auto still cuts.
+    ModelResult through = extrude(box.bodies, regionsOf(hole), 8.0, BodyOperation::Auto);
+    CHECK(through.ok() && through.bodies.size() == 1);
+    CHECK(near(volumeOf(through.bodies[0]), 300.0 - cylinder, 1e-6));
+
+    // Starting below the box and running into it: Auto joins.
+    Sketch below(gp_Ax3(gp_Pnt(0, 0, -3), gp::DZ(), gp::DX()));
+    below.addCircle(below.addPoint({5, 3}), 1.0);
+    ModelResult boss = extrude(box.bodies, regionsOf(below), 5.0, BodyOperation::Auto);
     CHECK(boss.ok() && boss.bodies.size() == 1);
     CHECK(near(volumeOf(boss.bodies[0]), 300.0 + M_PI * 3.0, 1e-6));
 
@@ -193,6 +200,36 @@ void testSketchOnFacePulledOutJoins()
     ModelResult down = extrude({box}, regionsOf(onTop), -2.0, BodyOperation::Auto);
     CHECK(down.ok() && down.bodies.size() == 1);
     CHECK(near(volumeOf(down.bodies[0]), 300.0 - 8.0, 1e-6));
+}
+
+void testSketchOnFacePushedThroughCuts()
+{
+    Sketch base;
+    rectangle(base, 0, 0, 10, 6);
+    const TopoDS_Shape box = extrude({}, regionsOf(base), 5.0, BodyOperation::Auto).bodies.at(0);
+    const double boxVolume = 300.0;
+
+    // A circle on the top face pushed down past the bottom: it comes out the other side,
+    // but starts in material, so it drills a hole instead of joining a peg.
+    Sketch onTop(gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX()));
+    onTop.addCircle(onTop.addPoint({5, 3}), 1.0);
+    CHECK(startsInside({box}, regionsOf(onTop), -8.0));
+    CHECK(!startsInside({box}, regionsOf(onTop), 8.0));
+    ModelResult hole = extrude({box}, regionsOf(onTop), -8.0, BodyOperation::Auto);
+    CHECK(hole.ok() && hole.bodies.size() == 1);
+    CHECK(near(volumeOf(hole.bodies[0]), boxVolume - M_PI * 5.0, 1e-3));
+
+    // A circle across the face's back edge (half on it, half off): a half-round notch.
+    Sketch onEdge(gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX()));
+    onEdge.addCircle(onEdge.addPoint({5, 6}), 2.0);
+    ModelResult notch = extrude({box}, regionsOf(onEdge), -10.0, BodyOperation::Auto);
+    CHECK(notch.ok() && notch.bodies.size() == 1);
+    CHECK(near(volumeOf(notch.bodies[0]), boxVolume - M_PI * 4.0 / 2.0 * 5.0, 1e-3));
+
+    // Pulled up instead, the same circle joins.
+    ModelResult peg = extrude({box}, regionsOf(onTop), 3.0, BodyOperation::Auto);
+    CHECK(peg.ok() && peg.bodies.size() == 1);
+    CHECK(near(volumeOf(peg.bodies[0]), boxVolume + M_PI * 3.0, 1e-3));
 }
 
 // The box's edge along X at y = 0, z = 5 (top front edge).
@@ -341,6 +378,7 @@ int main()
         {"new body, auto cut and join", testNewBodyAndAutoCutJoin},
         {"push / pull a body face", testPushPullBodyFace},
         {"sketch on a face pulled out joins", testSketchOnFacePulledOutJoins},
+        {"sketch on a face pushed through cuts", testSketchOnFacePushedThroughCuts},
         {"fillet and chamfer", testFilletAndChamfer},
         {"shell", testShell},
         {"face edges become fixed reference", testFaceEdgesBecomeFixedReference},
