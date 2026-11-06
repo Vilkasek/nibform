@@ -1,0 +1,90 @@
+#pragma once
+
+#include "viewer/PenSample.h"
+
+#include <QOpenGLWidget>
+#include <QTimer>
+
+#include <AIS_InteractiveContext.hxx>
+#include <AIS_ViewController.hxx>
+#include <V3d_TypeOfOrientation.hxx>
+#include <V3d_View.hxx>
+#include <V3d_Viewer.hxx>
+
+class AIS_ViewCube;
+class QNativeGestureEvent;
+class QTouchEvent;
+
+// 3D viewport: renders OCCT into a QOpenGLWidget and maps input the way a
+// pen-first CAD expects it:
+//   pen            -> select / create (later: sketch tools)
+//   pen barrel btn -> orbit
+//   1 finger       -> orbit
+//   2 fingers      -> pan + pinch zoom
+//   mouse          -> LMB select, RMB orbit, MMB / Shift+RMB pan, wheel zoom
+//   touchpad       -> 2-finger scroll orbit, Shift+scroll pan, pinch zoom,
+//                     3-finger swipe pan (TrackPoint scroll behaves the same)
+class OcctViewerWidget : public QOpenGLWidget, public AIS_ViewController
+{
+    Q_OBJECT
+
+public:
+    explicit OcctViewerWidget(QWidget* parent = nullptr);
+    ~OcctViewerWidget() override;
+
+    const Handle(V3d_Viewer)& viewer() const { return m_viewer; }
+    const Handle(V3d_View)& view() const { return m_view; }
+    const Handle(AIS_InteractiveContext)& aisContext() const { return m_context; }
+
+    void fitAll();
+    void setProjection(V3d_TypeOfOrientation orientation);
+    void releaseGraphics();
+
+    QSize minimumSizeHint() const override { return {200, 200}; }
+    QSize sizeHint() const override { return {1280, 800}; }
+
+signals:
+    void glReady(const QString& info);
+    void glFailed(const QString& reason);
+    void penInput(const PenSample& sample);
+
+protected:
+    void initializeGL() override;
+    void paintGL() override;
+
+    bool event(QEvent* e) override;
+    void mousePressEvent(QMouseEvent* e) override;
+    void mouseReleaseEvent(QMouseEvent* e) override;
+    void mouseMoveEvent(QMouseEvent* e) override;
+    void wheelEvent(QWheelEvent* e) override;
+    void tabletEvent(QTabletEvent* e) override;
+    void keyPressEvent(QKeyEvent* e) override;
+
+    void handleViewRedraw(const Handle(AIS_InteractiveContext)& ctx,
+                          const Handle(V3d_View)& view) override;
+
+private:
+    Aspect_Drawable nativeDrawable() const;
+    Graphic3d_Vec2i toPixels(const QPointF& p) const;
+    bool handleTouch(QTouchEvent* e);
+    bool handleNativeGesture(QNativeGestureEvent* e);
+
+    enum class DragGesture { None, Orbit, Pan };
+    // Feeds a relative, button-less gesture (touchpad scroll, swipe) into AIS
+    // as if it were a mouse drag that started at `cursor`.
+    void continuousDrag(DragGesture mode, const Graphic3d_Vec2i& cursor, const Graphic3d_Vec2d& delta);
+    void updateView();
+
+    Handle(V3d_Viewer) m_viewer;
+    Handle(V3d_View) m_view;
+    Handle(AIS_InteractiveContext) m_context;
+    Handle(AIS_ViewCube) m_viewCube;
+    bool m_coreProfile = true;
+    bool m_penDown = false;
+    bool m_debugInput = false;
+    bool m_invertScroll = false;
+
+    DragGesture m_dragGesture = DragGesture::None;
+    Graphic3d_Vec2d m_dragPoint; // virtual cursor for orbit gestures
+    QTimer m_dragEndTimer;       // touchpad scroll has no reliable end phase under XWayland
+};
