@@ -248,6 +248,37 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         dot(p, {20, 5}, ink, 2.0);
         break;
     }
+    case Icon::Undo:
+    case Icon::Redo: {
+        // A curved arrow turning back (undo) or forward (redo).
+        const bool back = icon == Icon::Undo;
+        QPainterPath arc;
+        arc.moveTo(back ? 19 : 5, 18);
+        arc.cubicTo(back ? 19 : 5, 9, back ? 13 : 11, 7, back ? 6 : 18, 9);
+        p.drawPath(arc);
+        p.setPen(pen(accent, 2.0));
+        arrowHead(p, {back ? 4.0 : 20.0, 9.5}, {back ? 10.0 : 14.0, 8.0}, accent);
+        break;
+    }
+    case Icon::Delete:
+        p.drawPolyline(QPolygonF({{6, 7}, {7.5, 21}, {16.5, 21}, {18, 7}}));
+        p.drawLine(QPointF(4, 6.5), QPointF(20, 6.5));
+        p.drawLine(QPointF(10, 6.5), QPointF(10.5, 3.5));
+        p.drawLine(QPointF(14, 6.5), QPointF(13.5, 3.5));
+        p.drawLine(QPointF(10.5, 3.5), QPointF(13.5, 3.5));
+        p.setPen(pen(accent, 1.6));
+        p.drawLine(QPointF(10, 10), QPointF(10.5, 18));
+        p.drawLine(QPointF(14, 10), QPointF(13.5, 18));
+        break;
+    case Icon::Cancel:
+        p.setPen(pen(accent, 2.4));
+        p.drawLine(QPointF(6, 6), QPointF(18, 18));
+        p.drawLine(QPointF(18, 6), QPointF(6, 18));
+        break;
+    case Icon::Done:
+        p.setPen(pen(accent, 2.6));
+        p.drawPolyline(QPolygonF({{5, 12.5}, {10, 17.5}, {19.5, 6.5}}));
+        break;
     case Icon::Coincident:
         p.drawEllipse(QPointF(8.5, 12), 4.5, 4.5);
         p.drawEllipse(QPointF(15.5, 12), 4.5, 4.5);

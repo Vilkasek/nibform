@@ -29,6 +29,9 @@ int main(int argc, char** argv)
 
     MainWindow window;
     window.resize(1400, 900);
+    // Dev aid: SHAPR_WINDOW_SIZE=800x1280 tries a portrait (rotated tablet) layout.
+    if (const QStringList size = qEnvironmentVariable("SHAPR_WINDOW_SIZE").split(QLatin1Char('x')); size.size() == 2)
+        window.resize(size[0].toInt(), size[1].toInt());
     window.show();
     // shapr_linux model.shapr opens the project.
     if (const QStringList args = QApplication::arguments(); args.size() > 1)

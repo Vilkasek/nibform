@@ -50,6 +50,17 @@ MainWindow::MainWindow(QWidget* parent)
 
     buildActions();
     buildContextBar(); // before the theme, which gives it icons
+
+    // Tablet mode: the keys a keyboard would give, as big buttons along the left edge.
+    m_quickBar = new QToolBar(QStringLiteral("Szybkie"), this);
+    m_quickBar->setObjectName(QStringLiteral("quickBar"));
+    m_quickBar->setMovable(false);
+    m_quickBar->setOrientation(Qt::Vertical);
+    m_quickBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    m_quickBar->setIconSize(QSize(32, 32));
+    for (QAction* action : {m_undoAction, m_redoAction, m_deleteAction, m_cancelAction, m_confirmAction, m_fitAction})
+        m_quickBar->addAction(action);
+    addToolBar(Qt::LeftToolBarArea, m_quickBar);
     m_timelineBar = new QToolBar(QStringLiteral("Historia"), this);
     m_timelineBar->setObjectName(QStringLiteral("timeline"));
     m_timelineBar->setMovable(false);
@@ -101,12 +112,16 @@ MainWindow::MainWindow(QWidget* parent)
     updateMode(m_editor->mode());
     updateTimeline();
     updateTitle();
+    applyTabletMode();
     updateEditActions();
 
     connect(m_viewer, &OcctViewerWidget::glReady, this, [this](const QString& info) {
         m_glLabel->setText(info);
         // Defer until the first frame has sized the view, otherwise FitAll sees a 0x0 viewport.
-        QTimer::singleShot(0, this, [this] { m_viewer->setProjection(V3d_XposYnegZpos, false); });
+        QTimer::singleShot(0, this, [this] {
+            m_viewer->setProjection(V3d_XposYnegZpos, false);
+            m_viewReady = true; // from now on, turning the screen re-frames the model
+        });
 
         // Dev aid: SHAPR_DEMO=1 builds a small model to look at (with SHAPR_SCREENSHOT, too).
         if (qEnvironmentVariableIsSet("SHAPR_DEMO"))
@@ -154,10 +169,15 @@ void MainWindow::buildActions()
     m_deleteAction->setShortcuts({QKeySequence::Delete, QKeySequence(Qt::Key_Backspace)});
     m_clearSketchAction = edit->addAction(QStringLiteral("Wyczyść szkic"), m_editor, &SketchEditor::clearActiveSketch);
     edit->addSeparator();
-    QAction* cancel = edit->addAction(QStringLiteral("Przerwij / odznacz"), m_editor, &SketchEditor::cancel);
-    cancel->setShortcut(QKeySequence(Qt::Key_Escape));
-    QAction* confirm = edit->addAction(QStringLiteral("Zakończ / edytuj wymiar"), m_editor, &SketchEditor::confirm);
-    confirm->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
+    m_cancelAction = edit->addAction(QStringLiteral("Przerwij / odznacz"), m_editor, &SketchEditor::cancel);
+    m_cancelAction->setShortcut(QKeySequence(Qt::Key_Escape));
+    m_confirmAction = edit->addAction(QStringLiteral("Zakończ / edytuj wymiar"), m_editor, &SketchEditor::confirm);
+    m_confirmAction->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
+    iconize(m_undoAction, Icon::Undo);
+    iconize(m_redoAction, Icon::Redo);
+    iconize(m_deleteAction, Icon::Delete);
+    iconize(m_cancelAction, Icon::Cancel);
+    iconize(m_confirmAction, Icon::Done);
 
     // --- Tool bars: one for the model, one for the open sketch, one for the view ------
     auto makeBar = [this](const QString& name) {
@@ -170,6 +190,7 @@ void MainWindow::buildActions()
     m_modelBar = makeBar(QStringLiteral("Bryła"));
     m_sketchBar = makeBar(QStringLiteral("Szkic"));
     QToolBar* bar = makeBar(QStringLiteral("Widok"));
+    m_viewBar = bar;
 
     // Which mode the window is in, at the start of its bar.
     auto badge = [](QToolBar* toolbar, const QString& text, const char* mode) {
@@ -218,6 +239,7 @@ void MainWindow::buildActions()
         planes->addAction(name, this, [this, plane] { m_editor->createSketch(SketchEditor::basePlane(plane)); });
     }
     auto* newSketch = new QToolButton(m_modelBar);
+    m_newSketchButton = newSketch;
     newSketch->setDefaultAction(m_newSketchAction);
     newSketch->setMenu(planes);
     newSketch->setPopupMode(QToolButton::MenuButtonPopup);
@@ -239,7 +261,8 @@ void MainWindow::buildActions()
 
     // What extruding does to the bodies it meets.
     m_modelBar->addSeparator();
-    m_modelBar->addWidget(new QLabel(QStringLiteral(" Bryła: "), m_modelBar));
+    // Hidden in compact layouts through its toolbar action (the widget itself can't be).
+    m_operationLabel = m_modelBar->addWidget(new QLabel(QStringLiteral(" Bryła: "), m_modelBar));
     auto* operation = new QComboBox(m_modelBar);
     operation->setFocusPolicy(Qt::NoFocus);
     operation->setToolTip(QStringLiteral("Automatycznie: wciśnięcie w bryłę odejmuje, wyciągnięcie z niej "
@@ -280,6 +303,7 @@ void MainWindow::buildActions()
 
     bar->addSeparator();
     QAction* fit = bar->addAction(QStringLiteral("Dopasuj"), m_viewer, &OcctViewerWidget::fitAll);
+    m_fitAction = fit;
     fit->setShortcut(QKeySequence(Qt::Key_F));
     fit->setToolTip(QStringLiteral("Dopasuj widok (F)"));
     iconize(fit, Icon::Fit);
@@ -287,6 +311,26 @@ void MainWindow::buildActions()
     // --- Views: digits = faces, Ctrl+digit = corners, Shift+digit = edges --------------
     QMenu* views = menuBar()->addMenu(QStringLiteral("Wi&dok"));
     views->addAction(fit);
+
+    // Pen and touch: without a keyboard, and with a hand resting on the screen.
+    m_tabletAction = views->addAction(QStringLiteral("Tryb tabletu"), this, [this](bool on) {
+        QSettings().setValue(QStringLiteral("tabletMode"), on);
+        applyTabletMode();
+    });
+    m_tabletAction->setCheckable(true);
+    m_tabletAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    m_tabletAction->setToolTip(QStringLiteral("Większe przyciski i pola trafień, pasek Cofnij / Usuń / Gotowe "
+                                              "z boku i klawiatura numeryczna przy wartościach"));
+    m_tabletAction->setChecked(QSettings().value(QStringLiteral("tabletMode"), false).toBool());
+    QAction* palm = views->addAction(QStringLiteral("Odrzucanie dłoni"), this, [this](bool on) {
+        QSettings().setValue(QStringLiteral("palmRejection"), on);
+        m_viewer->setPalmRejection(on);
+    });
+    palm->setCheckable(true);
+    palm->setToolTip(QStringLiteral("Dotyk jest ignorowany, gdy rysik jest przy ekranie, i dla szerokich kontaktów"));
+    palm->setChecked(QSettings().value(QStringLiteral("palmRejection"), true).toBool());
+    m_viewer->setPalmRejection(palm->isChecked());
+    views->addSeparator();
 
     QMenu* themes = views->addMenu(QStringLiteral("Motyw"));
     auto* themeGroup = new QActionGroup(this);
@@ -632,6 +676,48 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event)
         return true;
     }
     return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::applyTabletMode()
+{
+    const bool tablet = m_tabletAction->isChecked();
+    m_quickBar->setVisible(tablet);
+    m_editor->setTabletMode(tablet);
+    // Short labels on the side bar: they sit under big icons.
+    m_cancelAction->setIconText(QStringLiteral("Anuluj"));
+    m_confirmAction->setIconText(QStringLiteral("Gotowe"));
+    m_deleteAction->setIconText(QStringLiteral("Usuń"));
+    updateLayout();
+}
+
+void MainWindow::updateLayout()
+{
+    // Narrow (portrait, a tablet turned on its side): icons only, so the bars still fit.
+    const bool compact = width() < 1100;
+    const bool tablet = m_tabletAction && m_tabletAction->isChecked();
+    const int icon = tablet ? 32 : 24;
+    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar}) {
+        bar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
+        bar->setIconSize(QSize(icon, icon));
+    }
+    m_newSketchButton->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
+    m_newSketchButton->setIconSize(QSize(icon, icon));
+    m_operationLabel->setVisible(!compact);
+    m_constraintBar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+    m_constraintBar->setIconSize(QSize(tablet ? 26 : 20, tablet ? 26 : 20));
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    if (!m_modelBar)
+        return;
+    updateLayout();
+    // Turned between portrait and landscape: frame the model again for the new shape.
+    const bool portrait = height() > width();
+    if (m_viewReady && m_portrait && *m_portrait != portrait)
+        QTimer::singleShot(0, m_viewer, &OcctViewerWidget::refit);
+    m_portrait = portrait;
 }
 
 void MainWindow::updateTitle()

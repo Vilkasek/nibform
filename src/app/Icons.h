@@ -10,6 +10,7 @@ enum class Icon
     Select, Line, Rectangle, Circle, Arc, Trim, Offset,
     NewSketch, EditSketch, CloseSketch, Extrude, Fillet, Chamfer,
     Fit, Iso, Top, Front, Right, Dimension, Coincident, Shell, Construction,
+    Undo, Redo, Delete, Cancel, Done,
 };
 
 // Toolbar icons drawn in code, so they follow the theme: lines in `ink`, the part that

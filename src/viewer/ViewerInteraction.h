@@ -16,6 +16,7 @@ struct PointerEvent
     QPointF pos;           // logical widget coordinates
     Graphic3d_Vec2i pixel; // device pixels, as OCCT expects
     double pressure = 1.0;
+    bool eraser = false; // the pen's eraser end
     Qt::KeyboardModifiers modifiers;
 };
 

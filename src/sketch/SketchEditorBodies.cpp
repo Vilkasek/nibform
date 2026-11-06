@@ -1090,7 +1090,7 @@ std::optional<std::pair<QPointF, QPointF>> SketchEditor::arrowOnScreen() const
 bool SketchEditor::hitsArrow(const QPointF& pos) const
 {
     const auto arrow = arrowOnScreen();
-    return arrow && segmentDistance(arrow->first, arrow->second, pos) <= kArrowGrabPx;
+    return arrow && segmentDistance(arrow->first, arrow->second, pos) <= kArrowGrabPx * m_touchScale;
 }
 
 double SketchEditor::arrowParam(const Graphic3d_Vec2i& pixel) const

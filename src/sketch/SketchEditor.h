@@ -76,6 +76,8 @@ public:
     ~SketchEditor() override;
 
     void setDark(bool dark);
+    // Tablet mode: bigger pick radii and a keypad in the value field.
+    void setTabletMode(bool on);
 
     // --- Modes ----------------------------------------------------------------------
     EditorMode mode() const { return m_active >= 0 ? EditorMode::Sketch : EditorMode::Model; }
@@ -237,6 +239,8 @@ private:
     SnapResult snapAt(const PointerEvent& e) const;
     Hit hitAt(const PointerEvent& e) const;
 
+    // The pen's eraser end trims whatever sketch curve it passes over, whatever the tool.
+    void eraseAt(const PointerEvent& e);
     bool selectPress(const PointerEvent& e);
     bool selectMove(const PointerEvent& e, bool pressed);
     bool selectRelease(const PointerEvent& e);
@@ -322,6 +326,9 @@ private:
     Graphic3d_Vec2i m_pointerPixel; // last pointer position, for pick tolerances
     QPointF m_pointerPos;           // the same in logical widget coordinates
     bool m_swallowRelease = false;  // the press only dismissed / refocused the value field
+    double m_touchScale = 1.0;      // pick radii multiplier (tablet mode)
+    bool m_erasing = false;         // the eraser is down
+    bool m_eraseStroke = false;     // and has already trimmed something in this stroke
 
     // Select-mode press / drag
     Hit m_pressHit;

@@ -8,6 +8,7 @@
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QTest>
+#include <QToolButton>
 
 #include <optional>
 
@@ -103,6 +104,35 @@ private slots:
         QCOMPARE(field()->text(), QStringLiteral("7"));
         QCOMPARE(seen.size(), before);
         m_editor->cancel();
+    }
+
+    void keypadWithoutAKeyboard()
+    {
+        std::vector<double> seen;
+        m_editor->setKeypad(true);
+        m_editor->open(QStringLiteral("Odległość [mm]"), 10.0, -100.0, 100.0, {300, 200},
+                       [this](double v) { m_accepted = v; }, {}, [&seen](double v) { seen.push_back(v); });
+        auto press = [this](const QString& key) {
+            auto* button = m_editor->findChild<QToolButton*>(QStringLiteral("key_") + key);
+            QVERIFY2(button, qPrintable(key));
+            button->click();
+        };
+        press("1"); // replaces the selected 10
+        press("2");
+        press(",");
+        press("5");
+        QCOMPARE(field()->text(), QStringLiteral("12,5"));
+        QCOMPARE(seen.back(), 12.5); // the preview follows the keys
+        press("±");
+        QCOMPARE(field()->text(), QStringLiteral("-12,5"));
+        press("⌫");
+        QCOMPARE(field()->text(), QStringLiteral("-12,"));
+        press("C");
+        press("7");
+        press("✓");
+        QCOMPARE(m_accepted, std::optional<double>(7.0));
+        QVERIFY(!m_editor->isOpen());
+        m_editor->setKeypad(false);
     }
 
 private:

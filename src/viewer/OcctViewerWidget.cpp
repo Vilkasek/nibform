@@ -8,6 +8,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QPainter>
+#include <QScreen>
 #include <QSurfaceFormat>
 #include <QTabletEvent>
 #include <QTouchEvent>
@@ -172,6 +173,10 @@ OcctViewerWidget::OcctViewerWidget(QWidget* parent)
 
     m_overlay = new ViewerOverlay(this);
 
+    // Pen proximity is reported to the application, not to the widget under it.
+    m_clock.start();
+    qApp->installEventFilter(this);
+
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
@@ -211,6 +216,7 @@ void OcctViewerWidget::releaseGraphics()
 
 void OcctViewerWidget::fitAll()
 {
+    myViewAnimation->Stop(); // an instant change wins over a camera still gliding
     if (m_view.IsNull())
         return;
     const Bnd_Box box = m_view->View()->MinMaxValues();
@@ -229,6 +235,7 @@ void OcctViewerWidget::fitAll()
 
 void OcctViewerWidget::lookAt(const gp_Dir& normal, const gp_Dir& up)
 {
+    myViewAnimation->Stop(); // an instant change wins over a camera still gliding
     if (m_view.IsNull())
         return;
     m_view->SetProj(normal.X(), normal.Y(), normal.Z());
@@ -259,6 +266,12 @@ void OcctViewerWidget::animateCamera(const gp_Dir& eyeSide, const gp_Dir& up, co
     updateView();
 }
 
+void OcctViewerWidget::refit()
+{
+    if (!m_view.IsNull())
+        animateCamera(eyeSide(), m_view->Camera()->Up(), Bnd_Box());
+}
+
 gp_Dir OcctViewerWidget::eyeSide() const
 {
     return m_view.IsNull() ? gp::DZ() : m_view->Camera()->Direction().Reversed();
@@ -283,6 +296,7 @@ void OcctViewerWidget::setProjection(V3d_TypeOfOrientation orientation, bool ani
     if (m_view.IsNull())
         return;
     if (!animate) {
+        myViewAnimation->Stop();
         m_view->SetProj(orientation, false);
         fitAll();
         return;
@@ -454,6 +468,30 @@ bool OcctViewerWidget::event(QEvent* e)
     return QOpenGLWidget::event(e);
 }
 
+bool OcctViewerWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::TabletEnterProximity || event->type() == QEvent::TabletLeaveProximity) {
+        m_palm.penNear(event->type() == QEvent::TabletEnterProximity, m_clock.elapsed());
+        if (event->type() == QEvent::TabletEnterProximity)
+            penActivity();
+    }
+    return QOpenGLWidget::eventFilter(watched, event);
+}
+
+void OcctViewerWidget::penActivity()
+{
+    m_palm.penSeen(m_clock.elapsed());
+    if (!m_palm.enabled() || m_touches.empty())
+        return;
+    // A hand already on the screen when the pen shows up was resting, not navigating.
+    for (int id : m_touches) {
+        RemoveTouchPoint(static_cast<Standard_Size>(id));
+        m_rejectedTouches.insert(id);
+    }
+    m_touches.clear();
+    updateView();
+}
+
 bool OcctViewerWidget::handleTouch(QTouchEvent* e)
 {
     // Touchpads deliver gestures/scroll instead; only handle real touch screens here.
@@ -464,25 +502,46 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
 
     const qreal dpr = devicePixelRatioF();
     const bool cancel = e->type() == QEvent::TouchCancel;
+    // Contact size in millimetres, when the screen reports it.
+    const double dpi = screen() ? screen()->physicalDotsPerInch() : 0.0;
+    auto contactMm = [&](const QEventPoint& point) {
+        const QSizeF d = point.ellipseDiameters();
+        return dpi > 0.0 ? std::max(d.width(), d.height()) * dpr * 25.4 / dpi : 0.0;
+    };
 
     for (const QEventPoint& point : e->points()) {
-        const Standard_Size id = static_cast<Standard_Size>(point.id());
+        const int id = point.id();
         const Graphic3d_Vec2d pos(point.position().x() * dpr, point.position().y() * dpr);
 
         if (cancel) {
-            RemoveTouchPoint(id);
+            if (m_touches.erase(id))
+                RemoveTouchPoint(static_cast<Standard_Size>(id));
+            m_rejectedTouches.erase(id);
+            continue;
+        }
+        // A rejected contact stays ignored for its whole life, even after the pen leaves.
+        if (m_rejectedTouches.count(id)) {
+            if (point.state() == QEventPoint::Released)
+                m_rejectedTouches.erase(id);
             continue;
         }
         switch (point.state()) {
         case QEventPoint::Pressed:
+            if (m_palm.rejectTouch(m_clock.elapsed(), contactMm(point))) {
+                m_rejectedTouches.insert(id);
+                break;
+            }
             setFocus(Qt::MouseFocusReason);
-            AddTouchPoint(id, pos);
+            m_touches.insert(id);
+            AddTouchPoint(static_cast<Standard_Size>(id), pos);
             break;
         case QEventPoint::Updated:
-            UpdateTouchPoint(id, pos);
+            if (m_touches.count(id))
+                UpdateTouchPoint(static_cast<Standard_Size>(id), pos);
             break;
         case QEventPoint::Released:
-            RemoveTouchPoint(id);
+            if (m_touches.erase(id))
+                RemoveTouchPoint(static_cast<Standard_Size>(id));
             break;
         default:
             break;
@@ -666,6 +725,8 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
         return;
     }
 
+    penActivity();
+
     PenSample sample;
     sample.pos = e->position();
     sample.pixel = e->position() * devicePixelRatioF();
@@ -689,7 +750,8 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
 
     const Graphic3d_Vec2i pt = toPixels(e->position());
     const Aspect_VKeyFlags flags = toVKeyFlags(e->modifiers());
-    const PointerEvent pe = makePointer(PointerEvent::Source::Pen, e->position(), e->pressure(), e->modifiers());
+    PointerEvent pe = makePointer(PointerEvent::Source::Pen, e->position(), e->pressure(), e->modifiers());
+    pe.eraser = sample.eraser;
     bool redraw = false;
     bool handled = false;
 

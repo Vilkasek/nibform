@@ -38,17 +38,22 @@ public:
     QPointF anchor() const { return m_anchor; }
     // Gives the keyboard back to the field (after a click it chose to ignore).
     void refocus();
+    // A numeric keypad under the field, for typing values without a keyboard (tablet mode).
+    void setKeypad(bool on);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void edited(); // typed or keyed in: clear the error mark, report the value
+    void key(const QString& key);
     void moveClamped(double x, double y);
     std::optional<double> parsed() const;
     static QString format(double value);
 
     QLabel* m_label;
     QLineEdit* m_edit;
+    QWidget* m_keypad;
     double m_min = 0.0;
     double m_max = 0.0;
     QPointF m_anchor;

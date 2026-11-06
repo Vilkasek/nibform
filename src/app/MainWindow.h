@@ -10,6 +10,7 @@
 #include <QTimer>
 
 #include <functional>
+#include <optional>
 #include <map>
 #include <vector>
 
@@ -33,6 +34,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
@@ -51,6 +53,8 @@ private:
     void updateTimeline();
     void updateTitle();
     void showMessage(const QString& text);
+    void applyTabletMode();
+    void updateLayout();
     // Files: maybeSave() asks about unsaved changes, false means stay.
     bool maybeSave();
     void newFile();
@@ -81,6 +85,16 @@ private:
     std::vector<std::pair<QAction*, std::function<QIcon(const QColor&, const QColor&)>>> m_icons;
     QFrame* m_contextBar = nullptr;
     QToolBar* m_timelineBar = nullptr;
+    QToolBar* m_quickBar = nullptr;
+    QToolBar* m_viewBar = nullptr;
+    QAction* m_tabletAction = nullptr;
+    QAction* m_cancelAction = nullptr;
+    QAction* m_confirmAction = nullptr;
+    QAction* m_fitAction = nullptr;
+    std::optional<bool> m_portrait;
+    bool m_viewReady = false; // the first view has been set up
+    QToolButton* m_newSketchButton = nullptr;
+    QAction* m_operationLabel = nullptr;
     int m_timelinePick = -1; // the history chip last tapped
     QString m_path;   // the open project file, empty until saved
     QString m_accent; // current icon accent color

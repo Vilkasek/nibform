@@ -1,6 +1,7 @@
 #include "viewer/ValueEditor.h"
 
 #include <QEvent>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -9,6 +10,7 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QToolButton>
+#include <QVBoxLayout>
 
 #include <algorithm>
 
@@ -16,6 +18,7 @@ ValueEditor::ValueEditor(QWidget* parent)
     : QFrame(parent)
     , m_label(new QLabel(this))
     , m_edit(new QLineEdit(this))
+    , m_keypad(new QWidget(this))
 {
     setObjectName(QStringLiteral("valueEditor")); // styled by the window's style sheet
     setFrameShape(QFrame::StyledPanel);
@@ -33,20 +36,44 @@ ValueEditor::ValueEditor(QWidget* parent)
 
     m_edit->setAlignment(Qt::AlignRight);
     // Live preview: report every valid value as it is typed (not values set from outside).
-    connect(m_edit, &QLineEdit::textEdited, this, [this] {
-        if (const auto value = parsed(); value && m_changed)
-            m_changed(*value);
-    });
+    connect(m_edit, &QLineEdit::textEdited, this, &ValueEditor::edited);
     m_edit->setMinimumWidth(90);
     m_edit->installEventFilter(this);
 
-    auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(6, 4, 4, 4);
-    layout->setSpacing(4);
-    layout->addWidget(m_label);
-    layout->addWidget(m_edit);
-    layout->addWidget(ok);
-    layout->addWidget(no);
+    auto* row = new QHBoxLayout;
+    row->setSpacing(4);
+    row->addWidget(m_label);
+    row->addWidget(m_edit);
+    row->addWidget(ok);
+    row->addWidget(no);
+
+    // Keys big enough for a fingertip; they never take the focus from the field.
+    auto* keys = new QGridLayout(m_keypad);
+    keys->setContentsMargins(0, 2, 0, 0);
+    keys->setSpacing(4);
+    const char* layout[4][4] = {{"7", "8", "9", "⌫"}, {"4", "5", "6", "C"}, {"1", "2", "3", "±"}, {"0", nullptr, ",", "✓"}};
+    for (int r = 0; r < 4; ++r) {
+        for (int c = 0; c < 4; ++c) {
+            if (!layout[r][c])
+                continue;
+            const QString text = QString::fromUtf8(layout[r][c]);
+            auto* button = new QToolButton(m_keypad);
+            button->setText(text);
+            button->setObjectName(QStringLiteral("key_") + text);
+            button->setFocusPolicy(Qt::NoFocus);
+            button->setMinimumSize(48, 40);
+            button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            connect(button, &QToolButton::clicked, this, [this, text] { key(text); });
+            keys->addWidget(button, r, c, 1, text == QStringLiteral("0") ? 2 : 1); // a wide zero
+        }
+    }
+    m_keypad->hide();
+
+    auto* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(6, 4, 4, 4);
+    outer->setSpacing(4);
+    outer->addLayout(row);
+    outer->addWidget(m_keypad);
     hide();
 }
 
@@ -64,6 +91,7 @@ void ValueEditor::open(const QString& label, double value, double min, double ma
     m_cancel = std::move(cancel);
     m_changed = std::move(changed);
     m_edit->setText(format(value));
+    m_edit->selectAll(); // right away: the first key or keypad tap replaces the value
     m_edit->setStyleSheet(QString());
 
     adjustSize();
@@ -83,7 +111,41 @@ void ValueEditor::moveClamped(double x, double y)
 void ValueEditor::placeBeside(const QPointF& point)
 {
     m_anchor = point;
-    moveClamped(point.x() + 20.0, point.y() - height() / 2.0);
+    // To the right of the point; on the left when it wouldn't fit there (narrow windows).
+    const bool fitsRight = point.x() + 20.0 + width() <= parentWidget()->width() - 4;
+    moveClamped(fitsRight ? point.x() + 20.0 : point.x() - 20.0 - width(), point.y() - height() / 2.0);
+}
+
+void ValueEditor::setKeypad(bool on)
+{
+    m_keypad->setVisible(on);
+    adjustSize();
+}
+
+void ValueEditor::edited()
+{
+    m_edit->setStyleSheet(QString());
+    if (const auto value = parsed(); value && m_changed)
+        m_changed(*value);
+}
+
+void ValueEditor::key(const QString& key)
+{
+    if (key == QStringLiteral("✓")) {
+        accept();
+        return;
+    }
+    if (key == QStringLiteral("⌫")) {
+        m_edit->backspace();
+    } else if (key == QStringLiteral("C")) {
+        m_edit->clear();
+    } else if (key == QStringLiteral("±")) {
+        const QString text = m_edit->text();
+        m_edit->setText(text.startsWith(QLatin1Char('-')) ? text.mid(1) : QLatin1Char('-') + text);
+    } else {
+        m_edit->insert(key); // replaces the selection, like typing would
+    }
+    edited();
 }
 
 QString ValueEditor::format(double value)

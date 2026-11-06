@@ -19,7 +19,7 @@ OpenCASCADE z Archa jest zbudowany pod GLX, więc aplikacja sama wymusza `QT_QPA
 `SHAPR_DEBUG_INPUT=1` wypisuje urządzenia wejścia i zdarzenia scrolla/gestów,
 `SHAPR_INVERT_SCROLL=1` odwraca kierunek obrotu/przesuwania z touchpada.
 
-Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_value_editor`).
+Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`).
 
 ## Dwa tryby: Bryła i Szkic
 
@@ -157,6 +157,19 @@ Wszystkie widoki są też w menu *Widok*; zmiana rzutu (skrótem, przyciskiem al
 płynną animacją kamery. Tam też *Motyw*: systemowy (podąża za jasnym/ciemnym
 trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybór jest zapamiętywany.
 
+## Rysik, dotyk, tablet (Framework 12)
+
+- **Odrzucanie dłoni** (*Widok → Odrzucanie dłoni*, domyślnie włączone): gdy rysik jest przy
+  ekranie (unosi się, rysuje albo przed chwilą rysował), dotyk jest ignorowany, a gest dotykowy
+  w toku – przerywany; szerokie kontakty (bok dłoni) są ignorowane zawsze.
+- **Gumka rysika** w szkicu działa jak *Przytnij*: usuwa fragmenty, po których przejedzie
+  (całe pociągnięcie to jeden krok cofania), niezależnie od wybranego narzędzia.
+- **Tryb tabletu** (*Widok → Tryb tabletu*, `Ctrl+T`, zapamiętywany): większe przyciski i pola
+  trafień, boczny pasek *Cofnij / Ponów / Usuń / Anuluj / Gotowe / Dopasuj* (zamiast klawiszy)
+  i klawiatura numeryczna w polu wartości.
+- **Obrót ekranu**: w wąskim oknie (pion) paski pokazują same ikony; po zmianie orientacji
+  model jest kadrowany na nowo. `SHAPR_WINDOW_SIZE=800x1280` pozwala to sprawdzić na zwykłym ekranie.
+
 ## Plan
 
 - [x] **M0** – okno Qt + widok OCCT, nawigacja mysz/touchpad/dotyk/rysik
@@ -165,4 +178,4 @@ trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybó
 - [x] **M3** – wykrywanie profili, push/pull, boolean
 - [x] **M4** – parametryczna historia, zapis projektu, eksport STEP/STL
 - [x] **M5** – szkic na ścianie, fillet/chamfer/shell
-- [ ] **M6** – polish pod Framework 12 (obrót ekranu, palm rejection, tryb tabletu)
+- [x] **M6** – polish pod Framework 12 (obrót ekranu, palm rejection, tryb tabletu)

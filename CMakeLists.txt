@@ -18,6 +18,8 @@ set(SHAPR_WARNINGS -Wall -Wextra -Wno-unused-parameter)
 
 # Geometry/model code with no Qt or GUI dependency, so it can be unit tested.
 add_library(shapr_core STATIC
+  src/input/PalmRejection.cpp
+  src/input/PalmRejection.h
   src/model/Export.cpp
   src/model/Export.h
   src/model/Features.cpp
@@ -92,7 +94,7 @@ target_link_libraries(shapr_linux PRIVATE
 )
 
 enable_testing()
-foreach(name sketch solver trim offset model features)
+foreach(name sketch solver trim offset model features input)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${SHAPR_WARNINGS})
   target_link_libraries(test_${name} PRIVATE shapr_core)

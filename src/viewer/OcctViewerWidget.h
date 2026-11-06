@@ -1,10 +1,14 @@
 #pragma once
 
+#include "input/PalmRejection.h"
 #include "viewer/PenSample.h"
 #include "viewer/ViewerInteraction.h"
 
+#include <QElapsedTimer>
 #include <QOpenGLWidget>
 #include <QTimer>
+
+#include <set>
 
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_ViewController.hxx>
@@ -48,6 +52,8 @@ public:
     // Glides the camera (in a fraction of a second) to look from the `eyeSide` direction,
     // `up` pointing up, framing `box` (the whole scene when the box is void).
     void animateCamera(const gp_Dir& eyeSide, const gp_Dir& up, const Bnd_Box& box);
+    // Frames the whole scene again from the same direction (after the window changed shape).
+    void refit();
     // Where the camera looks from (unit vector from the scene toward the eye).
     gp_Dir eyeSide() const;
     void releaseGraphics();
@@ -55,6 +61,9 @@ public:
     // Routes the primary pointer (pen tip, left mouse button) to `interaction`
     // before AIS selection; navigation input is unaffected. Not owned.
     void setInteraction(ViewerInteraction* interaction) { m_interaction = interaction; }
+    // Ignore touches while the pen is in use (on by default).
+    void setPalmRejection(bool on) { m_palm.setEnabled(on); }
+
     // Where a model point appears on screen, in logical widget pixels.
     QPointF project(const gp_Pnt& p) const;
     // Called by the overlay that sits on top of the GL surface.
@@ -69,6 +78,7 @@ signals:
     void penInput(const PenSample& sample);
 
 protected:
+    bool eventFilter(QObject* watched, QEvent* event) override; // pen proximity
     void initializeGL() override;
     void paintGL() override;
 
@@ -93,6 +103,7 @@ private:
     // True when the view cube is under `pixel`; its clicks go to AIS, not the interaction.
     bool isViewCubeAt(const Graphic3d_Vec2i& pixel);
     bool handleTouch(QTouchEvent* e);
+    void penActivity(); // the pen is around: palms are ignored, touches in progress dropped
     bool handleNativeGesture(QNativeGestureEvent* e);
 
     enum class DragGesture { None, Orbit, Pan };
@@ -112,6 +123,11 @@ private:
     bool m_primaryGrab = false; // interaction owns the current primary press
     bool m_debugInput = false;
     bool m_invertScroll = false;
+
+    PalmRejection m_palm;
+    QElapsedTimer m_clock;
+    std::set<int> m_touches;         // touch points driving the view
+    std::set<int> m_rejectedTouches; // touch points ignored until they lift
 
     DragGesture m_dragGesture = DragGesture::None;
     Graphic3d_Vec2d m_dragPoint; // virtual cursor for orbit gestures

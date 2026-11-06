@@ -1,5 +1,6 @@
 #include "sketch/SketchEditor.h"
 
+#include "sketch/Trim.h"
 #include "viewer/Glyphs.h"
 #include "viewer/OcctViewerWidget.h"
 #include "viewer/ValueEditor.h"
@@ -430,6 +431,14 @@ void SketchEditor::toggleConstruction()
     m_viewer->update();
 }
 
+void SketchEditor::setTabletMode(bool on)
+{
+    // Fingertips are bigger and less precise than a pen or a mouse.
+    m_touchScale = on ? 1.6 : 1.0;
+    m_viewer->aisContext()->SetPixelTolerance(qRound(8.0 * m_touchScale * m_viewer->devicePixelRatioF()));
+    m_valueEditor->setKeypad(on);
+}
+
 bool SketchEditor::canApply(ConstraintCommand command) const
 {
     if (m_active < 0 || (m_selection.points.empty() && m_selection.entities.empty()))
@@ -634,7 +643,7 @@ void SketchEditor::askValue(const QString& label, double value, double min, doub
 
 double SketchEditor::pickTolerance() const
 {
-    return pixelsToModel(m_pointerPixel, kHitPx);
+    return pixelsToModel(m_pointerPixel, kHitPx * m_touchScale);
 }
 
 SnapResult SketchEditor::snapAt(const PointerEvent& e) const
@@ -647,8 +656,9 @@ SnapResult SketchEditor::snapAt(const PointerEvent& e) const
     // Alt disables snapping, like most CAD tools.
     if ((e.modifiers & Qt::AltModifier) || (m_tool && !m_tool->snaps()))
         return s;
-    return m_snapper.snap(sketch(), *raw, pixelsToModel(e.pixel, kPointSnapPx),
-                          pixelsToModel(e.pixel, kAlignSnapPx), m_tool ? m_tool->anchors() : std::vector<gp_Pnt2d>{});
+    return m_snapper.snap(sketch(), *raw, pixelsToModel(e.pixel, kPointSnapPx * m_touchScale),
+                          pixelsToModel(e.pixel, kAlignSnapPx * m_touchScale),
+                          m_tool ? m_tool->anchors() : std::vector<gp_Pnt2d>{});
 }
 
 SketchEditor::Hit SketchEditor::hitAt(const PointerEvent& e) const
@@ -660,7 +670,7 @@ SketchEditor::Hit SketchEditor::hitAt(const PointerEvent& e) const
     }
     const auto raw = toSketch(e.pixel);
     if (raw) {
-        const double tolerance = pixelsToModel(e.pixel, kHitPx);
+        const double tolerance = pixelsToModel(e.pixel, kHitPx * m_touchScale);
         if (auto p = sketch().findPoint(*raw, tolerance))
             return {Hit::Kind::Point, *p};
         if (auto h = sketch().hitTest(*raw, tolerance))
@@ -674,6 +684,15 @@ bool SketchEditor::press(const PointerEvent& e)
     m_pressPixel = e.pixel;
     m_pointerPixel = e.pixel;
     m_pointerPos = e.pos;
+    if (e.eraser) {
+        if (mode() != EditorMode::Sketch)
+            return false; // nothing to erase in the model
+        m_valueEditor->cancel();
+        m_erasing = true;
+        m_eraseStroke = false;
+        eraseAt(e);
+        return true;
+    }
     if (mode() == EditorMode::Model)
         return modelPress(e); // the field there stays open while picking / dragging
     if (m_valueEditor->isOpen()) {
@@ -705,6 +724,11 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
     m_pointerPos = e.pos;
     if (pressed && m_swallowRelease)
         return false;
+    if (m_erasing) {
+        if (pressed)
+            eraseAt(e);
+        return pressed;
+    }
     if (mode() == EditorMode::Model)
         return modelMove(e, pressed);
     if (!m_tool)
@@ -726,6 +750,10 @@ bool SketchEditor::release(const PointerEvent& e)
         m_swallowRelease = false;
         return false;
     }
+    if (m_erasing) {
+        m_erasing = false;
+        return true;
+    }
     if (mode() == EditorMode::Model)
         return modelRelease(e);
     if (!m_tool)
@@ -742,6 +770,19 @@ bool SketchEditor::release(const PointerEvent& e)
     refreshOverlay();
     updateHint();
     return true;
+}
+
+void SketchEditor::eraseAt(const PointerEvent& e)
+{
+    const auto raw = toSketch(e.pixel);
+    if (!raw)
+        return;
+    const auto piece = findTrimPiece(sketch(), *raw, pixelsToModel(e.pixel, kHitPx * m_touchScale));
+    if (!piece)
+        return;
+    commit([&](Sketch& s) { trim(s, *piece); }, m_eraseStroke); // one stroke, one undo step
+    m_eraseStroke = true;
+    m_viewer->update();
 }
 
 bool SketchEditor::selectPress(const PointerEvent& e)
