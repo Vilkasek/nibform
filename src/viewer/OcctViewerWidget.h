@@ -1,6 +1,7 @@
 #pragma once
 
 #include "viewer/PenSample.h"
+#include "viewer/ViewerInteraction.h"
 
 #include <QOpenGLWidget>
 #include <QTimer>
@@ -17,7 +18,7 @@ class QTouchEvent;
 
 // 3D viewport: renders OCCT into a QOpenGLWidget and maps input the way a
 // pen-first CAD expects it:
-//   pen            -> select / create (later: sketch tools)
+//   pen            -> active interaction (sketch tools), else AIS selection
 //   pen barrel btn -> orbit
 //   1 finger       -> orbit
 //   2 fingers      -> pan + pinch zoom
@@ -39,6 +40,10 @@ public:
     void fitAll();
     void setProjection(V3d_TypeOfOrientation orientation);
     void releaseGraphics();
+
+    // Routes the primary pointer (pen tip, left mouse button) to `interaction`
+    // before AIS selection; navigation input is unaffected. Not owned.
+    void setInteraction(ViewerInteraction* interaction) { m_interaction = interaction; }
 
     QSize minimumSizeHint() const override { return {200, 200}; }
     QSize sizeHint() const override { return {1280, 800}; }
@@ -66,6 +71,9 @@ protected:
 private:
     Aspect_Drawable nativeDrawable() const;
     Graphic3d_Vec2i toPixels(const QPointF& p) const;
+    PointerEvent makePointer(PointerEvent::Source source, const QPointF& pos, double pressure,
+                             Qt::KeyboardModifiers modifiers) const;
+    Aspect_VKeyMouse navigationButtons(Qt::MouseButtons buttons) const;
     bool handleTouch(QTouchEvent* e);
     bool handleNativeGesture(QNativeGestureEvent* e);
 
@@ -81,6 +89,8 @@ private:
     Handle(AIS_ViewCube) m_viewCube;
     bool m_coreProfile = true;
     bool m_penDown = false;
+    ViewerInteraction* m_interaction = nullptr;
+    bool m_primaryGrab = false; // interaction owns the current primary press
     bool m_debugInput = false;
     bool m_invertScroll = false;
 

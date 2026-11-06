@@ -13,6 +13,8 @@
 #include <QWheelEvent>
 
 #include <AIS_ViewCube.hxx>
+#include <Bnd_Box.hxx>
+#include <Graphic3d_Camera.hxx>
 #include <Aspect_DisplayConnection.hxx>
 #include <Aspect_NeutralWindow.hxx>
 #include <Graphic3d_TransformPers.hxx>
@@ -76,7 +78,9 @@ Aspect_VKeyFlags toVKeyFlags(Qt::KeyboardModifiers modifiers)
 OcctViewerWidget::OcctViewerWidget(QWidget* parent)
     : QOpenGLWidget(parent)
 {
-    m_coreProfile = qEnvironmentVariableIntValue("SHAPR_GL_COMPAT") == 0;
+    // Compatibility profile by default: core profiles cap glLineWidth at 1 px on Mesa,
+    // which makes sketch lines too thin.
+    m_coreProfile = qEnvironmentVariableIntValue("SHAPR_GL_CORE") != 0;
     m_debugInput = qEnvironmentVariableIsSet("SHAPR_DEBUG_INPUT");
     m_invertScroll = qEnvironmentVariableIntValue("SHAPR_INVERT_SCROLL") != 0;
 
@@ -162,6 +166,7 @@ void OcctViewerWidget::releaseGraphics()
 {
     if (m_viewer.IsNull())
         return;
+    m_interaction = nullptr;
 
     // Keep the X display alive until the GL context is released.
     Handle(Aspect_DisplayConnection) display = m_viewer->Driver()->GetDisplayConnection();
@@ -179,7 +184,16 @@ void OcctViewerWidget::fitAll()
 {
     if (m_view.IsNull())
         return;
-    m_view->FitAll(0.05, false);
+    const Bnd_Box box = m_view->View()->MinMaxValues();
+    if (box.IsVoid() || box.SquareExtent() < 1e-6) {
+        // Nothing to frame yet: look at the origin with a ~200 mm wide view.
+        const Handle(Graphic3d_Camera)& camera = m_view->Camera();
+        const gp_Vec back = -gp_Vec(camera->Direction()) * 1000.0;
+        camera->SetEyeAndCenter(gp::Origin().Translated(back), gp::Origin());
+        m_view->SetSize(200.0);
+    } else {
+        m_view->FitAll(0.05, false);
+    }
     m_view->Invalidate();
     updateView();
 }
@@ -201,7 +215,7 @@ void OcctViewerWidget::initializeGL()
     Handle(OpenGl_Context) glCtx = new OpenGl_Context();
     if (!glCtx->Init(m_coreProfile)) {
         emit glFailed(QStringLiteral("Nie udało się podpiąć OpenCASCADE do kontekstu OpenGL "
-                                     "(spróbuj SHAPR_GL_COMPAT=1)."));
+                                     "(spróbuj SHAPR_GL_CORE=1)."));
         return;
     }
 
@@ -309,6 +323,10 @@ bool OcctViewerWidget::event(QEvent* e)
         if (handleNativeGesture(static_cast<QNativeGestureEvent*>(e)))
             return true;
         break;
+    case QEvent::Leave:
+        if (m_interaction && !m_primaryGrab && m_interaction->leave())
+            updateView();
+        break;
     default:
         break;
     }
@@ -354,12 +372,43 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
     return true;
 }
 
+PointerEvent OcctViewerWidget::makePointer(PointerEvent::Source source, const QPointF& pos,
+                                           double pressure, Qt::KeyboardModifiers modifiers) const
+{
+    PointerEvent pe;
+    pe.source = source;
+    pe.pos = pos;
+    pe.pixel = toPixels(pos);
+    pe.pressure = pressure;
+    pe.modifiers = modifiers;
+    return pe;
+}
+
+Aspect_VKeyMouse OcctViewerWidget::navigationButtons(Qt::MouseButtons buttons) const
+{
+    // While an interaction owns the primary button, AIS must not see it.
+    if (m_primaryGrab)
+        buttons &= ~Qt::LeftButton;
+    return toVKeyMouse(buttons);
+}
+
 void OcctViewerWidget::mousePressEvent(QMouseEvent* e)
 {
     QOpenGLWidget::mousePressEvent(e);
     if (m_view.IsNull())
         return;
-    if (UpdateMouseButtons(toPixels(e->position()), toVKeyMouse(e->buttons()),
+
+    if (e->button() == Qt::LeftButton && m_interaction) {
+        const PointerEvent pe = makePointer(PointerEvent::Source::Mouse, e->position(), 1.0, e->modifiers());
+        if (m_interaction->wantsPress(pe)) {
+            m_primaryGrab = true;
+            if (m_interaction->press(pe))
+                updateView();
+            return;
+        }
+    }
+
+    if (UpdateMouseButtons(toPixels(e->position()), navigationButtons(e->buttons()),
                            toVKeyFlags(e->modifiers()), false))
         updateView();
 }
@@ -369,7 +418,16 @@ void OcctViewerWidget::mouseReleaseEvent(QMouseEvent* e)
     QOpenGLWidget::mouseReleaseEvent(e);
     if (m_view.IsNull())
         return;
-    if (UpdateMouseButtons(toPixels(e->position()), toVKeyMouse(e->buttons()),
+
+    if (e->button() == Qt::LeftButton && m_primaryGrab) {
+        m_primaryGrab = false;
+        if (m_interaction
+            && m_interaction->release(makePointer(PointerEvent::Source::Mouse, e->position(), 1.0, e->modifiers())))
+            updateView();
+        return;
+    }
+
+    if (UpdateMouseButtons(toPixels(e->position()), navigationButtons(e->buttons()),
                            toVKeyFlags(e->modifiers()), false))
         updateView();
 }
@@ -379,8 +437,15 @@ void OcctViewerWidget::mouseMoveEvent(QMouseEvent* e)
     QOpenGLWidget::mouseMoveEvent(e);
     if (m_view.IsNull())
         return;
-    if (UpdateMousePosition(toPixels(e->position()), toVKeyMouse(e->buttons()),
-                            toVKeyFlags(e->modifiers()), false))
+
+    bool redraw = false;
+    if (m_interaction) {
+        const PointerEvent pe = makePointer(PointerEvent::Source::Mouse, e->position(), 1.0, e->modifiers());
+        redraw = m_interaction->move(pe, m_primaryGrab);
+    }
+    redraw |= UpdateMousePosition(toPixels(e->position()), navigationButtons(e->buttons()),
+                                  toVKeyFlags(e->modifiers()), false);
+    if (redraw)
         updateView();
 }
 
@@ -500,21 +565,47 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
         break;
     }
 
-    // Until sketch tools exist the pen drives the viewer like a mouse:
-    // tip = select, barrel button = orbit.
-    Aspect_VKeyMouse buttons = Aspect_VKeyMouse_NONE;
-    if (sample.barrelButton)
-        buttons = Aspect_VKeyMouse_RightButton;
-    else if (e->buttons() & Qt::LeftButton)
-        buttons = Aspect_VKeyMouse_LeftButton;
-
     const Graphic3d_Vec2i pt = toPixels(e->position());
     const Aspect_VKeyFlags flags = toVKeyFlags(e->modifiers());
+    const PointerEvent pe = makePointer(PointerEvent::Source::Pen, e->position(), e->pressure(), e->modifiers());
     bool redraw = false;
-    if (e->type() == QEvent::TabletMove)
-        redraw = UpdateMousePosition(pt, buttons, flags, false);
-    else
-        redraw = UpdateMouseButtons(pt, buttons, flags, false);
+    bool handled = false;
+
+    // Pen tip goes to the active interaction (sketch tools); the barrel button orbits.
+    if (m_interaction && !sample.barrelButton) {
+        switch (e->type()) {
+        case QEvent::TabletPress:
+            if (m_interaction->wantsPress(pe)) {
+                m_primaryGrab = true;
+                redraw = m_interaction->press(pe);
+                handled = true;
+            }
+            break;
+        case QEvent::TabletRelease:
+            if (m_primaryGrab) {
+                m_primaryGrab = false;
+                redraw = m_interaction->release(pe);
+                handled = true;
+            }
+            break;
+        default:
+            redraw = m_interaction->move(pe, m_primaryGrab);
+            handled = m_primaryGrab;
+            break;
+        }
+    }
+
+    if (!handled) {
+        Aspect_VKeyMouse buttons = Aspect_VKeyMouse_NONE;
+        if (sample.barrelButton)
+            buttons = Aspect_VKeyMouse_RightButton;
+        else if (e->buttons() & Qt::LeftButton)
+            buttons = Aspect_VKeyMouse_LeftButton;
+        if (e->type() == QEvent::TabletMove)
+            redraw |= UpdateMousePosition(pt, buttons, flags, false);
+        else
+            redraw |= UpdateMouseButtons(pt, buttons, flags, false);
+    }
     if (redraw)
         updateView();
 
@@ -526,6 +617,10 @@ void OcctViewerWidget::keyPressEvent(QKeyEvent* e)
 {
     if (m_view.IsNull()) {
         QOpenGLWidget::keyPressEvent(e);
+        return;
+    }
+    if (m_interaction && m_interaction->key(e)) {
+        updateView();
         return;
     }
     switch (e->key()) {
