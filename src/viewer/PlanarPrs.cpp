@@ -26,7 +26,8 @@ void PlanarPrs::Compute(const Handle(PrsMgr_PresentationManager)&,
     const gp_Pln pln(m_plane);
     auto to3d = [&pln](const gp_Pnt2d& p) { return ElSLib::Value(p.X(), p.Y(), pln); };
 
-    auto addSegments = [&](const std::vector<Segment2d>& segs, const Quantity_Color& color) {
+    auto addSegments = [&](const std::vector<Segment2d>& segs, const Quantity_Color& color,
+                           Aspect_TypeOfLine type) {
         if (segs.empty())
             return;
         Handle(Graphic3d_ArrayOfSegments) arr = new Graphic3d_ArrayOfSegments(static_cast<int>(segs.size()) * 2);
@@ -35,7 +36,7 @@ void PlanarPrs::Compute(const Handle(PrsMgr_PresentationManager)&,
             arr->AddVertex(to3d(s.b));
         }
         Handle(Graphic3d_Group) group = prs->NewGroup();
-        group->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(color, m_style.lineType, m_style.lineWidth));
+        group->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(color, type, m_style.lineWidth));
         group->AddPrimitiveArray(arr);
     };
 
@@ -50,9 +51,10 @@ void PlanarPrs::Compute(const Handle(PrsMgr_PresentationManager)&,
         group->AddPrimitiveArray(arr);
     };
 
-    addSegments(m_list.segments, m_style.color);
-    addSegments(m_list.definedSegments, m_style.definedColor);
-    addSegments(m_list.accentSegments, m_style.accentColor);
+    addSegments(m_list.segments, m_style.color, m_style.lineType);
+    addSegments(m_list.definedSegments, m_style.definedColor, m_style.lineType);
+    addSegments(m_list.constructionSegments, m_style.color, Aspect_TOL_DASH);
+    addSegments(m_list.accentSegments, m_style.accentColor, m_style.lineType);
     addPoints(m_list.points, m_style.color, m_style.pointScale);
     addPoints(m_list.accentPoints, m_style.accentColor, std::max(1.0, m_style.pointScale) * 1.6);
 }

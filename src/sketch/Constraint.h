@@ -19,7 +19,7 @@ enum class ConstraintKind
     Concentric,    // circles/arcs e1, e2
     PointOnEntity, // point p1 on line / circle / arc e1
     Midpoint,      // point p1 at the middle of line e1
-    Fixed,         // point p1 pinned at `target`
+    Fixed,         // point p1 pinned at `target`; with a circle e1, its radius held at `value` too
 
     // Dimensions (driving, `value` is the target)
     Distance, // between p1 and p2 (e1: the line, when it dimensions a line)

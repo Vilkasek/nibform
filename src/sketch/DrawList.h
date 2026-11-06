@@ -20,14 +20,15 @@ struct DrawList
 {
     std::vector<Segment2d> segments;
     std::vector<Segment2d> definedSegments;
+    std::vector<Segment2d> constructionSegments; // drawn dashed
     std::vector<Segment2d> accentSegments;
     std::vector<gp_Pnt2d> points;
     std::vector<gp_Pnt2d> accentPoints;
 
     bool isEmpty() const
     {
-        return segments.empty() && definedSegments.empty() && accentSegments.empty() && points.empty()
-            && accentPoints.empty();
+        return segments.empty() && definedSegments.empty() && constructionSegments.empty()
+            && accentSegments.empty() && points.empty() && accentPoints.empty();
     }
 };
 

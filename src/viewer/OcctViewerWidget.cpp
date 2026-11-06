@@ -15,6 +15,7 @@
 
 #include <AIS_AnimationCamera.hxx>
 #include <AIS_ViewCube.hxx>
+#include <V3d.hxx>
 #include <Bnd_Box.hxx>
 #include <Graphic3d_Camera.hxx>
 #include <Aspect_DisplayConnection.hxx>
@@ -277,12 +278,19 @@ void OcctViewerWidget::setDark(bool dark)
     update();
 }
 
-void OcctViewerWidget::setProjection(V3d_TypeOfOrientation orientation)
+void OcctViewerWidget::setProjection(V3d_TypeOfOrientation orientation, bool animate)
 {
     if (m_view.IsNull())
         return;
-    m_view->SetProj(orientation, false);
-    fitAll();
+    if (!animate) {
+        m_view->SetProj(orientation, false);
+        fitAll();
+        return;
+    }
+    // Same up direction as V3d picks: Z, except looking straight down / up.
+    const gp_Dir eye = V3d::GetProjAxis(orientation);
+    const gp_Dir up = std::abs(eye.Z()) > 0.99 ? gp::DY() : gp::DZ();
+    animateCamera(eye, up, Bnd_Box());
 }
 
 QPointF OcctViewerWidget::project(const gp_Pnt& p) const

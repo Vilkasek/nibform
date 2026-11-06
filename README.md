@@ -25,7 +25,7 @@ Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/te
 
 Aplikacja startuje w trybie **Bryła** (pasek „BRYŁA”): bryły, zamknięte obszary szkiców, wyciąganie,
 zaokrąglanie i fazowanie. **Stwórz szkic** (`K`) otwiera nowy szkic – na zaznaczonej płaskiej ścianie
-bryły, a bez niej na podłożu; strzałka obok przycisku pozwala wybrać płaszczyznę (XY / XZ / YZ).
+bryły (jej krawędzie trafiają do szkicu jako zablokowana geometria konstrukcyjna), a bez niej na podłożu; strzałka obok przycisku pozwala wybrać płaszczyznę (XY / XZ / YZ).
 Widok obraca się wtedy na wprost szkicu, a pasek zmienia się na „SZKIC” z narzędziami rysowania
 i więzami. **✓ Zamknij szkic** (`Ctrl+Enter`) wraca do brył (pusty szkic znika). **Edytuj szkic**
 otwiera ponownie szkic, którego obszar jest zaznaczony. Skróty działają tylko w swoim trybie.
@@ -40,6 +40,7 @@ otwiera ponownie szkic, którego obszar jest zaznaczony. Skróty działają tylk
 | Okrąg | `C` | środek, potem punkt na obwodzie |
 | Łuk | `A` | początek, koniec, punkt na łuku |
 | Odsunięcie | `U` | dotknij krzywej – bierze cały połączony łańcuch (lub okrąg); kopia podąża za kursorem (strona i odległość), kolejne dotknięcie pyta o dokładną wartość. Narożniki są przecinane na nowo, linie dostają „równoległe”, łuki dzielą środek z oryginałem |
+| Konstrukcyjna | `Q` | przełącza zaznaczone krzywe na pomocnicze (przerywane): można do nich przyciągać i je wymiarować, ale nie tworzą obszarów |
 | Przytnij | `X` | jak w Fusionie: podświetla na czerwono fragment między najbliższymi przecięciami, dotknięcie go usuwa; przeciągnięcie usuwa wszystko po drodze (jeden krok cofania). Krzywa bez przecięć znika cała, okrąg zamienia się w łuk |
 
 Przyciąganie: punkty → początek układu → środki odcinków → wyrównanie w poziomie/pionie
@@ -90,6 +91,7 @@ obszary/ściany. `Enter` lub ✓ wyciąga, `Esc` lub ✕ anuluje.
 | Wyciągnij | `W` | obszary szkiców i płaskie ściany brył (push/pull) |
 | Zaokrąglij | `G` | dotykaj krawędzi brył (dotknięcie ściany bierze wszystkie jej krawędzie), przeciągnij uchwyt w głąb materiału albo wpisz promień – podgląd od razu; `Enter` zatwierdza |
 | Fazuj | `B` | jak wyżej, z odległością fazy |
+| Skorupa | `J` | dotknij płaskich ścian do otwarcia, przeciągnij uchwyt w głąb albo wpisz grubość ścianek – bryła zostaje wydrążona (ścianki rosną do środka) |
 
 W trybie Zaznacz ściany i krawędzie brył da się klikać wszędzie (krawędź wygrywa, gdy rysik
 jest blisko niej). Przy zaznaczonych krawędziach obok pojawia się pasek z *Zaokrąglij* / *Fazuj*,
@@ -151,7 +153,8 @@ otwiera go od razu. Tytuł okna pokazuje `*` przy niezapisanych zmianach, a zamk
 | `Ctrl+Shift+9` / `0` | krawędzie dół-prawo / dół-lewo |
 | Kostka w rogu | kliknij ścianę, krawędź lub narożnik |
 
-Wszystkie widoki są też w menu *Widok*. Tam też *Motyw*: systemowy (podąża za jasnym/ciemnym
+Wszystkie widoki są też w menu *Widok*; zmiana rzutu (skrótem, przyciskiem albo kostką) przebiega
+płynną animacją kamery. Tam też *Motyw*: systemowy (podąża za jasnym/ciemnym
 trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybór jest zapamiętywany.
 
 ## Plan
@@ -161,5 +164,5 @@ trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybó
 - [x] **M2** – więzy i wymiary, solver
 - [x] **M3** – wykrywanie profili, push/pull, boolean
 - [x] **M4** – parametryczna historia, zapis projektu, eksport STEP/STL
-- [ ] **M5** – szkic na ścianie, fillet/chamfer/shell
+- [x] **M5** – szkic na ścianie, fillet/chamfer/shell
 - [ ] **M6** – polish pod Framework 12 (obrót ekranu, palm rejection, tryb tabletu)

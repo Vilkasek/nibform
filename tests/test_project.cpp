@@ -38,6 +38,9 @@ ProjectData sample()
 
     Sketch side(gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX()));
     side.addArc(side.addPoint({5, 3}), side.addPoint({7, 3}), side.addPoint({3, 3}));
+    Sketch::Contents withReference = side.contents();
+    withReference.entities.push_back({withReference.nextId++, EntityKind::Line, 2, 3, kNoId, 0.0, true});
+    side = Sketch(side.plane(), withReference);
     project.sketches.push_back({9, side});
 
     Feature sketchMark;
@@ -56,7 +59,11 @@ ProjectData sample()
     cut.kind = Feature::Kind::Combine;
     cut.boolean = BooleanKind::Subtract;
     cut.bodies = {gp_Pnt(1, 1, 1), gp_Pnt(9, 5, 1)};
-    project.features = {sketchMark, pull, round, cut};
+    Feature hollow;
+    hollow.kind = Feature::Kind::Shell;
+    hollow.faces = {{gp_Pnt(5, 3, 5), gp::DZ()}};
+    hollow.value = 0.8;
+    project.features = {sketchMark, pull, round, cut, hollow};
     return project;
 }
 
@@ -77,11 +84,14 @@ void testRoundTrip()
     CHECK(base.constraints()[1].kind == ConstraintKind::Distance && near(base.constraints()[1].offset, -3.0));
     CHECK(loaded->sketches[1].sketch.plane().Location().Z() == 5.0);
     CHECK(loaded->sketches[1].sketch.entities()[0].kind == EntityKind::Arc);
+    CHECK(!loaded->sketches[1].sketch.entities()[0].construction);
+    CHECK(loaded->sketches[1].sketch.entities()[1].construction);
     // New ids keep counting from where they were.
     Sketch more = base;
     CHECK(more.addPoint({1, 1}) == original.sketches[0].sketch.contents().nextId);
 
-    CHECK(loaded->features.size() == 4);
+    CHECK(loaded->features.size() == 5);
+    CHECK(loaded->features[4].kind == Feature::Kind::Shell && near(loaded->features[4].value, 0.8));
     CHECK(loaded->features[1].operation == BodyOperation::NewBody);
     CHECK(loaded->features[3].boolean == BooleanKind::Subtract && loaded->features[3].bodies.size() == 2);
 }

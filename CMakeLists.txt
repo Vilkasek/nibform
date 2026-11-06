@@ -47,7 +47,7 @@ add_library(shapr_core STATIC
 target_include_directories(shapr_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
 target_compile_options(shapr_core PRIVATE ${SHAPR_WARNINGS})
 target_link_libraries(shapr_core PUBLIC
-  TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet
+  TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet TKOffset
   TKMesh TKXSBase TKDESTEP TKDESTL
   Eigen3::Eigen)
 

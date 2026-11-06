@@ -1,12 +1,15 @@
 #include "model/Profiles.h"
 
+#include <BRepAdaptor_Curve.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepClass_FaceClassifier.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Iterator.hxx>
@@ -17,6 +20,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <set>
 
 namespace {
 
@@ -74,7 +78,8 @@ TopoDS_Edge toEdge(const Sketch& sketch, const SketchEntity& e)
 
 std::vector<TopoDS_Face> findRegions(const Sketch& sketch)
 {
-    if (sketch.entities().empty())
+    if (std::none_of(sketch.entities().begin(), sketch.entities().end(),
+                     [](const SketchEntity& e) { return !e.construction; }))
         return {};
 
     // Split a sheet larger than the sketch by every curve; each piece is a region,
@@ -83,6 +88,8 @@ std::vector<TopoDS_Face> findRegions(const Sketch& sketch)
     double umax = -umin, vmax = -umin;
     TopTools_ListOfShape tools;
     for (const SketchEntity& e : sketch.entities()) {
+        if (e.construction)
+            continue;
         const TopoDS_Edge edge = toEdge(sketch, e);
         if (edge.IsNull())
             continue;
@@ -122,6 +129,84 @@ std::vector<TopoDS_Face> findRegions(const Sketch& sketch)
         regions.push_back(withoutInternalEdges(face));
     }
     return regions;
+}
+
+void projectFaceEdges(Sketch& sketch, const TopoDS_Shape& face)
+{
+    std::set<EntityId> added;
+    auto point = [&](const gp_Pnt& p) { return sketch.pointAt(sketch.to2d(p), 1e-6); };
+
+    TopTools_IndexedMapOfShape edges;
+    TopExp::MapShapes(face, TopAbs_EDGE, edges);
+    for (int i = 1; i <= edges.Extent(); ++i) {
+        const TopoDS_Edge edge = TopoDS::Edge(edges(i));
+        if (BRep_Tool::Degenerated(edge))
+            continue;
+        const BRepAdaptor_Curve curve(edge);
+        const double t0 = curve.FirstParameter(), t1 = curve.LastParameter();
+        const gp_Pnt start = curve.Value(t0), end = curve.Value(t1);
+        if (curve.GetType() == GeomAbs_Line) {
+            added.insert(sketch.addLine(point(start), point(end)));
+        } else if (curve.GetType() == GeomAbs_Circle) {
+            const gp_Pnt2d center = sketch.to2d(curve.Circle().Location());
+            const double r = curve.Circle().Radius();
+            if (start.Distance(end) < 1e-7) {
+                added.insert(sketch.addCircle(sketch.pointAt(center, 1e-6), r));
+            } else {
+                // Stored counter-clockwise in the sketch: check which way the edge runs.
+                const gp_Pnt2d a = sketch.to2d(start), b = sketch.to2d(end);
+                const gp_Pnt2d mid = sketch.to2d(curve.Value((t0 + t1) / 2.0));
+                const PointId c = sketch.pointAt(center, 1e-6);
+                added.insert(isOnCcwArc(center, a, b, mid) ? sketch.addArc(c, point(start), point(end))
+                                                           : sketch.addArc(c, point(end), point(start)));
+            }
+        } else {
+            constexpr int kPieces = 16;
+            PointId previous = point(start);
+            for (int k = 1; k <= kPieces; ++k) {
+                const PointId next = point(curve.Value(t0 + (t1 - t0) * k / kPieces));
+                if (next != previous)
+                    added.insert(sketch.addLine(previous, next));
+                previous = next;
+            }
+        }
+    }
+
+    // Reference geometry: not to be pulled into regions, and pinned where the face is
+    // (circles by their center and radius together).
+    std::set<PointId> pins;
+    std::vector<SketchConstraint> circles;
+    Sketch::Contents contents = sketch.contents();
+    for (SketchEntity& e : contents.entities) {
+        if (!added.count(e.id))
+            continue;
+        e.construction = true;
+        if (e.kind == EntityKind::Circle) {
+            SketchConstraint fix;
+            fix.kind = ConstraintKind::Fixed;
+            fix.p1 = e.c;
+            fix.e1 = e.id;
+            fix.value = e.radius;
+            circles.push_back(fix);
+            continue;
+        }
+        for (PointId p : {e.a, e.b, e.c}) {
+            if (p != kNoId)
+                pins.insert(p);
+        }
+    }
+    sketch = Sketch(sketch.plane(), std::move(contents));
+    for (PointId p : pins) {
+        SketchConstraint fix;
+        fix.kind = ConstraintKind::Fixed;
+        fix.p1 = p;
+        fix.target = sketch.pos(p);
+        sketch.addConstraint(fix);
+    }
+    for (SketchConstraint fix : circles) {
+        fix.target = sketch.pos(fix.p1);
+        sketch.addConstraint(fix);
+    }
 }
 
 std::optional<std::size_t> regionAt(const std::vector<TopoDS_Face>& regions, const gp_Pnt& p)

@@ -35,7 +35,8 @@ constexpr std::array<const char*, 3> kEntityKinds{"line", "circle", "arc"};
 constexpr std::array<const char*, 16> kConstraintKinds{
     "horizontal", "vertical", "parallel", "perpendicular", "equal",     "tangent", "concentric", "pointOn",
     "midpoint",   "fixed",    "distance", "radius",        "diameter", "angle",   "pointLine",  "lineLine"};
-constexpr std::array<const char*, 6> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine", "delete"};
+constexpr std::array<const char*, 7> kFeatureKinds{"sketch",  "extrude", "fillet", "chamfer",
+                                                   "combine", "delete",  "shell"};
 constexpr std::array<const char*, 4> kOperations{"auto", "new", "join", "cut"};
 constexpr std::array<const char*, 3> kBooleans{"union", "subtract", "intersect"};
 
@@ -74,7 +75,8 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
                                     {"a", e.a},
                                     {"b", e.b},
                                     {"c", e.c},
-                                    {"radius", e.radius}});
+                                    {"radius", e.radius},
+                                    {"construction", e.construction}});
     }
     for (const SketchConstraint& k : c.constraints) {
         constraints.append(QJsonObject{{"id", k.id},
@@ -118,7 +120,8 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
             return std::nullopt;
         }
         c.entities.push_back({e.value("id").toInt(), *kind, e.value("a").toInt(kNoId), e.value("b").toInt(kNoId),
-                              e.value("c").toInt(kNoId), e.value("radius").toDouble()});
+                              e.value("c").toInt(kNoId), e.value("radius").toDouble(),
+                              e.value("construction").toBool(false)});
     }
     for (const QJsonValue& v : o.value("constraints").toArray()) {
         const QJsonObject k = v.toObject();

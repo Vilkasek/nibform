@@ -41,7 +41,8 @@ public:
     void fitAll();
     // Background gradient and grid colors for a dark or light UI.
     void setDark(bool dark);
-    void setProjection(V3d_TypeOfOrientation orientation);
+    // A standard view, framing the whole scene; glides there unless `animate` is false.
+    void setProjection(V3d_TypeOfOrientation orientation, bool animate = true);
     // Looks straight at a plane: from the side `normal` points to, `up` pointing up.
     void lookAt(const gp_Dir& normal, const gp_Dir& up);
     // Glides the camera (in a fraction of a second) to look from the `eyeSide` direction,

@@ -228,6 +228,18 @@ ModelResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_
         return f.kind == Feature::Kind::Fillet ? filletEdges(bodies, edges, f.value)
                                                : chamferEdges(bodies, edges, f.value);
     }
+    case Feature::Kind::Shell: {
+        std::vector<std::pair<int, TopoDS_Face>> open;
+        for (const FacePick& p : f.faces) {
+            const auto face = findFace(bodies, p);
+            if (!face) {
+                missing.error = "Nie ma już ściany, która była otwierana";
+                return missing;
+            }
+            open.push_back({face->second, face->first});
+        }
+        return shellBodies(bodies, open, f.value);
+    }
     case Feature::Kind::Combine:
     case Feature::Kind::Delete: {
         std::vector<int> picked;

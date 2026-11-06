@@ -93,6 +93,8 @@ private:
     QToolButton* m_ctxChamfer = nullptr;
     QToolButton* m_ctxSketch = nullptr;
     QToolButton* m_ctxPull = nullptr;
+    QToolButton* m_ctxShell = nullptr;
+    QAction* m_constructionAction = nullptr;
     ThemeMode m_theme = ThemeMode::System;
     bool m_applyingTheme = false;
     QAction* m_undoAction = nullptr;

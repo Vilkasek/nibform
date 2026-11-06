@@ -31,6 +31,9 @@ struct SketchEntity
     PointId b = kNoId;
     PointId c = kNoId;
     double radius = 0.0;
+    // Construction (reference) geometry: drawn dashed, snapped to and constrained like
+    // any curve, but it never bounds a region.
+    bool construction = false;
 };
 
 // A 2D sketch living on a plane in 3D. Plain value type: copying it is how undo works.
@@ -77,6 +80,7 @@ public:
 
     void setPos(PointId id, const gp_Pnt2d& pos);
     void setRadius(EntityId id, double radius);
+    void setConstruction(EntityId id, bool construction);
 
     const std::vector<SketchPoint>& points() const { return m_points; }
     const std::vector<SketchEntity>& entities() const { return m_entities; }

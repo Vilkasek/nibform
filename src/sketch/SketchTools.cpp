@@ -581,6 +581,7 @@ std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
     case ToolKind::PushPull:
     case ToolKind::Fillet:
     case ToolKind::Chamfer:
+    case ToolKind::Shell:
         break;
     }
     return nullptr;

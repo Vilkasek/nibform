@@ -23,6 +23,7 @@ DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent, cons
     DrawList list;
     for (const SketchEntity& e : sketch.entities()) {
         std::vector<Segment2d>& out = accent.count(e.id)    ? list.accentSegments
+                                    : e.construction      ? list.constructionSegments
                                     : defined.count(e.id) ? list.definedSegments
                                                           : list.segments;
         switch (e.kind) {

@@ -15,6 +15,8 @@
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
+#include <BRepOffsetAPI_MakeOffsetShape.hxx>
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <GProp_GProps.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
@@ -25,6 +27,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -306,6 +309,102 @@ ModelResult chamferEdges(const std::vector<TopoDS_Shape>& bodies, const std::vec
 {
     return roundEdges<BRepFilletAPI_MakeChamfer>(bodies, edges, distance,
                                                  "Nie da się sfazować – odległość za duża dla tych krawędzi");
+}
+
+namespace {
+
+// Shell built from booleans, for bodies OCCT's thick-solid maker gives up on (an opened
+// face carrying a boss, holes through it...): the body minus its inward offset (the
+// core), minus, for each opened face, the core's matching face pulled out through it.
+std::optional<TopoDS_Shape> shellByOffset(const TopoDS_Shape& body, const TopTools_ListOfShape& open, double thickness)
+{
+    BRepOffsetAPI_MakeOffsetShape core;
+    try {
+        core.PerformByJoin(body, -thickness, 1e-4, BRepOffset_Skin, false, false, GeomAbs_Intersection);
+    } catch (const Standard_Failure&) {
+        return std::nullopt;
+    }
+    if (!core.IsDone() || volumeOf(core.Shape()) <= kMinVolume)
+        return std::nullopt;
+
+    TopTools_ListOfShape cut;
+    cut.Append(core.Shape());
+    for (const TopoDS_Shape& shape : open) {
+        const TopoDS_Face face = TopoDS::Face(shape);
+        const auto normal = planarNormal(face);
+        if (!normal)
+            return std::nullopt;
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(face, props);
+        const gp_Pnt middle = props.CentreOfMass();
+        // The core's face lying `thickness` under this one, facing the same way.
+        TopoDS_Face inner;
+        double nearest = std::numeric_limits<double>::max();
+        for (TopExp_Explorer it(core.Shape(), TopAbs_FACE); it.More(); it.Next()) {
+            const TopoDS_Face candidate = TopoDS::Face(it.Current());
+            const auto n = planarNormal(candidate);
+            if (!n || n->Dot(*normal) < 0.9999)
+                continue;
+            GProp_GProps p;
+            BRepGProp::SurfaceProperties(candidate, p);
+            const double depth = gp_Vec(p.CentreOfMass(), middle).Dot(gp_Vec(*normal));
+            if (std::abs(depth - thickness) > 1e-4)
+                continue;
+            if (p.CentreOfMass().Distance(middle) < nearest) {
+                nearest = p.CentreOfMass().Distance(middle);
+                inner = candidate;
+            }
+        }
+        if (inner.IsNull())
+            return std::nullopt;
+        cut.Append(BRepPrimAPI_MakePrism(inner, gp_Vec(*normal) * (2.0 * thickness)).Shape());
+    }
+    return boolean(BooleanKind::Subtract, body, cut);
+}
+
+} // namespace
+
+ModelResult shellBodies(const std::vector<TopoDS_Shape>& bodies, const std::vector<std::pair<int, TopoDS_Face>>& open,
+                        double thickness)
+{
+    ModelResult result;
+    result.bodies = bodies;
+    if (open.empty() || thickness <= 0.0) {
+        result.error = "Zaznacz ściany do otwarcia";
+        return result;
+    }
+    std::map<int, TopTools_ListOfShape> byBody;
+    for (const auto& [body, face] : open) {
+        if (body >= 0 && body < static_cast<int>(bodies.size()))
+            byBody[body].Append(face);
+    }
+    for (const auto& [body, faces] : byBody) {
+        // Too thick a wall can also come back as the untouched body: a shell has to
+        // take material away.
+        const double before = volumeOf(bodies[body]);
+        auto usable = [&](const TopoDS_Shape& shape) {
+            const double v = volumeOf(shape);
+            return BRepCheck_Analyzer(shape).IsValid() && v > kMinVolume && v < before - kMinVolume;
+        };
+        BRepOffsetAPI_MakeThickSolid maker;
+        try {
+            // Negative offset: the walls grow inward, the outside stays where it was.
+            maker.MakeThickSolidByJoin(bodies[body], faces, -thickness, 1e-4);
+            maker.Build();
+        } catch (const Standard_Failure&) {
+        }
+        if (maker.IsDone() && usable(maker.Shape())) {
+            result.bodies[body] = maker.Shape();
+            continue;
+        }
+        const auto fallback = shellByOffset(bodies[body], faces, thickness);
+        if (!fallback || !usable(*fallback)) {
+            result.error = "Nie da się zrobić skorupy tej bryły – spróbuj cieńszej ścianki";
+            return result;
+        }
+        result.bodies[body] = *fallback;
+    }
+    return result;
 }
 
 ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<int>& selected, BooleanKind kind)

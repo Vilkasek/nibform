@@ -257,6 +257,14 @@ void Sketch::setRadius(EntityId id, double radius)
     }
 }
 
+void Sketch::setConstruction(EntityId id, bool construction)
+{
+    for (SketchEntity& e : m_entities) {
+        if (e.id == id)
+            e.construction = construction;
+    }
+}
+
 std::vector<EntityId> Sketch::entitiesAt(PointId point) const
 {
     std::vector<EntityId> out;

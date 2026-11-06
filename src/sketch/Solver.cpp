@@ -296,6 +296,11 @@ private:
             const double tx = c.target.X(), ty = c.target.Y();
             add({p.i}, [=](const VectorXd& v) { return v[p.i] - tx; });
             add({p.i + 1}, [=](const VectorXd& v) { return v[p.i + 1] - ty; });
+            if (c.e1 != kNoId && m_sketch.entity(c.e1)->kind == EntityKind::Circle) {
+                const R r = radius(c.e1);
+                const double size = c.value;
+                add(r.vars(), [=](const VectorXd& v) { return r(v) - size; });
+            }
             break;
         }
         case ConstraintKind::Distance: {

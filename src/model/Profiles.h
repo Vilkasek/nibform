@@ -17,5 +17,10 @@ TopoDS_Edge toEdge(const Sketch& sketch, const SketchEntity& entity);
 // region becomes both a hole in it and a region of its own. Open curves are ignored.
 std::vector<TopoDS_Face> findRegions(const Sketch& sketch);
 
+// Copies the edges of `face` (lying in the sketch's plane) into the sketch as fixed
+// construction geometry, to snap and dimension to. Lines and circular edges stay exact,
+// other curves become short polylines.
+void projectFaceEdges(Sketch& sketch, const TopoDS_Shape& face);
+
 // Index of the region containing `p` (a point on the sketch plane).
 std::optional<std::size_t> regionAt(const std::vector<TopoDS_Face>& regions, const gp_Pnt& p);

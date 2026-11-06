@@ -183,6 +183,10 @@ std::optional<Feature> SketchEditor::featureFromSession(double value) const
             if (p.shape.ShapeType() == TopAbs_FACE && planarNormal(TopoDS::Face(p.shape)))
                 f.faces.push_back(facePick(TopoDS::Face(p.shape)));
         }
+    } else if (m_session.kind == Kind::Shell) {
+        f.kind = Feature::Kind::Shell;
+        for (const auto& [body, face] : selectedFaces())
+            f.faces.push_back(facePick(face));
     } else {
         f.kind = m_session.kind == Kind::Fillet ? Feature::Kind::Fillet : Feature::Kind::Chamfer;
         for (const EdgeRef& e : selectedEdges())
@@ -238,7 +242,7 @@ void SketchEditor::updateSelectionModes()
                 ctx->Deactivate(prs, selectionMode);
         };
         set(faces, model);
-        set(edges, model && m_toolKind != ToolKind::PushPull);
+        set(edges, model && m_toolKind != ToolKind::PushPull && m_toolKind != ToolKind::Shell);
     }
     rehighlightPicks();
 }
@@ -265,13 +269,13 @@ Handle(SelectMgr_EntityOwner) SketchEditor::ownerOf(int body, const TopoDS_Shape
     return {};
 }
 
-void SketchEditor::keepPicks(bool edges, bool facesAndRegions)
+void SketchEditor::keepPicks(bool edges, bool faces, bool regions)
 {
     const std::size_t before = m_bodySelection.size() + m_regionSelection.size();
     std::erase_if(m_bodySelection, [&](const BodyPick& p) {
-        return p.shape.ShapeType() == TopAbs_EDGE ? !edges : !facesAndRegions;
+        return p.shape.ShapeType() == TopAbs_EDGE ? !edges : !faces;
     });
-    if (!facesAndRegions)
+    if (!regions)
         m_regionSelection.clear();
     if (m_bodySelection.size() + m_regionSelection.size() != before) {
         rehighlightPicks();
@@ -283,6 +287,21 @@ void SketchEditor::keepPicks(bool edges, bool facesAndRegions)
 bool SketchEditor::hasPickedEdges() const
 {
     return !selectedEdges().empty();
+}
+
+bool SketchEditor::hasPickedFaces() const
+{
+    return !selectedFaces().empty();
+}
+
+std::vector<std::pair<int, TopoDS_Face>> SketchEditor::selectedFaces() const
+{
+    std::vector<std::pair<int, TopoDS_Face>> out;
+    for (const BodyPick& p : m_bodySelection) {
+        if (p.shape.ShapeType() == TopAbs_FACE && planarNormal(TopoDS::Face(p.shape)))
+            out.push_back({p.body, TopoDS::Face(p.shape)});
+    }
+    return out;
 }
 
 void SketchEditor::refreshRegions(int sketch)
@@ -354,8 +373,9 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     const Handle(Graphic3d_Camera)& camera = view->Camera();
     // Distance in front of the eye, to keep whichever pick is nearer.
     auto depth = [&](const gp_Pnt& p) { return gp_Vec(camera->Eye(), p).Dot(gp_Vec(camera->Direction())); };
-    // Regions only where they can be pulled; the rounding tools want body edges and faces.
-    const bool edgeTool = m_toolKind == ToolKind::Fillet || m_toolKind == ToolKind::Chamfer;
+    // Regions only where they can be pulled; the rounding and shell tools want bodies.
+    const bool edgeTool = m_toolKind == ToolKind::Fillet || m_toolKind == ToolKind::Chamfer
+                       || m_toolKind == ToolKind::Shell;
 
     Hit best;
     double bestDepth = std::numeric_limits<double>::max();
@@ -495,10 +515,12 @@ void SketchEditor::createSketchOnFace()
     if (!canSketchOnFace())
         return;
     const TopoDS_Face face = TopoDS::Face(m_bodySelection[0].shape);
-    // Centered on the face, facing out of the body.
+    // Centered on the face, facing out of the body, with the face's outline as fixed
+    // reference geometry to snap and dimension to.
     const gp_Dir normal = *planarNormal(face);
     const gp_Dir xDir = BRepAdaptor_Surface(face).Plane().XAxis().Direction();
     createSketch(gp_Ax3(centroidOf(face), normal, xDir));
+    commit([&](Sketch& s) { projectFaceEdges(s, face); });
 }
 
 std::optional<RegionRef> SketchEditor::regionAt(int sketch, const gp_Pnt2d& p) const
@@ -600,7 +622,9 @@ void SketchEditor::syncValueSession()
 {
     using Kind = ValueSession::Kind;
     Kind want = Kind::None;
-    if (m_toolKind == ToolKind::Fillet && !selectedEdges().empty())
+    if (m_toolKind == ToolKind::Shell && !selectedFaces().empty())
+        want = Kind::Shell;
+    else if (m_toolKind == ToolKind::Fillet && !selectedEdges().empty())
         want = Kind::Fillet;
     else if (m_toolKind == ToolKind::Chamfer && !selectedEdges().empty())
         want = Kind::Chamfer;
@@ -620,6 +644,12 @@ void SketchEditor::syncValueSession()
             const std::vector<Profile> profiles = selectedProfiles();
             m_session.base = centroidOf(profiles.front().face);
             m_session.normal = profiles.front().normal;
+            m_session.arrow = true;
+        } else if (want == Kind::Shell) {
+            // Into the material from the first opened face: dragging in thickens the walls.
+            const TopoDS_Face face = selectedFaces().front().second;
+            m_session.base = centroidOf(face);
+            m_session.normal = planarNormal(face)->Reversed();
             m_session.arrow = true;
         } else {
             const EdgeRef first = selectedEdges().front();
@@ -645,7 +675,10 @@ void SketchEditor::syncValueSession()
     QString label = tr("Odległość [mm]");
     double min = -1e5;
     QPointF anchor = m_pointerPos - QPointF(0, 40);
-    if (want == Kind::Fillet) {
+    if (want == Kind::Shell) {
+        label = tr("Grubość [mm]");
+        min = 1e-3;
+    } else if (want == Kind::Fillet) {
         label = tr("Promień [mm]");
         min = 1e-3;
     } else if (want == Kind::Chamfer) {
@@ -704,13 +737,22 @@ void SketchEditor::showSessionPreview()
                 any = true;
             }
         }
-    } else if (m_session.kind == Kind::Fillet || m_session.kind == Kind::Chamfer) {
-        const std::vector<EdgeRef> edges = selectedEdges();
-        const ModelResult result = m_session.kind == Kind::Fillet ? filletEdges(m_bodies, edges, m_session.value)
-                                                                   : chamferEdges(m_bodies, edges, m_session.value);
+    } else if (m_session.kind != Kind::None) {
+        // Fillet, chamfer or shell: show the finished bodies over their faded originals.
         std::set<int> changed;
-        for (const EdgeRef& e : edges)
-            changed.insert(e.body);
+        ModelResult result;
+        if (m_session.kind == Kind::Shell) {
+            const auto faces = selectedFaces();
+            result = shellBodies(m_bodies, faces, m_session.value);
+            for (const auto& f : faces)
+                changed.insert(f.first);
+        } else {
+            const std::vector<EdgeRef> edges = selectedEdges();
+            result = m_session.kind == Kind::Fillet ? filletEdges(m_bodies, edges, m_session.value)
+                                                    : chamferEdges(m_bodies, edges, m_session.value);
+            for (const EdgeRef& e : edges)
+                changed.insert(e.body);
+        }
         // The originals fade out behind the preview, but stay pickable for more edges.
         for (int i = 0; i < bodyCount(); ++i) {
             if (changed.count(i) && result.ok())
@@ -852,6 +894,10 @@ std::vector<TimelineItem> SketchEditor::timeline() const
         case Feature::Kind::Delete:
             base = tr("Usunięcie");
             break;
+        case Feature::Kind::Shell:
+            base = tr("Skorupa");
+            item.detail = mm(f.value) + QStringLiteral(" mm");
+            break;
         }
         item.name = QStringLiteral("%1 %2").arg(base).arg(++counts[base]);
         if (i < m_featureErrors.size())
@@ -879,7 +925,8 @@ void SketchEditor::activateTimelineItem(int index)
         return;
     }
     const bool extrusion = feature.kind == Feature::Kind::Extrude;
-    if (!extrusion && feature.kind != Feature::Kind::Fillet && feature.kind != Feature::Kind::Chamfer)
+    if (!extrusion && feature.kind != Feature::Kind::Fillet && feature.kind != Feature::Kind::Chamfer
+        && feature.kind != Feature::Kind::Shell)
         return; // nothing to tune
     if (mode() == EditorMode::Sketch)
         closeSketch();
@@ -913,8 +960,10 @@ void SketchEditor::activateTimelineItem(int index)
         refreshBodies();
         m_viewer->update();
     };
-    const QString label = extrusion ? tr("Odległość [mm]")
-                        : feature.kind == Feature::Kind::Fillet ? tr("Promień [mm]") : tr("Faza [mm]");
+    const QString label = extrusion                              ? tr("Odległość [mm]")
+                        : feature.kind == Feature::Kind::Fillet ? tr("Promień [mm]")
+                        : feature.kind == Feature::Kind::Shell  ? tr("Grubość [mm]")
+                                                                : tr("Faza [mm]");
     m_valueEditor->open(label, feature.value, extrusion ? -1e5 : 1e-3, 1e5,
                         QPointF(m_viewer->width() / 2.0, m_viewer->height() - 60.0),
                         [this, index](double value) {

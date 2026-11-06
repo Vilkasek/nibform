@@ -110,6 +110,9 @@ public:
     bool canApply(ConstraintCommand command) const;
     void applyConstraint(ConstraintCommand command);
     void editDimension(ConstraintId id);
+    // Switches the selected curves between real and construction (reference) geometry.
+    bool canToggleConstruction() const { return m_active >= 0 && !m_selection.entities.empty(); }
+    void toggleConstruction();
 
     // --- Bodies ---------------------------------------------------------------------
     BodyOperation bodyOperation() const { return m_bodyOperation; }
@@ -126,6 +129,7 @@ public:
 
     // For the floating context bar: what is picked, and where the pointer last was.
     bool hasPickedEdges() const;
+    bool hasPickedFaces() const;
     bool valueSessionOpen() const { return m_session.kind != ValueSession::Kind::None; }
     QPointF pointerPos() const { return m_pointerPos; }
     int sketchCount() const { return static_cast<int>(m_slots.size()); }
@@ -207,7 +211,7 @@ private:
     // the picked profiles (with an arrow to drag), or how much to round / bevel edges.
     struct ValueSession
     {
-        enum class Kind { None, Extrude, Fillet, Chamfer };
+        enum class Kind { None, Extrude, Fillet, Chamfer, Shell };
         Kind kind = Kind::None;
         double value = 0.0;
         // The arrow: extrusion direction from the profile's middle, or into the
@@ -266,7 +270,8 @@ private:
     // Fillet / chamfer: a tapped face stands for all of its edges.
     void toggleFaceEdges(const Hit& face);
     // Drops picks the new tool can't use (edges outside the rounding tools and so on).
-    void keepPicks(bool edges, bool facesAndRegions);
+    void keepPicks(bool edges, bool faces, bool regions);
+    std::vector<std::pair<int, TopoDS_Face>> selectedFaces() const;
     Handle(SelectMgr_EntityOwner) ownerOf(int body, const TopoDS_Shape& shape) const;
     void rehighlightPicks();
     void clearModelSelection();

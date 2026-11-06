@@ -106,7 +106,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_viewer, &OcctViewerWidget::glReady, this, [this](const QString& info) {
         m_glLabel->setText(info);
         // Defer until the first frame has sized the view, otherwise FitAll sees a 0x0 viewport.
-        QTimer::singleShot(0, this, [this] { m_viewer->setProjection(V3d_XposYnegZpos); });
+        QTimer::singleShot(0, this, [this] { m_viewer->setProjection(V3d_XposYnegZpos, false); });
 
         // Dev aid: SHAPR_DEMO=1 builds a small model to look at (with SHAPR_SCREENSHOT, too).
         if (qEnvironmentVariableIsSet("SHAPR_DEMO"))
@@ -234,6 +234,8 @@ void MainWindow::buildActions()
         makeTool(ToolKind::Fillet, QStringLiteral("Zaokrąglij"), QKeySequence(Qt::Key_G), Icon::Fillet));
     m_modelBar->addAction(
         makeTool(ToolKind::Chamfer, QStringLiteral("Fazuj"), QKeySequence(Qt::Key_B), Icon::Chamfer));
+    m_modelBar->addAction(
+        makeTool(ToolKind::Shell, QStringLiteral("Skorupa"), QKeySequence(Qt::Key_J), Icon::Shell));
 
     // What extruding does to the bodies it meets.
     m_modelBar->addSeparator();
@@ -262,6 +264,12 @@ void MainWindow::buildActions()
     m_sketchBar->addAction(makeTool(ToolKind::Trim, QStringLiteral("Przytnij"), QKeySequence(Qt::Key_X), Icon::Trim));
     m_sketchBar->addAction(
         makeTool(ToolKind::Offset, QStringLiteral("Odsunięcie"), QKeySequence(Qt::Key_U), Icon::Offset));
+    m_constructionAction = m_sketchBar->addAction(QStringLiteral("Konstrukcyjna"), m_editor,
+                                                  &SketchEditor::toggleConstruction);
+    m_constructionAction->setShortcut(QKeySequence(Qt::Key_Q));
+    m_constructionAction->setToolTip(QStringLiteral("Konstrukcyjna (Q) – zaznaczone krzywe stają się pomocnicze "
+                                                    "(przerywane, nie tworzą obszarów) albo z powrotem zwykłe"));
+    iconize(m_constructionAction, Icon::Construction);
     m_sketchBar->addSeparator();
     m_closeSketchAction = m_sketchBar->addAction(QStringLiteral("Zamknij szkic"), m_editor, &SketchEditor::closeSketch);
     m_closeSketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
@@ -523,7 +531,7 @@ void MainWindow::loadDemo()
     m_editor->extrudeRegions({*plate, *boss, *hole}, 12.0);
     m_editor->extrudeRegions({*boss}, 25.0);
     m_editor->extrudeRegions({*hole}, 12.0);
-    m_viewer->setProjection(V3d_XposYnegZpos);
+    m_viewer->setProjection(V3d_XposYnegZpos, false);
     if (const auto loose = m_editor->regionAt(0, {-25, 20}))
         m_editor->selectRegion(*loose);
 
@@ -578,6 +586,7 @@ void MainWindow::updateTimeline()
                         : item.name.startsWith(QStringLiteral("Wyciąg")) ? Icon::Extrude
                         : item.name.startsWith(QStringLiteral("Zaokr"))  ? Icon::Fillet
                         : item.name.startsWith(QStringLiteral("Faza"))   ? Icon::Chamfer
+                        : item.name.startsWith(QStringLiteral("Skorup")) ? Icon::Shell
                                                                          : Icon::Coincident;
         chip->setIcon(makeIcon(icon, palette().color(QPalette::WindowText), QColor(m_accent)));
         connect(chip, &QToolButton::clicked, this, [this, i] {
@@ -801,6 +810,7 @@ void MainWindow::buildContextBar()
     m_ctxChamfer = add(QStringLiteral("Fazuj"), Icon::Chamfer, [this] { m_editor->setTool(ToolKind::Chamfer); });
     m_ctxSketch = add(QStringLiteral("Szkic na ścianie"), Icon::NewSketch, [this] { m_editor->createSketchOnFace(); });
     m_ctxPull = add(QStringLiteral("Wyciągnij"), Icon::Extrude, [this] { m_editor->setTool(ToolKind::PushPull); });
+    m_ctxShell = add(QStringLiteral("Skorupa"), Icon::Shell, [this] { m_editor->setTool(ToolKind::Shell); });
     m_contextBar->hide();
 }
 
@@ -812,11 +822,13 @@ void MainWindow::updateContextBar()
                      && !m_editor->valueSessionOpen();
     const bool edges = active && m_editor->hasPickedEdges();
     const bool face = active && m_editor->canSketchOnFace();
+    const bool faces = active && m_editor->hasPickedFaces();
     m_ctxFillet->setVisible(edges);
     m_ctxChamfer->setVisible(edges);
     m_ctxSketch->setVisible(face);
-    m_ctxPull->setVisible(face);
-    if (!edges && !face) {
+    m_ctxPull->setVisible(faces);
+    m_ctxShell->setVisible(faces);
+    if (!edges && !faces) {
         m_contextBar->hide();
         return;
     }
@@ -856,6 +868,7 @@ void MainWindow::updateEditActions()
     for (QAction* action : m_bodyActions)
         action->setEnabled(m_editor->selectedBodies().size() >= 2);
     m_editSketchAction->setEnabled(m_editor->canEditSketch());
+    m_constructionAction->setEnabled(m_editor->canToggleConstruction());
     m_faceSketchAction->setEnabled(m_editor->canSketchOnFace());
     // Grey out the buttons only: a disabled action would also swallow its shortcut
     // silently, while the enabled one explains why the constraint doesn't fit.

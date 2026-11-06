@@ -4,9 +4,11 @@
 
 #include "model/Profiles.h"
 #include "model/Solids.h"
+#include "sketch/Solver.h"
 
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 
@@ -234,6 +236,81 @@ void testFilletAndChamfer()
     CHECK(!filletEdges({box}, {}, 1.0).ok());
 }
 
+void testShell()
+{
+    Sketch base;
+    rectangle(base, 0, 0, 10, 6);
+    const TopoDS_Shape box = extrude({}, regionsOf(base), 5.0, BodyOperation::Auto).bodies.at(0);
+    const TopoDS_Face top = faceFacing(box, gp::DZ());
+
+    // Open at the top, 1 mm walls: the inside is 8 x 4 x 4.
+    ModelResult hollow = shellBodies({box}, {{0, top}}, 1.0);
+    CHECK(hollow.ok() && hollow.bodies.size() == 1);
+    CHECK(near(volumeOf(hollow.bodies[0]), 300.0 - 128.0, 1e-6));
+
+    CHECK(!shellBodies({box}, {{0, top}}, 3.5).ok()); // thicker than the box is wide
+    CHECK(!shellBodies({box}, {}, 1.0).ok());
+
+    // A boss standing on the opened face (OCCT's own maker gives up on that one).
+    Sketch bossSketch(gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX()));
+    bossSketch.addCircle(bossSketch.addPoint({5, 3}), 1.5);
+    const TopoDS_Shape withBoss = extrude({box}, regionsOf(bossSketch), 3.0, BodyOperation::Auto).bodies.at(0);
+    const TopoDS_Face openTop = faceFacing(withBoss, gp::DZ()); // highest +Z face: the boss top
+    TopoDS_Face plateTop;
+    for (TopExp_Explorer it(withBoss, TopAbs_FACE); it.More(); it.Next()) {
+        const TopoDS_Face f = TopoDS::Face(it.Current());
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(f, props);
+        if (planarNormal(f) && planarNormal(f)->IsEqual(gp::DZ(), 1e-9) && near(props.CentreOfMass().Z(), 5.0, 1e-9))
+            plateTop = f;
+    }
+    CHECK(!plateTop.IsNull() && !openTop.IsNull());
+    ModelResult hollowBoss = shellBodies({withBoss}, {{0, plateTop}}, 0.5);
+    CHECK(hollowBoss.ok() && hollowBoss.bodies.size() == 1);
+    if (hollowBoss.ok()) {
+        const TopoDS_Shape& shell = hollowBoss.bodies[0];
+        CHECK(volumeOf(shell) < volumeOf(withBoss) && volumeOf(shell) > 0.0);
+        // Inside the cavity there is no material; inside a wall there is.
+        BRepClass3d_SolidClassifier inside(shell, gp_Pnt(2, 3, 2.5), 1e-7);
+        CHECK(inside.State() == TopAbs_OUT);
+        BRepClass3d_SolidClassifier wall(shell, gp_Pnt(0.25, 3, 2.5), 1e-7);
+        CHECK(wall.State() == TopAbs_IN);
+        // The opened face is gone: above the cavity, at the old top, it's open.
+        BRepClass3d_SolidClassifier opening(shell, gp_Pnt(2, 3, 4.9), 1e-7);
+        CHECK(opening.State() == TopAbs_OUT);
+    }
+}
+
+void testFaceEdgesBecomeFixedReference()
+{
+    Sketch base;
+    rectangle(base, 0, 0, 10, 6);
+    base.addCircle(base.addPoint({30, 3}), 2.0);
+    const std::vector<TopoDS_Shape> bodies = extrude({}, regionsOf(base), 5.0, BodyOperation::NewBody).bodies;
+    CHECK(bodies.size() == 2);
+
+    for (const TopoDS_Shape& body : bodies) {
+        const TopoDS_Face top = faceFacing(body, gp::DZ());
+        Sketch onTop(gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX()));
+        projectFaceEdges(onTop, top);
+        const bool box = onTop.entities().size() == 4;
+        CHECK(box || (onTop.entities().size() == 1 && onTop.entities()[0].kind == EntityKind::Circle));
+        for (const SketchEntity& e : onTop.entities())
+            CHECK(e.construction);
+        // Corners shared between neighbouring edges, each pinned in place; circles by
+        // center and radius: nothing left to move.
+        CHECK(onTop.points().size() == (box ? 4u : 1u));
+        CHECK(onTop.constraints().size() == onTop.points().size());
+        CHECK(solve(onTop).dof == 0);
+        // Reference only: nothing to pull until real curves are drawn.
+        CHECK(findRegions(onTop).empty());
+        if (box) {
+            onTop.addCircle(onTop.addPoint({5, 3}), 1.0);
+            CHECK(findRegions(onTop).size() == 1);
+        }
+    }
+}
+
 void testCombineBodies()
 {
     Sketch a, b;
@@ -265,6 +342,8 @@ int main()
         {"push / pull a body face", testPushPullBodyFace},
         {"sketch on a face pulled out joins", testSketchOnFacePulledOutJoins},
         {"fillet and chamfer", testFilletAndChamfer},
+        {"shell", testShell},
+        {"face edges become fixed reference", testFaceEdgesBecomeFixedReference},
         {"combine bodies", testCombineBodies},
     });
 }

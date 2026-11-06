@@ -155,9 +155,11 @@ void SketchEditor::setTool(ToolKind kind)
         // Picks carry over where they make sense: edges picked in Select into the rounding
         // tools, regions and faces into push / pull; Select keeps everything.
         if (kind == ToolKind::Fillet || kind == ToolKind::Chamfer)
-            keepPicks(true, false);
+            keepPicks(true, false, false);
         else if (kind == ToolKind::PushPull)
-            keepPicks(false, true);
+            keepPicks(false, true, true);
+        else if (kind == ToolKind::Shell)
+            keepPicks(false, true, false);
         updateSelectionModes();
         syncValueSession();
     }
@@ -408,6 +410,23 @@ void SketchEditor::clearActiveSketch()
     setSelection({});
     commit([](Sketch& s) { s.clear(); });
     refreshOverlay();
+    m_viewer->update();
+}
+
+void SketchEditor::toggleConstruction()
+{
+    if (!canToggleConstruction())
+        return;
+    // All of them become construction, unless all already are: then all become real.
+    const std::set<EntityId> picked = m_selection.entities;
+    const bool allConstruction = std::all_of(picked.begin(), picked.end(), [this](EntityId id) {
+        const SketchEntity* e = sketch().entity(id);
+        return e && e->construction;
+    });
+    commit([&](Sketch& s) {
+        for (EntityId id : picked)
+            s.setConstruction(id, !allConstruction);
+    });
     m_viewer->update();
 }
 
@@ -985,9 +1004,15 @@ void SketchEditor::updateHint()
                                   : QStringLiteral("Wyciągnij: dotknij obszaru szkicu albo płaskiej ściany bryły"));
             return;
         case ToolKind::Fillet:
-        case ToolKind::Chamfer: {
-            const QString name = m_toolKind == ToolKind::Fillet ? QStringLiteral("Zaokrąglij")
-                                                                : QStringLiteral("Fazuj");
+        case ToolKind::Chamfer:
+        case ToolKind::Shell: {
+            const QString name = m_toolKind == ToolKind::Fillet  ? QStringLiteral("Zaokrąglij")
+                               : m_toolKind == ToolKind::Chamfer ? QStringLiteral("Fazuj")
+                                                                 : QStringLiteral("Skorupa");
+            if (m_toolKind == ToolKind::Shell && !open && error.isEmpty()) {
+                emit hintChanged(name + QStringLiteral(": dotknij ścian, które mają być otwarte"));
+                return;
+            }
             if (!error.isEmpty())
                 emit hintChanged(name + QStringLiteral(": ") + error);
             else if (open)

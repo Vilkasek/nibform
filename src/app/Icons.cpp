@@ -227,6 +227,27 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         arrowHead(p, {4.5, 13}, {10, 13}, accent);
         arrowHead(p, {19.5, 13}, {14, 13}, accent);
         break;
+    case Icon::Shell: {
+        // An open box: outer walls, the hollow inside in the accent color.
+        p.drawPolyline(QPolygonF({{4, 7}, {4, 20}, {20, 20}, {20, 7}}));
+        QPen inner = pen(accent, 1.6);
+        inner.setDashPattern({2.0, 1.6});
+        p.setPen(inner);
+        p.drawPolyline(QPolygonF({{7.5, 7}, {7.5, 16.5}, {16.5, 16.5}, {16.5, 7}}));
+        p.setPen(pen(ink, 1.2));
+        p.drawLine(QPointF(4, 7), QPointF(7.5, 7));
+        p.drawLine(QPointF(16.5, 7), QPointF(20, 7));
+        break;
+    }
+    case Icon::Construction: {
+        QPen dashed = pen(accent);
+        dashed.setDashPattern({2.2, 2.0});
+        p.setPen(dashed);
+        p.drawLine(QPointF(4, 19), QPointF(20, 5));
+        dot(p, {4, 19}, ink, 2.0);
+        dot(p, {20, 5}, ink, 2.0);
+        break;
+    }
     case Icon::Coincident:
         p.drawEllipse(QPointF(8.5, 12), 4.5, 4.5);
         p.drawEllipse(QPointF(15.5, 12), 4.5, 4.5);

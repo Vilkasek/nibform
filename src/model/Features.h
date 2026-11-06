@@ -51,6 +51,7 @@ struct Feature
         Chamfer, // edges, size `value`
         Combine, // bodies, with `boolean`
         Delete,  // bodies
+        Shell,   // faces to open, wall thickness `value`
     };
 
     Kind kind = Kind::Extrude;

@@ -67,6 +67,11 @@ ModelResult filletEdges(const std::vector<TopoDS_Shape>& bodies, const std::vect
 ModelResult chamferEdges(const std::vector<TopoDS_Shape>& bodies, const std::vector<EdgeRef>& edges,
                          double distance);
 
+// Hollows bodies out, leaving walls `thickness` thick inside their surface; the given
+// faces (of each body, at least one) are removed to open the shell there.
+ModelResult shellBodies(const std::vector<TopoDS_Shape>& bodies, const std::vector<std::pair<int, TopoDS_Face>>& open,
+                        double thickness);
+
 // Combines the `selected` bodies (by index) into one: union, intersection, or the first
 // minus the others.
 ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<int>& selected, BooleanKind kind);

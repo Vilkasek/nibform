@@ -153,6 +153,28 @@ void testBodiesFoundByInsidePoints()
     CHECK(near(totalVolume(result.bodies), 750.0, 1e-6));
 }
 
+void testShellFollowsTheBody()
+{
+    std::map<int, Sketch> sketches;
+    rectangle(sketches[1], 0, 0, 10, 6);
+    const SketchLookup lookup = [&](int id) { return sketches.count(id) ? &sketches.at(id) : nullptr; };
+    std::vector<Feature> history = {extrudeAt(1, {5, 3}, 5.0)};
+    Feature shell;
+    shell.kind = Feature::Kind::Shell;
+    shell.faces = {{gp_Pnt(5, 3, 5), gp::DZ()}};
+    shell.value = 1.0;
+    history.push_back(shell);
+
+    RebuildResult result = rebuild(lookup, history);
+    CHECK(result.errors.at(1).empty());
+    CHECK(near(totalVolume(result.bodies), 172.0, 1e-6));
+    // A taller box: still open at its (moved) top.
+    history[0].value = 9.0;
+    result = rebuild(lookup, history);
+    CHECK(result.errors.at(1).empty());
+    CHECK(near(totalVolume(result.bodies), 540.0 - 8.0 * 4.0 * 8.0, 1e-6));
+}
+
 void testInsidePointAvoidsHoles()
 {
     Sketch s;
@@ -201,6 +223,7 @@ int main()
         {"faces and edges are found again", testFacesAndEdgesAreFoundAgain},
         {"missing input is reported and skipped", testMissingInputIsReportedAndSkipped},
         {"bodies found by inside points", testBodiesFoundByInsidePoints},
+        {"shell follows the body", testShellFollowsTheBody},
         {"inside point avoids holes", testInsidePointAvoidsHoles},
         {"STEP and STL export", testStepAndStlExport},
     });
