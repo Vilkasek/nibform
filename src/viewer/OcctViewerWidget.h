@@ -8,6 +8,7 @@
 
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_ViewController.hxx>
+#include <Bnd_Box.hxx>
 #include <V3d_TypeOfOrientation.hxx>
 #include <V3d_View.hxx>
 #include <V3d_Viewer.hxx>
@@ -43,6 +44,11 @@ public:
     void setProjection(V3d_TypeOfOrientation orientation);
     // Looks straight at a plane: from the side `normal` points to, `up` pointing up.
     void lookAt(const gp_Dir& normal, const gp_Dir& up);
+    // Glides the camera (in a fraction of a second) to look from the `eyeSide` direction,
+    // `up` pointing up, framing `box` (the whole scene when the box is void).
+    void animateCamera(const gp_Dir& eyeSide, const gp_Dir& up, const Bnd_Box& box);
+    // Where the camera looks from (unit vector from the scene toward the eye).
+    gp_Dir eyeSide() const;
     void releaseGraphics();
 
     // Routes the primary pointer (pen tip, left mouse button) to `interaction`

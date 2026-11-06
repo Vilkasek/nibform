@@ -1,5 +1,7 @@
 #pragma once
 
+#include "io/ProjectFile.h"
+#include "model/Features.h"
 #include "model/Solids.h"
 #include "sketch/ConstraintCommands.h"
 #include "sketch/Sketch.h"
@@ -10,6 +12,7 @@
 #include "viewer/ViewerInteraction.h"
 
 #include <AIS_Shape.hxx>
+#include <Bnd_Box.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
@@ -35,6 +38,16 @@ enum class SketchPlane { XY, XZ, YZ };
 // Model: bodies and finished sketches; their regions are pulled into bodies and body
 // edges rounded. Sketch: one sketch is open for drawing and constraining.
 enum class EditorMode { Model, Sketch };
+
+// One entry of the history timeline shown under the view.
+struct TimelineItem
+{
+    QString name;   // "Szkic 1", "Wyciągnięcie 2", ...
+    QString detail; // "12 mm", "r 2 mm"; empty when there is no value to edit
+    QString error;  // why it didn't apply on the last rebuild, empty if it did
+    bool sketch = false;
+    bool rolledBack = false; // after the sketch being edited: not shown in the model now
+};
 
 // A closed region of sketch `sketch` (index into its regions).
 struct RegionRef
@@ -116,6 +129,19 @@ public:
     bool valueSessionOpen() const { return m_session.kind != ValueSession::Kind::None; }
     QPointF pointerPos() const { return m_pointerPos; }
     int sketchCount() const { return static_cast<int>(m_slots.size()); }
+    const std::vector<TopoDS_Shape>& bodies() const { return m_bodies; }
+
+    // --- History and project ----------------------------------------------------------
+    std::vector<TimelineItem> timeline() const;
+    // A sketch entry reopens the sketch; a valued one opens its value, previewed live.
+    void activateTimelineItem(int index);
+    // Removes the feature (or the sketch, with its entry); later features are rebuilt.
+    void removeTimelineItem(int index);
+    ProjectData project() const;
+    void loadProject(ProjectData project); // replaces everything; undo starts empty
+    void newProject();
+    bool isModified() const { return m_changes != m_savedChanges; }
+    void markSaved() { m_savedChanges = m_changes; emit historyChanged(); }
 
     // SketchToolHost
     const Sketch& sketch() const override;
@@ -144,15 +170,16 @@ signals:
 private:
     struct Slot
     {
+        int id = -1; // stable across deletions; what features refer to
         Sketch sketch;
         Handle(PlanarPrs) prs;
         std::vector<TopoDS_Face> regions; // closed regions, kept up to date
     };
-    // Everything undo restores: all sketches and the bodies.
+    // Everything undo restores: the sketches and the history (bodies are rebuilt from them).
     struct Snapshot
     {
-        std::vector<Sketch> sketches;
-        std::vector<TopoDS_Shape> bodies;
+        std::vector<ProjectData::SketchEntry> sketches;
+        std::vector<Feature> features;
     };
     // What is under the pointer. Sketch mode: points, curves, constraint labels.
     // Model mode: Region (`region`), Face / Edge of body `id` (picked through AIS).
@@ -254,7 +281,15 @@ private:
     bool hitsArrow(const QPointF& pos) const;
     double arrowParam(const Graphic3d_Vec2i& pixel) const;
     void paintArrow(QPainter& painter) const;
-    void commitBodies(std::vector<TopoDS_Shape> bodies);
+    // Applies a new feature on top of the model and records it; false (with a message)
+    // if it doesn't apply.
+    bool commitFeature(const Feature& feature);
+    void rebuildModel(); // replays the history (up to the rollback point while a sketch is edited)
+    Bnd_Box sketchBox(int slot) const;
+    Bnd_Box bodiesBox() const;
+    SketchLookup sketchLookup() const;
+    std::optional<Feature> featureFromSession(double value) const;
+    void pushUndo(); // before any change of sketches or history
     Snapshot snapshot() const;
     void restore(Snapshot snapshot);
     void refreshBodies();
@@ -294,7 +329,15 @@ private:
     std::vector<Snapshot> m_undo;
     std::vector<Snapshot> m_redo;
 
-    std::vector<TopoDS_Shape> m_bodies;
+    std::vector<Feature> m_features;
+    std::vector<std::string> m_featureErrors; // per feature, from the last rebuild
+    int m_nextSketchId = 1;
+    // While a sketch is edited, the model shows only the features before its timeline
+    // entry: what was built from the sketch (and after it) is out of the way. -1: all.
+    int m_rollback = -1;
+    int m_changes = 0;      // counts edits, for the unsaved-changes mark
+    int m_savedChanges = 0;
+    std::vector<TopoDS_Shape> m_bodies; // built from m_features
     std::vector<Handle(AIS_Shape)> m_bodyPrs;
     std::set<RegionRef> m_regionSelection;
     std::vector<BodyPick> m_bodySelection; // faces, or edges in the fillet / chamfer tools

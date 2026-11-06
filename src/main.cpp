@@ -30,6 +30,9 @@ int main(int argc, char** argv)
     MainWindow window;
     window.resize(1400, 900);
     window.show();
+    // shapr_linux model.shapr opens the project.
+    if (const QStringList args = QApplication::arguments(); args.size() > 1)
+        window.openPath(args.at(1));
 
     // The xcb backend registers input devices only once a window exists.
     if (qEnvironmentVariableIsSet("SHAPR_DEBUG_INPUT")) {

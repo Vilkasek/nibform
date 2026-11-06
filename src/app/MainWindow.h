@@ -7,6 +7,7 @@
 #include "sketch/SketchTools.h"
 
 #include <QMainWindow>
+#include <QTimer>
 
 #include <functional>
 #include <map>
@@ -14,6 +15,7 @@
 
 class OcctViewerWidget;
 class QAction;
+class QCloseEvent;
 class QFrame;
 class QToolButton;
 class QLabel;
@@ -27,6 +29,11 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    void openPath(const QString& path);
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void buildActions();
@@ -41,6 +48,18 @@ private:
     void iconize(QAction* action, ConstraintCommand command);
     void buildContextBar();
     void updateContextBar();
+    void updateTimeline();
+    void updateTitle();
+    void showMessage(const QString& text);
+    // Files: maybeSave() asks about unsaved changes, false means stay.
+    bool maybeSave();
+    void newFile();
+    void openFile();
+    bool save();
+    bool saveAs();
+    void exportBodies(bool step);
+    QString lastDirectory() const;
+    void rememberDirectory(const QString& path);
 
     OcctViewerWidget* m_viewer = nullptr;
     SketchEditor* m_editor = nullptr;
@@ -61,6 +80,14 @@ private:
     std::map<ThemeMode, QAction*> m_themeActions;
     std::vector<std::pair<QAction*, std::function<QIcon(const QColor&, const QColor&)>>> m_icons;
     QFrame* m_contextBar = nullptr;
+    QToolBar* m_timelineBar = nullptr;
+    int m_timelinePick = -1; // the history chip last tapped
+    QString m_path;   // the open project file, empty until saved
+    QString m_accent; // current icon accent color
+    QString m_hint;   // the editor's current hint, shown again after a message
+    QTimer m_messageTimer;
+    QAction* m_exportStepAction = nullptr;
+    QAction* m_exportStlAction = nullptr;
     std::vector<std::pair<QToolButton*, Icon>> m_contextButtons;
     QToolButton* m_ctxFillet = nullptr;
     QToolButton* m_ctxChamfer = nullptr;

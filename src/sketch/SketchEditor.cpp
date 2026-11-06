@@ -181,6 +181,7 @@ void SketchEditor::createSketch(const gp_Ax3& plane)
     if (mode() == EditorMode::Sketch)
         closeSketch();
     Slot slot;
+    slot.id = m_nextSketchId++;
     slot.sketch = Sketch(plane);
     slot.prs = new PlanarPrs(plane, {m_colors.sketch, m_colors.accent, 2.0 * m_viewer->devicePixelRatioF()});
     m_viewer->aisContext()->Display(slot.prs, 0, -1, false);
@@ -194,15 +195,24 @@ void SketchEditor::enterSketch(int index, bool lookAt)
     endValueSession(true);
     clearModelSelection();
     m_active = index;
+    // Roll the model back to when the sketch was made, so what was built from it doesn't
+    // stand in the way (a new sketch has no entry yet: everything stays).
+    m_rollback = -1;
+    for (int i = 0; i < static_cast<int>(m_features.size()); ++i) {
+        if (m_features[i].kind == Feature::Kind::Sketch && m_features[i].sketch == m_slots[index].id)
+            m_rollback = i;
+    }
+    if (m_rollback >= 0)
+        rebuildModel();
     updateSelectionModes(); // bodies stop reacting to the pointer while drawing
     const gp_Ax3& axes = sketch().plane();
     m_previewPrs->setPlane(axes);
     m_overlayPrs->setPlane(axes);
     updateGrid();
     if (lookAt)
-        m_viewer->lookAt(axes.Direction(), axes.YDirection());
+        m_viewer->animateCamera(axes.Direction(), axes.YDirection(), sketchBox(index));
     emit modeChanged(EditorMode::Sketch);
-    setTool(ToolKind::Line);
+    setTool(ToolKind::Select); // a sketch opens in Select; drawing tools are picked from the bar
     sketchChanged();
     refreshSketches();
     refreshOverlay();
@@ -217,10 +227,24 @@ void SketchEditor::closeSketch()
     setSelection({});
     const int closing = m_active;
     m_active = -1;
-    if (closing < static_cast<int>(m_slots.size()) && m_slots[closing].sketch.isEmpty()) {
-        m_viewer->aisContext()->Remove(m_slots[closing].prs, false);
-        m_slots.erase(m_slots.begin() + closing);
-        m_regionSelection.clear();
+    m_rollback = -1;
+    if (closing < static_cast<int>(m_slots.size())) {
+        const int id = m_slots[closing].id;
+        auto isEntry = [id](const Feature& f) { return f.kind == Feature::Kind::Sketch && f.sketch == id; };
+        if (m_slots[closing].sketch.isEmpty()) {
+            m_viewer->aisContext()->Remove(m_slots[closing].prs, false);
+            m_slots.erase(m_slots.begin() + closing);
+            std::erase_if(m_features, isEntry);
+            m_regionSelection.clear();
+        } else if (std::none_of(m_features.begin(), m_features.end(), isEntry)) {
+            Feature entry;
+            entry.kind = Feature::Kind::Sketch;
+            entry.sketch = id;
+            m_features.push_back(entry);
+        }
+        // Everything built from the sketch follows its changes.
+        rebuildModel();
+        emit historyChanged();
     }
     updateGrid();
     updateSelectionModes();
@@ -245,7 +269,7 @@ bool SketchEditor::canEditSketch() const
 void SketchEditor::editSketch()
 {
     if (canEditSketch())
-        enterSketch(m_regionSelection.begin()->sketch, false);
+        enterSketch(m_regionSelection.begin()->sketch, true);
 }
 
 void SketchEditor::updateGrid()
@@ -267,8 +291,9 @@ void SketchEditor::commit(const std::function<void(Sketch&)>& change, bool exten
         return;
     m_valueEditor->cancel(); // a pending value would apply to a sketch that no longer exists
     if (!extendLastStep || m_undo.empty())
-        m_undo.push_back(snapshot());
-    m_redo.clear();
+        pushUndo();
+    else
+        ++m_changes;
     Sketch& s = m_slots[m_active].sketch;
     change(s);
     m_analysis = solve(s);
@@ -285,6 +310,7 @@ void SketchEditor::undo()
     Snapshot step = std::move(m_undo.back());
     m_undo.pop_back();
     m_redo.push_back(snapshot());
+    ++m_changes;
     restore(std::move(step));
 
     // Tools may hold point ids that no longer exist.
@@ -307,6 +333,7 @@ void SketchEditor::redo()
     Snapshot step = std::move(m_redo.back());
     m_redo.pop_back();
     m_undo.push_back(snapshot());
+    ++m_changes;
     restore(std::move(step));
 
     resetInteraction();
@@ -331,23 +358,28 @@ void SketchEditor::deleteSelection()
             sketches.insert(r.sketch);
         if (bodies.empty() && sketches.empty())
             return;
-        Snapshot next = snapshot();
-        for (auto it = sketches.rbegin(); it != sketches.rend(); ++it)
-            next.sketches.erase(next.sketches.begin() + *it);
-        std::vector<TopoDS_Shape> kept;
-        for (int i = 0; i < bodyCount(); ++i) {
-            if (std::find(bodies.begin(), bodies.end(), i) == bodies.end())
-                kept.push_back(m_bodies[i]);
-        }
-        next.bodies = std::move(kept);
         endValueSession(true);
-        m_undo.push_back(snapshot());
-        m_redo.clear();
-        restore(std::move(next));
+        // Bodies go through a Delete feature (found by points inside them on rebuilds),
+        // sketches with their timeline entries.
+        Feature drop;
+        drop.kind = Feature::Kind::Delete;
+        for (int b : bodies) {
+            if (const auto inside = insidePoint(m_bodies[b]))
+                drop.bodies.push_back(*inside);
+        }
         clearModelSelection();
-        updateStatus();
+        pushUndo();
+        for (auto it = sketches.rbegin(); it != sketches.rend(); ++it) {
+            const int id = m_slots[*it].id;
+            m_viewer->aisContext()->Remove(m_slots[*it].prs, false);
+            m_slots.erase(m_slots.begin() + *it);
+            std::erase_if(m_features, [id](const Feature& f) { return f.kind == Feature::Kind::Sketch && f.sketch == id; });
+        }
+        if (!drop.bodies.empty())
+            m_features.push_back(drop);
+        showRegions();
+        rebuildModel();
         emit historyChanged();
-        m_viewer->update();
         return;
     }
 

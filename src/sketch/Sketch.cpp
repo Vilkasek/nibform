@@ -34,6 +34,15 @@ Sketch::Sketch(const gp_Ax3& plane)
 {
 }
 
+Sketch::Sketch(const gp_Ax3& plane, Contents contents)
+    : m_plane(plane)
+    , m_points(std::move(contents.points))
+    , m_entities(std::move(contents.entities))
+    , m_constraints(std::move(contents.constraints))
+    , m_nextId(contents.nextId)
+{
+}
+
 gp_Pnt Sketch::to3d(const gp_Pnt2d& p) const
 {
     return ElSLib::Value(p.X(), p.Y(), gp_Pln(m_plane));

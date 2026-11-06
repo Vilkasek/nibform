@@ -19,7 +19,7 @@ OpenCASCADE z Archa jest zbudowany pod GLX, więc aplikacja sama wymusza `QT_QPA
 `SHAPR_DEBUG_INPUT=1` wypisuje urządzenia wejścia i zdarzenia scrolla/gestów,
 `SHAPR_INVERT_SCROLL=1` odwraca kierunek obrotu/przesuwania z touchpada.
 
-Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_value_editor`).
+Testy rdzenia: `ctest --test-dir build` (albo `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_value_editor`).
 
 ## Dwa tryby: Bryła i Szkic
 
@@ -108,6 +108,29 @@ obszarach. Cofanie obejmuje szkice i bryły razem.
 `SHAPR_DEMO=1` buduje przykładowy model (`SHAPR_DEMO=sketch` dodatkowo otwiera szkic) –
 przydatne z `SHAPR_SCREENSHOT`.
 
+## Historia, projekty, eksport
+
+Model jest parametryczny: bryły nie są zapisywane, tylko odtwarzane z historii operacji
+(szkic, wyciągnięcie, zaokrąglenie, faza, operacje na bryłach, usunięcie). Pasek **Historia**
+na dole pokazuje je po kolei. Dotknięcie zaznacza wpis, **dwuklik** (podwójne stuknięcie) go
+edytuje, strzałka obok daje *Edytuj* / *Usuń*:
+
+- szkic otwiera się ponownie, kamera płynnie ustawia się na wprost niego, a model cofa się do chwili
+  jego powstania – bryły z niego zbudowane (i wszystko późniejsze, przygaszone na pasku) znikają
+  do zamknięcia szkicu, wtedy przeliczają się same;
+- operacja z wartością otwiera pole wartości z podglądem całego modelu na żywo (`Esc` przywraca);
+  kamera kadruje model, a gdy patrzy dokładnie wzdłuż albo w poprzek kierunku operacji,
+  przechodzi na widok izometryczny. Operacja, której wejście zniknęło (np. obszar po zmianie szkicu), świeci na czerwono
+z opisem w podpowiedzi i jest pomijana.
+
+Wejścia operacji są zapamiętane geometrycznie, żeby odnaleźć je po przebudowie: obszar – punktem
+w środku, ściana – środkiem i normalną, krawędź – środkiem i kierunkiem, bryła – punktem w jej wnętrzu.
+
+**Plik**: *Nowy* (`Ctrl+N`), *Otwórz…* (`Ctrl+O`), *Zapisz* (`Ctrl+S`), *Zapisz jako…*
+(`Ctrl+Shift+S`) – projekt `.shapr` to czytelny JSON ze szkicami i historią; `shapr_linux plik.shapr`
+otwiera go od razu. Tytuł okna pokazuje `*` przy niezapisanych zmianach, a zamknięcie pyta o zapis.
+*Eksportuj STEP…* / *Eksportuj STL…* zapisują bryły (STL binarny, siatka 0,05 mm).
+
 ## Sterowanie widokiem
 
 | Wejście | Akcja |
@@ -137,6 +160,6 @@ trybem pulpitu, odczytywanym przez xdg-desktop-portal), jasny albo ciemny; wybó
 - [x] **M1** – szkic na płaszczyźnie rysikiem (linia, prostokąt, okrąg, łuk), snapping
 - [x] **M2** – więzy i wymiary, solver
 - [x] **M3** – wykrywanie profili, push/pull, boolean
-- [ ] **M4** – parametryczna historia, zapis projektu, eksport STEP/STL
+- [x] **M4** – parametryczna historia, zapis projektu, eksport STEP/STL
 - [ ] **M5** – szkic na ścianie, fillet/chamfer/shell
 - [ ] **M6** – polish pod Framework 12 (obrót ekranu, palm rejection, tryb tabletu)

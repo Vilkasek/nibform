@@ -1,13 +1,18 @@
 #include "app/MainWindow.h"
 
 #include "app/Icons.h"
+#include "model/Export.h"
 #include "sketch/SketchEditor.h"
 #include "viewer/OcctViewerWidget.h"
 
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QCloseEvent>
 #include <QComboBox>
+#include <QFileDialog>
+#include <QDir>
+#include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -45,13 +50,28 @@ MainWindow::MainWindow(QWidget* parent)
 
     buildActions();
     buildContextBar(); // before the theme, which gives it icons
+    m_timelineBar = new QToolBar(QStringLiteral("Historia"), this);
+    m_timelineBar->setObjectName(QStringLiteral("timeline"));
+    m_timelineBar->setMovable(false);
+    m_timelineBar->setIconSize(QSize(18, 18));
+    addToolBar(Qt::BottomToolBarArea, m_timelineBar);
 
 
-    connect(m_editor, &SketchEditor::hintChanged, m_hintLabel, &QLabel::setText);
-    connect(m_editor, &SketchEditor::statusChanged, m_dofLabel, &QLabel::setText);
-    connect(m_editor, &SketchEditor::message, this, [this](const QString& text) {
-        statusBar()->showMessage(text, 4000);
+    // Messages take the hint's place for a moment (a status bar message would be
+    // painted over the hint, not instead of it).
+    connect(m_editor, &SketchEditor::hintChanged, this, [this](const QString& hint) {
+        m_hint = hint;
+        if (!m_messageTimer.isActive())
+            m_hintLabel->setText(hint);
     });
+    m_messageTimer.setSingleShot(true);
+    connect(&m_messageTimer, &QTimer::timeout, this, [this] {
+        m_hintLabel->setProperty("message", false);
+        m_hintLabel->setText(m_hint);
+        m_hintLabel->style()->polish(m_hintLabel);
+    });
+    connect(m_editor, &SketchEditor::statusChanged, m_dofLabel, &QLabel::setText);
+    connect(m_editor, &SketchEditor::message, this, &MainWindow::showMessage);
     connect(m_editor, &SketchEditor::toolChanged, this, [this](ToolKind kind) {
         if (QAction* action = m_toolActions[kind])
             action->setChecked(true);
@@ -69,6 +89,9 @@ MainWindow::MainWindow(QWidget* parent)
     });
 
     connect(m_editor, &SketchEditor::modeChanged, this, &MainWindow::updateMode);
+    connect(m_editor, &SketchEditor::historyChanged, this, &MainWindow::updateTimeline);
+    connect(m_editor, &SketchEditor::modeChanged, this, &MainWindow::updateTimeline); // rollback shading
+    connect(m_editor, &SketchEditor::historyChanged, this, &MainWindow::updateTitle);
     for (auto signal : {&SketchEditor::selectionChanged, &SketchEditor::historyChanged})
         connect(m_editor, signal, this, &MainWindow::updateContextBar);
     connect(m_editor, &SketchEditor::toolChanged, this, &MainWindow::updateContextBar);
@@ -76,6 +99,8 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_editor, &SketchEditor::hintChanged, this, &MainWindow::updateContextBar); // session open / closed
     m_editor->setTool(ToolKind::Select);
     updateMode(m_editor->mode());
+    updateTimeline();
+    updateTitle();
     updateEditActions();
 
     connect(m_viewer, &OcctViewerWidget::glReady, this, [this](const QString& info) {
@@ -104,6 +129,20 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::buildActions()
 {
+    // --- File menu -------------------------------------------------------------------
+    QMenu* file = menuBar()->addMenu(QStringLiteral("&Plik"));
+    file->addAction(QStringLiteral("Nowy"), QKeySequence::New, this, &MainWindow::newFile);
+    file->addAction(QStringLiteral("Otwórz…"), QKeySequence::Open, this, &MainWindow::openFile);
+    file->addSeparator();
+    file->addAction(QStringLiteral("Zapisz"), QKeySequence::Save, this, &MainWindow::save);
+    file->addAction(QStringLiteral("Zapisz jako…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this,
+                    &MainWindow::saveAs);
+    file->addSeparator();
+    m_exportStepAction = file->addAction(QStringLiteral("Eksportuj STEP…"), this, [this] { exportBodies(true); });
+    m_exportStlAction = file->addAction(QStringLiteral("Eksportuj STL…"), this, [this] { exportBodies(false); });
+    file->addSeparator();
+    file->addAction(QStringLiteral("Zakończ"), QKeySequence::Quit, this, &QWidget::close);
+
     // --- Edit menu -------------------------------------------------------------------
     QMenu* edit = menuBar()->addMenu(QStringLiteral("&Edycja"));
     m_undoAction = edit->addAction(QStringLiteral("Cofnij"), m_editor, &SketchEditor::undo);
@@ -407,7 +446,15 @@ QFrame#valueEditor QLineEdit { border: 1px solid @accent; border-radius: 6px; pa
                                background: @base; color: @text; selection-background-color: @accent; }
 QToolButton#valueAccept { background: @accent; color: white; }
 QStatusBar { background: @bar; border-top: 1px solid @border; }
+QLabel[message="true"] { color: @checkedText; font-weight: 600; }
 QLabel#statusChip { background: @pressed; color: @checkedText; border-radius: 9px; padding: 2px 10px; }
+QToolBar#timeline { border-bottom: none; border-top: 1px solid @border; padding: 4px 8px; spacing: 6px; }
+QLabel#timelineTitle { color: @disabled; font-weight: 600; padding: 0 8px 0 2px; }
+QToolButton#timelineChip { background: @panel; border: 1px solid @border; border-radius: 10px; padding: 3px 8px; }
+QToolButton#timelineChip:hover { border-color: @accent; }
+QToolButton#timelineChip:checked { border-color: @accent; background: @pressed; color: @checkedText; }
+QToolButton#timelineChip[rolledBack="true"] { color: @disabled; border-style: dashed; }
+QToolButton#timelineChip[failed="true"] { border-color: #e5484d; color: #e5484d; }
 QMenu { background: @panel; border: 1px solid @border; border-radius: 8px; padding: 4px; }
 QMenu::item { padding: 5px 22px 5px 22px; border-radius: 6px; color: @text; }
 QMenu::item:selected { background: @hover; }
@@ -426,12 +473,15 @@ QMenu::separator { height: 1px; background: @border; margin: 4px 8px; }
     // Icons follow the text color; the accent marks what each tool adds or changes.
     const QColor ink(t.text);
     const QColor accent(dark ? "#5b9cff" : "#2563eb");
+    m_accent = accent.name();
     for (const auto& [action, make] : m_icons) {
         const bool onAccent = action == m_closeSketchAction; // drawn on the orange button
         action->setIcon(onAccent ? make(Qt::white, Qt::white) : make(ink, accent));
     }
     for (const auto& [button, icon] : m_contextButtons)
         button->setIcon(makeIcon(icon, ink, accent));
+    if (m_timelineBar)
+        updateTimeline(); // chips are rebuilt with the new colors
 }
 
 void MainWindow::applyTheme()
@@ -489,6 +539,212 @@ void MainWindow::loadDemo()
             s.addLine(d, a);
         });
     }
+}
+
+void MainWindow::updateTimeline()
+{
+    // One chip per history entry, oldest on the left. A tap picks it, a double tap edits
+    // it (reopens the sketch / retypes the value, the model following live); the arrow
+    // menu offers both and removal.
+    m_timelineBar->clear();
+    auto* title = new QLabel(QStringLiteral("Historia"), m_timelineBar);
+    title->setObjectName(QStringLiteral("timelineTitle"));
+    m_timelineBar->addWidget(title);
+    const std::vector<TimelineItem> items = m_editor->timeline();
+    if (items.empty()) {
+        auto* empty = new QLabel(QStringLiteral("pusta – stwórz szkic i wyciągnij go"), m_timelineBar);
+        empty->setEnabled(false);
+        m_timelineBar->addWidget(empty);
+    }
+    for (int i = 0; i < static_cast<int>(items.size()); ++i) {
+        const TimelineItem& item = items[i];
+        auto* chip = new QToolButton(m_timelineBar);
+        chip->setObjectName(QStringLiteral("timelineChip"));
+        chip->setProperty("failed", !item.error.isEmpty()); // red by the style sheet
+        chip->setProperty("rolledBack", item.rolledBack);   // dimmed while a sketch before it is edited
+        chip->setText(item.detail.isEmpty() ? item.name : QStringLiteral("%1  ·  %2").arg(item.name, item.detail));
+        const bool editable = item.sketch || !item.detail.isEmpty();
+        chip->setToolTip(!item.error.isEmpty() ? item.error
+                         : item.sketch         ? QStringLiteral("Dwuklik: edytuj szkic")
+                         : editable            ? QStringLiteral("Dwuklik: zmień wartość")
+                                               : QString());
+        chip->setCheckable(true);
+        chip->setChecked(i == m_timelinePick);
+        chip->setProperty("timelineIndex", i);
+        chip->installEventFilter(this); // double taps
+        chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        chip->setFocusPolicy(Qt::NoFocus);
+        const Icon icon = item.sketch                                    ? Icon::EditSketch
+                        : item.name.startsWith(QStringLiteral("Wyciąg")) ? Icon::Extrude
+                        : item.name.startsWith(QStringLiteral("Zaokr"))  ? Icon::Fillet
+                        : item.name.startsWith(QStringLiteral("Faza"))   ? Icon::Chamfer
+                                                                         : Icon::Coincident;
+        chip->setIcon(makeIcon(icon, palette().color(QPalette::WindowText), QColor(m_accent)));
+        connect(chip, &QToolButton::clicked, this, [this, i] {
+            m_timelinePick = i;
+            for (QToolButton* other : m_timelineBar->findChildren<QToolButton*>(QStringLiteral("timelineChip")))
+                other->setChecked(other->property("timelineIndex").toInt() == i);
+        });
+        auto* menu = new QMenu(chip);
+        menu->addAction(QStringLiteral("Edytuj"), this, [this, i] { m_editor->activateTimelineItem(i); })
+            ->setEnabled(editable);
+        menu->addAction(QStringLiteral("Usuń"), this, [this, i] {
+            m_timelinePick = -1;
+            m_editor->removeTimelineItem(i);
+        });
+        chip->setMenu(menu);
+        chip->setPopupMode(QToolButton::MenuButtonPopup);
+        m_timelineBar->addWidget(chip);
+    }
+    const bool any = m_editor->bodyCount() > 0;
+    m_exportStepAction->setEnabled(any);
+    m_exportStlAction->setEnabled(any);
+}
+
+void MainWindow::showMessage(const QString& text)
+{
+    m_hintLabel->setText(text);
+    m_hintLabel->setProperty("message", true); // accent color, from the style sheet
+    m_hintLabel->style()->polish(m_hintLabel);
+    m_messageTimer.start(4000);
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    // Double click / double tap on a history chip edits that entry.
+    if (event->type() == QEvent::MouseButtonDblClick && watched->objectName() == QLatin1String("timelineChip")) {
+        const int index = watched->property("timelineIndex").toInt();
+        m_timelinePick = index;
+        // Deferred: the chips are rebuilt as the edit starts, this one included.
+        QTimer::singleShot(0, this, [this, index] {
+            updateTimeline(); // shows the chip as picked
+            m_editor->activateTimelineItem(index);
+        });
+        return true;
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::updateTitle()
+{
+    const QString name = m_path.isEmpty() ? QStringLiteral("Bez nazwy") : QFileInfo(m_path).fileName();
+    setWindowTitle(QStringLiteral("%1%2 – Shapr Linux").arg(name, m_editor->isModified() ? QStringLiteral("*") : QString()));
+}
+
+QString MainWindow::lastDirectory() const
+{
+    return QSettings().value(QStringLiteral("lastDirectory"), QDir::homePath()).toString();
+}
+
+void MainWindow::rememberDirectory(const QString& path)
+{
+    QSettings().setValue(QStringLiteral("lastDirectory"), QFileInfo(path).absolutePath());
+}
+
+bool MainWindow::maybeSave()
+{
+    if (!m_editor->isModified())
+        return true;
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("Niezapisane zmiany"), QStringLiteral("Zapisać zmiany w projekcie?"),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
+    if (answer == QMessageBox::Save)
+        return save();
+    return answer == QMessageBox::Discard;
+}
+
+void MainWindow::newFile()
+{
+    if (!maybeSave())
+        return;
+    m_editor->newProject();
+    m_path.clear();
+    updateTitle();
+}
+
+void MainWindow::openFile()
+{
+    if (!maybeSave())
+        return;
+    const QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Otwórz projekt"), lastDirectory(),
+                                                      QStringLiteral("Projekty Shapr Linux (*.shapr)"));
+    if (!path.isEmpty())
+        openPath(path);
+}
+
+void MainWindow::openPath(const QString& path)
+{
+    QString error;
+    auto project = ::loadProject(path, &error);
+    if (!project) {
+        QMessageBox::warning(this, QStringLiteral("Nie można otworzyć"), error);
+        return;
+    }
+    m_editor->loadProject(std::move(*project));
+    m_path = path;
+    rememberDirectory(path);
+    updateTitle();
+    m_viewer->fitAll();
+    showMessage(QStringLiteral("Otwarto %1").arg(QFileInfo(path).fileName()));
+}
+
+bool MainWindow::save()
+{
+    if (m_path.isEmpty())
+        return saveAs();
+    const QString error = saveProject(m_path, m_editor->project());
+    if (!error.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("Nie można zapisać"), error);
+        return false;
+    }
+    m_editor->markSaved();
+    showMessage(QStringLiteral("Zapisano %1").arg(QFileInfo(m_path).fileName()));
+    return true;
+}
+
+bool MainWindow::saveAs()
+{
+    QString path = QFileDialog::getSaveFileName(this, QStringLiteral("Zapisz projekt"),
+                                                m_path.isEmpty() ? lastDirectory() : m_path,
+                                                QStringLiteral("Projekty Shapr Linux (*.shapr)"));
+    if (path.isEmpty())
+        return false;
+    if (!path.endsWith(QStringLiteral(".shapr")))
+        path += QStringLiteral(".shapr");
+    m_path = path;
+    rememberDirectory(path);
+    return save();
+}
+
+void MainWindow::exportBodies(bool step)
+{
+    const QString filter = step ? QStringLiteral("STEP (*.step *.stp)") : QStringLiteral("STL (*.stl)");
+    const QString suffix = step ? QStringLiteral(".step") : QStringLiteral(".stl");
+    const QString suggested = m_path.isEmpty() ? lastDirectory() + QStringLiteral("/model") + suffix
+                                               : QFileInfo(m_path).absolutePath() + QLatin1Char('/')
+                                                     + QFileInfo(m_path).completeBaseName() + suffix;
+    QString path = QFileDialog::getSaveFileName(this, step ? QStringLiteral("Eksportuj STEP")
+                                                           : QStringLiteral("Eksportuj STL"),
+                                                suggested, filter);
+    if (path.isEmpty())
+        return;
+    if (QFileInfo(path).suffix().isEmpty())
+        path += suffix;
+    rememberDirectory(path);
+    const std::string error = step ? exportStep(m_editor->bodies(), path.toStdString())
+                                   : exportStl(m_editor->bodies(), path.toStdString());
+    if (!error.empty())
+        QMessageBox::warning(this, QStringLiteral("Eksport nieudany"), QString::fromStdString(error));
+    else
+        showMessage(QStringLiteral("Wyeksportowano %1").arg(QFileInfo(path).fileName()));
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    if (maybeSave())
+        event->accept();
+    else
+        event->ignore();
 }
 
 void MainWindow::iconize(QAction* action, Icon icon)

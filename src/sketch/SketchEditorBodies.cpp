@@ -9,6 +9,7 @@
 
 #include <AIS_InteractiveContext.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepBndLib.hxx>
 #include <BRepGProp.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRep_Builder.hxx>
@@ -22,12 +23,14 @@
 #include <TopoDS_Compound.hxx>
 
 #include <QLineF>
+#include <QRegularExpression>
 #include <QPainter>
 #include <QPainterPath>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 
 namespace {
 
@@ -73,8 +76,8 @@ SketchEditor::Snapshot SketchEditor::snapshot() const
 {
     Snapshot s;
     for (const Slot& slot : m_slots)
-        s.sketches.push_back(slot.sketch);
-    s.bodies = m_bodies;
+        s.sketches.push_back({slot.id, slot.sketch});
+    s.features = m_features;
     return s;
 }
 
@@ -86,37 +89,106 @@ void SketchEditor::restore(Snapshot snapshot)
         m_slots.pop_back();
     }
     for (std::size_t i = 0; i < snapshot.sketches.size(); ++i) {
-        if (i < m_slots.size()) {
-            m_slots[i].sketch = std::move(snapshot.sketches[i]);
-        } else {
+        if (i >= m_slots.size()) {
             Slot slot;
-            slot.sketch = std::move(snapshot.sketches[i]);
-            slot.prs = new PlanarPrs(slot.sketch.plane(),
+            slot.prs = new PlanarPrs(snapshot.sketches[i].sketch.plane(),
                                      {m_colors.sketch, m_colors.accent, 2.0 * m_viewer->devicePixelRatioF()});
             ctx->Display(slot.prs, 0, -1, false);
             m_slots.push_back(std::move(slot));
         }
+        m_slots[i].id = snapshot.sketches[i].id;
+        m_slots[i].sketch = std::move(snapshot.sketches[i].sketch);
+        m_slots[i].prs->setPlane(m_slots[i].sketch.plane());
         m_slots[i].regions = findRegions(m_slots[i].sketch);
+        m_nextSketchId = std::max(m_nextSketchId, m_slots[i].id + 1);
     }
     m_regionSelection.clear();
-    m_bodies = std::move(snapshot.bodies);
-    refreshBodies();
+    m_features = std::move(snapshot.features);
+    rebuildModel();
     refreshSketches();
     showRegions();
-    updateStatus();
 }
 
-void SketchEditor::commitBodies(std::vector<TopoDS_Shape> bodies)
+void SketchEditor::pushUndo()
 {
-    m_valueEditor->cancel();
     m_undo.push_back(snapshot());
     m_redo.clear();
-    m_bodies = std::move(bodies);
+    ++m_changes;
+}
+
+SketchLookup SketchEditor::sketchLookup() const
+{
+    return [this](int id) -> const Sketch* {
+        for (const Slot& slot : m_slots) {
+            if (slot.id == id)
+                return &slot.sketch;
+        }
+        return nullptr;
+    };
+}
+
+void SketchEditor::rebuildModel()
+{
+    const bool rolledBack = m_active >= 0 && m_rollback >= 0;
+    const std::size_t count = rolledBack ? static_cast<std::size_t>(m_rollback) : m_features.size();
+    RebuildResult result =
+        rebuild(sketchLookup(), std::vector<Feature>(m_features.begin(), m_features.begin() + static_cast<long>(count)));
+    m_bodies = std::move(result.bodies);
+    // Features past the rollback point keep what they reported last time.
+    m_featureErrors.resize(m_features.size());
+    std::copy(result.errors.begin(), result.errors.end(), m_featureErrors.begin());
+    refreshBodies();
+    updateStatus();
+    m_viewer->update();
+}
+
+bool SketchEditor::commitFeature(const Feature& feature)
+{
+    // Applied on top of the current bodies: the same as a full rebuild, without replaying.
+    ModelResult result = applyFeature(sketchLookup(), m_bodies, feature);
+    if (!result.ok()) {
+        emit message(QString::fromStdString(result.error));
+        return false;
+    }
+    m_valueEditor->cancel();
+    pushUndo();
+    m_features.push_back(feature);
+    m_featureErrors.emplace_back();
+    m_bodies = std::move(result.bodies);
     refreshBodies();
     clearModelSelection();
     updateStatus();
     emit historyChanged();
     m_viewer->update();
+    return true;
+}
+
+std::optional<Feature> SketchEditor::featureFromSession(double value) const
+{
+    // The picks, written down as geometry that can be found again after rebuilds.
+    using Kind = ValueSession::Kind;
+    Feature f;
+    f.value = value;
+    if (m_session.kind == Kind::Extrude) {
+        f.kind = Feature::Kind::Extrude;
+        f.operation = m_bodyOperation;
+        for (const RegionRef& r : m_regionSelection) {
+            const Slot& slot = m_slots[r.sketch];
+            const auto inside = insidePoint(slot.sketch, slot.regions[r.index]);
+            if (!inside)
+                return std::nullopt;
+            f.regions.push_back({slot.id, *inside});
+        }
+        for (const BodyPick& p : m_bodySelection) {
+            if (p.shape.ShapeType() == TopAbs_FACE && planarNormal(TopoDS::Face(p.shape)))
+                f.faces.push_back(facePick(TopoDS::Face(p.shape)));
+        }
+    } else {
+        f.kind = m_session.kind == Kind::Fillet ? Feature::Kind::Fillet : Feature::Kind::Chamfer;
+        for (const EdgeRef& e : selectedEdges())
+            f.edges.push_back(edgePick(e.edge));
+    }
+    return f;
 }
 
 // --- Presentation -------------------------------------------------------------------
@@ -262,6 +334,11 @@ void SketchEditor::applyModelColors()
     // Faces / edges under the pointer and picked, matching the sketch's hover and selection.
     ctx->HighlightStyle(Prs3d_TypeOfHighlight_LocalDynamic)->SetColor(m_colors.preview);
     ctx->HighlightStyle(Prs3d_TypeOfHighlight_LocalSelected)->SetColor(m_colors.accent);
+    // Drawn in the body's own layer, so faces in front still hide a highlighted one
+    // (by default highlights go on top and show through everything).
+    for (auto type : {Prs3d_TypeOfHighlight_LocalDynamic, Prs3d_TypeOfHighlight_LocalSelected,
+                      Prs3d_TypeOfHighlight_Dynamic, Prs3d_TypeOfHighlight_Selected})
+        ctx->HighlightStyle(type)->SetZLayer(Graphic3d_ZLayerId_UNKNOWN);
     showRegions();
     if (!m_previewPrs3d.IsNull())
         showSessionPreview();
@@ -684,30 +761,18 @@ void SketchEditor::hideSessionPreview()
 
 void SketchEditor::applySession(double value)
 {
-    using Kind = ValueSession::Kind;
-    ModelResult result;
-    switch (m_session.kind) {
-    case Kind::Extrude:
-        result = extrude(m_bodies, selectedProfiles(), value, m_bodyOperation);
-        break;
-    case Kind::Fillet:
-        result = filletEdges(m_bodies, selectedEdges(), value);
-        break;
-    case Kind::Chamfer:
-        result = chamferEdges(m_bodies, selectedEdges(), value);
-        break;
-    case Kind::None:
+    if (m_session.kind == ValueSession::Kind::None)
         return;
-    }
-    if (!result.ok()) {
-        // Keep the picks and start over, so another value can be tried.
-        emit message(QString::fromStdString(result.error));
-        endValueSession(true);
+    const std::optional<Feature> feature = featureFromSession(value);
+    endValueSession(true);
+    if (!feature) {
+        emit message(tr("Nie udało się zapamiętać zaznaczenia"));
         syncValueSession();
         return;
     }
-    endValueSession(false);
-    commitBodies(std::move(result.bodies));
+    // On failure the picks stay, so another value can be tried.
+    if (!commitFeature(*feature))
+        syncValueSession();
 }
 
 void SketchEditor::setBodyOperation(BodyOperation operation)
@@ -717,17 +782,17 @@ void SketchEditor::setBodyOperation(BodyOperation operation)
 
 void SketchEditor::extrudeRegions(const std::vector<RegionRef>& regions, double distance)
 {
-    std::vector<Profile> profiles;
+    Feature f;
+    f.kind = Feature::Kind::Extrude;
+    f.value = distance;
+    f.operation = m_bodyOperation;
     for (const RegionRef& r : regions) {
-        if (r.sketch >= 0 && r.sketch < sketchCount() && r.index < static_cast<int>(m_slots[r.sketch].regions.size()))
-            profiles.push_back({m_slots[r.sketch].regions[r.index], m_slots[r.sketch].sketch.plane().Direction(), -1});
+        if (r.sketch < 0 || r.sketch >= sketchCount() || r.index >= static_cast<int>(m_slots[r.sketch].regions.size()))
+            continue;
+        if (const auto inside = insidePoint(m_slots[r.sketch].sketch, m_slots[r.sketch].regions[r.index]))
+            f.regions.push_back({m_slots[r.sketch].id, *inside});
     }
-    ModelResult result = extrude(m_bodies, profiles, distance, m_bodyOperation);
-    if (!result.ok()) {
-        emit message(QString::fromStdString(result.error));
-        return;
-    }
-    commitBodies(std::move(result.bodies));
+    commitFeature(f);
 }
 
 void SketchEditor::selectRegion(const RegionRef& region)
@@ -740,13 +805,219 @@ void SketchEditor::selectRegion(const RegionRef& region)
 
 void SketchEditor::combineBodies(BooleanKind kind)
 {
-    ModelResult result = combine(m_bodies, selectedBodies(), kind);
-    if (!result.ok()) {
-        emit message(QString::fromStdString(result.error));
-        return;
+    Feature f;
+    f.kind = Feature::Kind::Combine;
+    f.boolean = kind;
+    for (int body : selectedBodies()) {
+        if (const auto inside = insidePoint(m_bodies[body]))
+            f.bodies.push_back(*inside);
     }
     endValueSession(true);
-    commitBodies(std::move(result.bodies));
+    commitFeature(f);
+}
+
+// --- Timeline and project -----------------------------------------------------------
+
+std::vector<TimelineItem> SketchEditor::timeline() const
+{
+    std::vector<TimelineItem> items;
+    std::map<QString, int> counts;
+    auto mm = [](double v) { return QString::number(v, 'f', 2).remove(QRegularExpression(QStringLiteral("\\.?0+$"))); };
+    for (std::size_t i = 0; i < m_features.size(); ++i) {
+        const Feature& f = m_features[i];
+        TimelineItem item;
+        QString base;
+        switch (f.kind) {
+        case Feature::Kind::Sketch:
+            base = tr("Szkic");
+            item.sketch = true;
+            break;
+        case Feature::Kind::Extrude:
+            base = tr("Wyciągnięcie");
+            item.detail = mm(f.value) + QStringLiteral(" mm");
+            break;
+        case Feature::Kind::Fillet:
+            base = tr("Zaokrąglenie");
+            item.detail = QStringLiteral("r ") + mm(f.value) + QStringLiteral(" mm");
+            break;
+        case Feature::Kind::Chamfer:
+            base = tr("Faza");
+            item.detail = mm(f.value) + QStringLiteral(" mm");
+            break;
+        case Feature::Kind::Combine:
+            base = f.boolean == BooleanKind::Union      ? tr("Połączenie")
+                 : f.boolean == BooleanKind::Subtract   ? tr("Odjęcie")
+                                                        : tr("Część wspólna");
+            break;
+        case Feature::Kind::Delete:
+            base = tr("Usunięcie");
+            break;
+        }
+        item.name = QStringLiteral("%1 %2").arg(base).arg(++counts[base]);
+        if (i < m_featureErrors.size())
+            item.error = QString::fromStdString(m_featureErrors[i]);
+        item.rolledBack = m_active >= 0 && m_rollback >= 0 && static_cast<int>(i) > m_rollback;
+        items.push_back(item);
+    }
+    return items;
+}
+
+void SketchEditor::activateTimelineItem(int index)
+{
+    if (index < 0 || index >= static_cast<int>(m_features.size()))
+        return;
+    const Feature feature = m_features[index];
+    if (feature.kind == Feature::Kind::Sketch) {
+        for (int i = 0; i < sketchCount(); ++i) {
+            if (m_slots[i].id == feature.sketch) {
+                if (mode() == EditorMode::Sketch)
+                    closeSketch();
+                enterSketch(i, true);
+                return;
+            }
+        }
+        return;
+    }
+    const bool extrusion = feature.kind == Feature::Kind::Extrude;
+    if (!extrusion && feature.kind != Feature::Kind::Fillet && feature.kind != Feature::Kind::Chamfer)
+        return; // nothing to tune
+    if (mode() == EditorMode::Sketch)
+        closeSketch();
+    endValueSession(true);
+    clearModelSelection();
+
+    // Frame the model. Seen straight along the feature's direction (or exactly side-on)
+    // a changing depth is invisible, so then turn to an isometric view.
+    gp_Dir eye = m_viewer->eyeSide();
+    std::optional<gp_Dir> along;
+    if (!feature.regions.empty()) {
+        if (const Sketch* s = sketchLookup()(feature.regions.front().sketch))
+            along = s->plane().Direction();
+    } else if (!feature.faces.empty()) {
+        along = feature.faces.front().normal;
+    }
+    if (along) {
+        const double c = std::abs(eye.Dot(*along));
+        if (c > 0.97 || c < 0.15)
+            eye = gp_Dir(1, -1, 1);
+    }
+    const gp_Dir up = std::abs(eye.Dot(gp::DZ())) > 0.99 ? gp::DY() : gp::DZ();
+    m_viewer->animateCamera(eye, up, bodiesBox());
+
+    // The whole model follows the value as it is typed; Esc puts it back.
+    auto preview = [this, index](double value) {
+        std::vector<Feature> features = m_features;
+        features[index].value = value;
+        RebuildResult result = rebuild(sketchLookup(), features);
+        m_bodies = std::move(result.bodies);
+        refreshBodies();
+        m_viewer->update();
+    };
+    const QString label = extrusion ? tr("Odległość [mm]")
+                        : feature.kind == Feature::Kind::Fillet ? tr("Promień [mm]") : tr("Faza [mm]");
+    m_valueEditor->open(label, feature.value, extrusion ? -1e5 : 1e-3, 1e5,
+                        QPointF(m_viewer->width() / 2.0, m_viewer->height() - 60.0),
+                        [this, index](double value) {
+                            pushUndo();
+                            m_features[index].value = value;
+                            rebuildModel();
+                            emit historyChanged();
+                        },
+                        [this] { rebuildModel(); }, preview);
+}
+
+void SketchEditor::removeTimelineItem(int index)
+{
+    if (index < 0 || index >= static_cast<int>(m_features.size()))
+        return;
+    if (mode() == EditorMode::Sketch)
+        closeSketch();
+    endValueSession(true);
+    clearModelSelection();
+    pushUndo();
+    const Feature removed = m_features[index];
+    m_features.erase(m_features.begin() + index);
+    if (removed.kind == Feature::Kind::Sketch) {
+        // The sketch goes with its entry; features that used it will report it missing.
+        for (std::size_t i = 0; i < m_slots.size(); ++i) {
+            if (m_slots[i].id == removed.sketch) {
+                m_viewer->aisContext()->Remove(m_slots[i].prs, false);
+                m_slots.erase(m_slots.begin() + static_cast<long>(i));
+                break;
+            }
+        }
+        showRegions();
+    }
+    rebuildModel();
+    emit historyChanged();
+}
+
+Bnd_Box SketchEditor::sketchBox(int slot) const
+{
+    Bnd_Box box;
+    const Sketch& s = m_slots[slot].sketch;
+    for (const SketchPoint& p : s.points())
+        box.Add(s.to3d(p.pos));
+    for (const SketchEntity& e : s.entities()) {
+        if (e.kind == EntityKind::Line)
+            continue;
+        const gp_Pnt2d c = s.pos(e.c);
+        const double r = e.kind == EntityKind::Arc ? c.Distance(s.pos(e.a)) : e.radius;
+        for (const auto& [dx, dy] : {std::pair(r, 0.0), std::pair(-r, 0.0), std::pair(0.0, r), std::pair(0.0, -r)})
+            box.Add(s.to3d(gp_Pnt2d(c.X() + dx, c.Y() + dy)));
+    }
+    if (box.IsVoid() || box.SquareExtent() < 1.0) {
+        // Empty or tiny: a 100 mm patch of the plane around it.
+        const gp_Pnt2d middle = box.IsVoid() ? gp_Pnt2d(0, 0) : s.to2d(gp_Pnt((box.CornerMin().XYZ() + box.CornerMax().XYZ()) / 2.0));
+        box.Add(s.to3d(gp_Pnt2d(middle.X() - 50.0, middle.Y() - 50.0)));
+        box.Add(s.to3d(gp_Pnt2d(middle.X() + 50.0, middle.Y() + 50.0)));
+    }
+    return box;
+}
+
+Bnd_Box SketchEditor::bodiesBox() const
+{
+    Bnd_Box box;
+    for (const TopoDS_Shape& body : m_bodies)
+        BRepBndLib::Add(body, box);
+    return box;
+}
+
+ProjectData SketchEditor::project() const
+{
+    ProjectData data;
+    for (const Slot& slot : m_slots)
+        data.sketches.push_back({slot.id, slot.sketch});
+    data.features = m_features;
+    return data;
+}
+
+void SketchEditor::loadProject(ProjectData project)
+{
+    resetInteraction();
+    setSelection({});
+    clearModelSelection();
+    if (m_active >= 0) {
+        m_active = -1;
+        updateGrid();
+        emit modeChanged(EditorMode::Model);
+    }
+    for (const Slot& slot : m_slots)
+        m_viewer->aisContext()->Remove(slot.prs, false);
+    m_slots.clear();
+    m_nextSketchId = 1;
+    Snapshot loaded{std::move(project.sketches), std::move(project.features)};
+    restore(std::move(loaded));
+    m_undo.clear();
+    m_redo.clear();
+    m_changes = m_savedChanges = 0;
+    setTool(ToolKind::Select);
+    emit historyChanged();
+}
+
+void SketchEditor::newProject()
+{
+    loadProject({});
 }
 
 // --- The extrude arrow --------------------------------------------------------------

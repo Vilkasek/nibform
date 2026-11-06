@@ -37,7 +37,18 @@ struct SketchEntity
 class Sketch
 {
 public:
+    // Everything but the plane, as stored in project files.
+    struct Contents
+    {
+        std::vector<SketchPoint> points;
+        std::vector<SketchEntity> entities;
+        std::vector<SketchConstraint> constraints;
+        int nextId = 1;
+    };
+
     explicit Sketch(const gp_Ax3& plane = gp_Ax3());
+    Sketch(const gp_Ax3& plane, Contents contents);
+    Contents contents() const { return {m_points, m_entities, m_constraints, m_nextId}; }
 
     const gp_Ax3& plane() const { return m_plane; }
     gp_Pnt to3d(const gp_Pnt2d& p) const;

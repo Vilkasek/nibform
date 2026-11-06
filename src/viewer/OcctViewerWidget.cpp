@@ -13,6 +13,7 @@
 #include <QTouchEvent>
 #include <QWheelEvent>
 
+#include <AIS_AnimationCamera.hxx>
 #include <AIS_ViewCube.hxx>
 #include <Bnd_Box.hxx>
 #include <Graphic3d_Camera.hxx>
@@ -232,6 +233,34 @@ void OcctViewerWidget::lookAt(const gp_Dir& normal, const gp_Dir& up)
     m_view->SetProj(normal.X(), normal.Y(), normal.Z());
     m_view->SetUp(up.X(), up.Y(), up.Z());
     fitAll();
+}
+
+void OcctViewerWidget::animateCamera(const gp_Dir& eyeSide, const gp_Dir& up, const Bnd_Box& box)
+{
+    if (m_view.IsNull())
+        return;
+    Handle(Graphic3d_Camera) start = new Graphic3d_Camera();
+    start->Copy(m_view->Camera());
+    Handle(Graphic3d_Camera) end = new Graphic3d_Camera();
+    end->Copy(m_view->Camera());
+    end->SetDirection(eyeSide.Reversed());
+    end->SetUp(up);
+    const Bnd_Box frame = box.IsVoid() ? m_view->View()->MinMaxValues() : box;
+    if (!frame.IsVoid())
+        m_view->FitMinMax(end, frame, 0.15);
+    // The same animation the view cube uses; the controller advances it frame by frame.
+    myViewAnimation->Stop();
+    myViewAnimation->SetView(m_view);
+    myViewAnimation->SetCameraStart(start);
+    myViewAnimation->SetCameraEnd(end);
+    myViewAnimation->SetOwnDuration(0.45);
+    myViewAnimation->StartTimer(0.0, 1.0, true, false);
+    updateView();
+}
+
+gp_Dir OcctViewerWidget::eyeSide() const
+{
+    return m_view.IsNull() ? gp::DZ() : m_view->Camera()->Direction().Reversed();
 }
 
 void OcctViewerWidget::setDark(bool dark)

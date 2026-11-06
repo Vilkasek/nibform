@@ -18,6 +18,10 @@ set(SHAPR_WARNINGS -Wall -Wextra -Wno-unused-parameter)
 
 # Geometry/model code with no Qt or GUI dependency, so it can be unit tested.
 add_library(shapr_core STATIC
+  src/model/Export.cpp
+  src/model/Export.h
+  src/model/Features.cpp
+  src/model/Features.h
   src/model/Profiles.cpp
   src/model/Profiles.h
   src/model/Solids.cpp
@@ -44,7 +48,13 @@ target_include_directories(shapr_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
 target_compile_options(shapr_core PRIVATE ${SHAPR_WARNINGS})
 target_link_libraries(shapr_core PUBLIC
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet
+  TKMesh TKXSBase TKDESTEP TKDESTL
   Eigen3::Eigen)
+
+# Project files (Qt Core for JSON), shared by the app and its tests.
+add_library(shapr_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h)
+target_compile_options(shapr_io PRIVATE ${SHAPR_WARNINGS})
+target_link_libraries(shapr_io PUBLIC shapr_core Qt6::Core)
 
 add_executable(shapr_linux
   src/main.cpp
@@ -74,6 +84,7 @@ target_compile_definitions(shapr_linux PRIVATE PROJECT_VERSION="${PROJECT_VERSIO
 target_compile_options(shapr_linux PRIVATE ${SHAPR_WARNINGS})
 target_link_libraries(shapr_linux PRIVATE
   shapr_core
+  shapr_io
   Qt6::Widgets
   Qt6::OpenGLWidgets
   TKG3d TKBRep TKGeomBase TKTopAlgo TKPrim TKBO TKFillet
@@ -81,12 +92,17 @@ target_link_libraries(shapr_linux PRIVATE
 )
 
 enable_testing()
-foreach(name sketch solver trim offset model)
+foreach(name sketch solver trim offset model features)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${SHAPR_WARNINGS})
   target_link_libraries(test_${name} PRIVATE shapr_core)
   add_test(NAME ${name} COMMAND test_${name})
 endforeach()
+
+add_executable(test_project tests/test_project.cpp tests/Check.h)
+target_compile_options(test_project PRIVATE ${SHAPR_WARNINGS})
+target_link_libraries(test_project PRIVATE shapr_io)
+add_test(NAME project COMMAND test_project)
 
 # The floating value field, on Qt's offscreen platform (no display needed).
 add_executable(test_value_editor tests/test_value_editor.cpp src/viewer/ValueEditor.cpp src/viewer/ValueEditor.h)
