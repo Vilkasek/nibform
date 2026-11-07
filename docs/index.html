@@ -101,6 +101,9 @@ kbd { font: 12px/1 ui-monospace, "JetBrains Mono", monospace; padding: 3px 6px; 
 pre { background: var(--code); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px;
   overflow-x: auto; font: 14px/1.6 ui-monospace, "JetBrains Mono", "Fira Code", monospace; margin: 0; }
 pre .c { color: var(--muted); }
+pre + .note, pre + .sub { margin-top: 12px; }
+p code { font: 0.92em ui-monospace, "JetBrains Mono", "Fira Code", monospace; background: var(--code);
+  border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
 .two { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: start; }
 @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
 .note { color: var(--muted); font-size: 15px; }
@@ -142,7 +145,7 @@ footer .brand img { width: 24px; height: 24px; }
     <nav>
       <a class="hide-sm" href="#features"><span lang="en">Features</span><span lang="pl">Funkcje</span></a>
       <a class="hide-sm" href="#screens"><span lang="en">Screenshots</span><span lang="pl">Zrzuty</span></a>
-      <a class="hide-sm" href="#build"><span lang="en">Build</span><span lang="pl">Instalacja</span></a>
+      <a class="hide-sm" href="#build"><span lang="en">Install</span><span lang="pl">Instalacja</span></a>
       <a href="https://github.com/Vilkasek/nibform">GitHub</a>
       <div class="lang" role="group" aria-label="Language / Język">
         <button data-set="en" type="button">EN</button><button data-set="pl" type="button">PL</button>
@@ -164,7 +167,7 @@ footer .brand img { width: 24px; height: 24px; }
       <a class="btn primary" href="https://github.com/Vilkasek/nibform">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span lang="en">Source on GitHub</span><span lang="pl">Kod na GitHubie</span></a>
-      <a class="btn" href="#build"><span lang="en">Build it</span><span lang="pl">Zbuduj</span></a>
+      <a class="btn" href="#build"><span lang="en">Install</span><span lang="pl">Zainstaluj</span></a>
     </div>
     <div class="badges">C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen ·
       <span lang="en">English &amp; Polish</span><span lang="pl">polski i angielski</span></div>
@@ -284,23 +287,26 @@ footer .brand img { width: 24px; height: 24px; }
   <section id="build">
     <div class="wrap two">
       <div>
-        <h2 lang="en">Build it</h2><h2 lang="pl">Zbuduj</h2>
-        <p class="sub" lang="en">No packages yet: build from source. On Arch Linux:</p>
-        <p class="sub" lang="pl">Paczek jeszcze nie ma: zbuduj ze źródeł. Na Arch Linuksie:</p>
-<pre><span class="c"># dependencies</span>
+        <h2 lang="en">Install</h2><h2 lang="pl">Instalacja</h2>
+        <p class="sub" lang="en">On Arch Linux, from the AUR:</p>
+        <p class="sub" lang="pl">Na Arch Linuksie, z AUR:</p>
+<pre>yay -S nibform</pre>
+        <p class="note" lang="en">It adds Nibform to the app menu, and <code>.nibform</code> projects open from the file manager. Unsaved work is autosaved every minute and offered back after a crash.</p>
+        <p class="note" lang="pl">Nibform pojawi się w menu aplikacji, a projekty <code>.nibform</code> otworzysz z menedżera plików. Niezapisana praca jest co minutę zapisywana automatycznie i do odzyskania po awarii.</p>
+        <p class="sub" lang="en">Or build from source:</p>
+        <p class="sub" lang="pl">Albo zbuduj ze źródeł:</p>
+<pre><span class="c"># dependencies (Arch)</span>
 sudo pacman -S --needed qt6-base qt6-tools opencascade eigen cmake ninja
 
-<span class="c"># build and run</span>
+<span class="c"># build, test, install</span>
 git clone https://github.com/Vilkasek/nibform.git
 cd nibform
-cmake -S . -B build -G Ninja
+cmake -S . -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build build
-./build/nibform
-
-<span class="c"># tests</span>
-ctest --test-dir build</pre>
-        <p class="note" lang="en">Other distributions work too: you need Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen and CMake. On Wayland the app runs through XWayland, as Arch's OpenCASCADE is built for GLX.</p>
-        <p class="note" lang="pl">Inne dystrybucje też zadziałają: potrzebne są Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen i CMake. Na Waylandzie aplikacja działa przez XWayland, bo OpenCASCADE z Archa jest zbudowany pod GLX.</p>
+ctest --test-dir build
+sudo cmake --install build</pre>
+        <p class="note" lang="en">Other distributions work too: you need Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen and CMake. A Flatpak manifest is in <code>packaging/flatpak</code>. On Wayland the app runs through XWayland, as OpenCASCADE is built for GLX.</p>
+        <p class="note" lang="pl">Inne dystrybucje też zadziałają: potrzebne są Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen i CMake. Manifest Flatpaka jest w <code>packaging/flatpak</code>. Na Waylandzie aplikacja działa przez XWayland, bo OpenCASCADE jest zbudowany pod GLX.</p>
       </div>
       <div>
         <h2 lang="en">Status</h2><h2 lang="pl">Stan prac</h2>
@@ -315,10 +321,10 @@ ctest --test-dir build</pre>
           <li><b>M5</b> <span lang="en">sketch on face, fillet, chamfer, shell</span><span lang="pl">szkic na ścianie, zaokrąglenie, faza, skorupa</span></li>
           <li><b>M6</b> <span lang="en">tablet polish: palm rejection, rotation, tablet mode</span><span lang="pl">dopracowanie pod tablet: odrzucanie dłoni, obrót, tryb tabletu</span></li>
           <li><b>i18n</b> <span lang="en">English and Polish</span><span lang="pl">polski i angielski</span></li>
+          <li><b>M7</b> <span lang="en">packages, file type, autosave and recovery</span><span lang="pl">paczki, typ pliku, autozapis i odzyskiwanie</span></li>
         </ul>
         <p class="note next-title"><span lang="en">Next:</span><span lang="pl">Dalej:</span></p>
         <ul class="check next">
-          <li><b>M7</b> <span lang="en">packages, autosave and recovery</span><span lang="pl">paczki, autozapis i odzyskiwanie</span></li>
           <li><b>M8</b> <span lang="en">freehand shape recognition, radial menu, gestures</span><span lang="pl">rozpoznawanie kształtów, menu kołowe, gesty</span></li>
           <li><b>M9</b> <span lang="en">splines, slots, sketch fillets, patterns</span><span lang="pl">splajny, fasolki, zaokrąglenia w szkicu, szyki</span></li>
           <li><b>M10</b> <span lang="en">revolve, sweep, loft, holes, construction planes</span><span lang="pl">obrót, przeciąganie po ścieżce, wyciągnięcie przez profile, otwory, płaszczyzny</span></li>
@@ -356,8 +362,8 @@ ctest --test-dir build</pre>
 <footer>
   <div class="wrap">
     <a class="brand" href="#top"><img src="assets/logo.svg" alt="">Nibform</a>
-    <span lang="en">Open-source CAD for pen tablets on Linux.</span>
-    <span lang="pl">Otwarty CAD dla tabletów z rysikiem na Linuksie.</span>
+    <span lang="en">Open-source CAD for pen tablets on Linux. GPL-3.0-or-later.</span>
+    <span lang="pl">Otwarty CAD dla tabletów z rysikiem na Linuksie. Licencja GPL-3.0-or-later.</span>
     <a href="https://github.com/Vilkasek/nibform">github.com/Vilkasek/nibform</a>
   </div>
 </footer>

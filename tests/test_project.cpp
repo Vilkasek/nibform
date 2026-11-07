@@ -3,8 +3,12 @@
 #include "Check.h"
 
 #include "io/ProjectFile.h"
+#include "io/Recovery.h"
 
 #include <QTemporaryDir>
+
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <map>
 
@@ -143,6 +147,54 @@ void testOpensProjectsFromBeforeTheRename()
     CHECK(loaded && error.isEmpty() && loaded->features.size() == sample().features.size());
 }
 
+void testRecoveryKeepsWorkOfACrashedSession()
+{
+    QTemporaryDir dir;
+    // A session that dies without cleaning up: a child process, killed after an autosave.
+    const pid_t child = fork();
+    if (child == 0) {
+        RecoverySession crashed(dir.path());
+        crashed.write(sample(), QStringLiteral("/home/someone/bracket.nibform"));
+        _exit(0); // no destructors, as after kill -9
+    }
+    int status = 0;
+    waitpid(child, &status, 0);
+
+    const std::vector<RecoveredWork> found = findRecoveredWork(dir.path());
+    CHECK(found.size() == 1);
+    if (found.empty())
+        return;
+    CHECK(found[0].sourcePath == QStringLiteral("/home/someone/bracket.nibform"));
+    CHECK(found[0].saved.isValid() && found[0].saved.secsTo(QDateTime::currentDateTime()) < 60);
+    CHECK(projectToJson(found[0].project) == projectToJson(sample()));
+    discardRecovery(found[0].file);
+    CHECK(findRecoveredWork(dir.path()).empty());
+    CHECK(QDir(dir.path()).entryList(QDir::Files).isEmpty());
+}
+
+void testRecoveryIgnoresRunningAndClosedSessions()
+{
+    QTemporaryDir dir;
+    {
+        RecoverySession running(dir.path());
+        CHECK(running.write(sample(), {}).isEmpty());
+        CHECK(QFile::exists(running.file()));
+        CHECK(findRecoveredWork(dir.path()).empty()); // still alive: not left behind
+        running.clear(); // saved, or closed on purpose
+        CHECK(!QFile::exists(running.file()));
+    }
+    // Closed normally: nothing to recover, nothing left on disk.
+    CHECK(findRecoveredWork(dir.path()).empty());
+    CHECK(QDir(dir.path()).entryList(QDir::Files).isEmpty());
+
+    // Ended without clearing (the window never closed): the work is offered.
+    {
+        RecoverySession unfinished(dir.path());
+        CHECK(unfinished.write(sample(), {}).isEmpty());
+    }
+    CHECK(findRecoveredWork(dir.path()).size() == 1);
+}
+
 } // namespace
 
 int main()
@@ -152,5 +204,7 @@ int main()
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
         {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},
+        {"recovery keeps work of a crashed session", testRecoveryKeepsWorkOfACrashedSession},
+        {"recovery ignores running and closed sessions", testRecoveryIgnoresRunningAndClosedSessions},
     });
 }

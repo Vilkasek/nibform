@@ -7,6 +7,16 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen.
 The logo is `docs/assets/logo.svg`; the window icon `src/app/nibform.png` is drawn from it
 (`rsvg-convert -w 256 -h 256 docs/assets/logo.svg -o src/app/nibform.png`).
 
+## Installing
+
+On Arch Linux, from the AUR: `yay -S nibform` (the `PKGBUILD` is in `packaging/aur`).
+A Flatpak manifest is in `packaging/flatpak`:
+`flatpak-builder --user --install --force-clean build-flatpak packaging/flatpak/io.github.vilkasek.Nibform.yml`.
+
+Either way, or `sudo cmake --install build` after building, Nibform gets a menu entry and an
+icon, and `.nibform` projects open from the file manager (MIME type
+`application/x-nibform-project`; the app id is `io.github.vilkasek.Nibform`).
+
 ## Building
 
 ```sh
@@ -22,6 +32,9 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_SCREENSHOT=file.png` renders one frame, saves it and quits.
 `NIBFORM_DEBUG_INPUT=1` prints the input devices and scroll/gesture events,
 `NIBFORM_INVERT_SCROLL=1` inverts the touchpad's orbit/pan direction.
+
+`NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
+`-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
 Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`).
 
@@ -168,7 +181,13 @@ point inside it.
 **File**: *New* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save As…*
 (`Ctrl+Shift+S`) – a `.nibform` project is readable JSON with the sketches and the history;
 `nibform file.nibform` opens one right away. The window title shows `*` for unsaved changes,
-and closing asks to save. *Export STEP…* / *Export STL…* save the bodies (binary STL, 0.05 mm mesh).
+and closing asks to save. *Open Recent* lists the last projects. *Export STEP…* / *Export STL…*
+save the bodies (binary STL, 0.05 mm mesh).
+
+Unsaved work is autosaved every minute to a recovery file (in `~/.local/share/Nibform/Nibform/recovery`,
+never over the project itself). If Nibform is killed or crashes, the next start offers to
+restore it; saving, or closing and discarding the changes, removes it. Saving writes a
+temporary file and renames it into place, so a failed save never damages a project.
 
 ## View controls
 
@@ -218,7 +237,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M5** – sketch on face, fillet/chamfer/shell
 - [x] **M6** – Framework 12 polish (screen rotation, palm rejection, tablet mode)
 - [x] **i18n** – English UI with a Polish translation, language switching
-- [ ] **M7** – release basics: CI, AUR / Flatpak packages, file association, autosave and recovery
+- [x] **M7** – release basics: CI, AUR / Flatpak packages, file association, autosave and recovery
 - [ ] **M8** – pen first: freehand shape recognition, radial menu, gestures, scribble to delete
 - [ ] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns
 - [ ] **M10** – solid features: revolve, sweep, loft, patterns, holes, construction planes
@@ -228,3 +247,15 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [ ] **M14** – speed and robustness: background and incremental rebuild, large models
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).
+
+## Releasing
+
+1. Bump `VERSION` in `CMakeLists.txt` and add a `<release>` to
+   `packaging/io.github.vilkasek.Nibform.metainfo.xml`.
+2. Tag and push: `git tag v0.4.0 && git push origin v0.4.0`.
+3. AUR: set `pkgver` in `packaging/aur/PKGBUILD`, then `updpkgsums` and
+   `makepkg --printsrcinfo > .SRCINFO`; copy both to the `nibform` AUR repository and push.
+
+## License
+
+GPL-3.0-or-later; see [LICENSE](LICENSE).

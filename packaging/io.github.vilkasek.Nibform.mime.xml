@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-nibform-project">
+    <comment>Nibform project</comment>
+    <comment xml:lang="pl">Projekt Nibform</comment>
+    <sub-class-of type="application/json"/>
+    <icon name="io.github.vilkasek.Nibform"/>
+    <glob pattern="*.nibform"/>
+  </mime-type>
+</mime-info>

@@ -161,6 +161,9 @@ public:
     void newProject();
     bool isModified() const { return m_changes != m_savedChanges; }
     void markSaved() { m_savedChanges = m_changes; emit historyChanged(); }
+    // A loaded project that isn't on disk as it is (restored after a crash).
+    void markUnsaved() { m_savedChanges = -1; emit historyChanged(); }
+    int changeCount() const { return m_changes; } // grows with every edit, resets on load
 
     // SketchToolHost
     const Sketch& sketch() const override;

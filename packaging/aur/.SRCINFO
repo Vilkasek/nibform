@@ -1,0 +1,21 @@
+pkgbase = nibform
+	pkgdesc = Pen-first parametric CAD
+	pkgver = 0.4.0
+	pkgrel = 1
+	url = https://vilkasek.github.io/nibform/
+	arch = x86_64
+	arch = aarch64
+	license = GPL-3.0-or-later
+	makedepends = cmake
+	makedepends = ninja
+	makedepends = eigen
+	makedepends = qt6-tools
+	depends = qt6-base
+	depends = opencascade
+	depends = hicolor-icon-theme
+	depends = gcc-libs
+	depends = glibc
+	source = nibform-0.4.0.tar.gz::https://github.com/Vilkasek/nibform/archive/refs/tags/v0.4.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = nibform

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Nibform
+GenericName=CAD Modeler
+GenericName[pl]=Modeler CAD
+Comment=Pen-first parametric CAD
+Comment[pl]=Parametryczny CAD do pracy rysikiem
+Exec=nibform %f
+Icon=io.github.vilkasek.Nibform
+Terminal=false
+Categories=Graphics;3DGraphics;Engineering;Qt;
+Keywords=CAD;3D;modeling;sketch;pen;tablet;STEP;STL;
+Keywords[pl]=CAD;3D;modelowanie;szkic;rysik;tablet;STEP;STL;
+MimeType=application/x-nibform-project;
+StartupWMClass=Nibform

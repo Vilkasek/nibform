@@ -256,6 +256,22 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Systemowy</translation>
     </message>
     <message>
+        <source>&amp;Help</source>
+        <translation>Pomo&amp;c</translation>
+    </message>
+    <message>
+        <source>About Nibform</source>
+        <translation>O programie Nibform</translation>
+    </message>
+    <message>
+        <source>About Qt</source>
+        <translation>O Qt</translation>
+    </message>
+    <message>
+        <source>Open Recent</source>
+        <translation>Otwórz ostatnie</translation>
+    </message>
+    <message>
         <source>Show Extruded Regions</source>
         <translation>Pokaż wyciągnięte obszary</translation>
     </message>
@@ -570,6 +586,58 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Save Project</source>
         <translation>Zapisz projekt</translation>
+    </message>
+    <message>
+        <source>Autosave failed: %1</source>
+        <translation>Autozapis nie powiódł się: %1</translation>
+    </message>
+    <message>
+        <source>Nibform closed unexpectedly. Restore the unsaved project autosaved at %1?</source>
+        <translation>Nibform zamknął się niespodziewanie. Przywrócić niezapisany projekt z autozapisu o %1?</translation>
+    </message>
+    <message>
+        <source>Nibform closed unexpectedly. Restore the unsaved changes to %1, autosaved at %2?</source>
+        <translation>Nibform zamknął się niespodziewanie. Przywrócić niezapisane zmiany w %1 z autozapisu o %2?</translation>
+    </message>
+    <message>
+        <source>Restore Unsaved Work</source>
+        <translation>Przywróć niezapisaną pracę</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>Przywróć</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Odrzuć</translation>
+    </message>
+    <message>
+        <source>Later</source>
+        <translation>Później</translation>
+    </message>
+    <message>
+        <source>Restored the unsaved project</source>
+        <translation>Przywrócono niezapisany projekt</translation>
+    </message>
+    <message>
+        <source>Restored %1</source>
+        <translation>Przywrócono %1</translation>
+    </message>
+    <message>
+        <source>No recent projects</source>
+        <translation>Brak ostatnich projektów</translation>
+    </message>
+    <message>
+        <source>Clear List</source>
+        <translation>Wyczyść listę</translation>
+    </message>
+    <message>
+        <source>Pen-first parametric CAD for Linux.</source>
+        <translation>Parametryczny CAD dla Linuksa do pracy rysikiem.</translation>
+    </message>
+    <message>
+        <source>Free software under the GNU General Public License, version 3 or later. It comes with no warranty.</source>
+        <translation>Wolne oprogramowanie na licencji GNU General Public License w wersji 3 lub nowszej. Bez żadnej gwarancji.</translation>
     </message>
     <message>
         <source>Export STEP</source>

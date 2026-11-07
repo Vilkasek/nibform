@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    # Arch has OpenCASCADE 7.9 and Qt 6 as packages, the same as the development machine.
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git cmake ninja qt6-base qt6-tools opencascade eigen \
+            desktop-file-utils appstream
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Check desktop and AppStream files
+        run: |
+          desktop-file-validate packaging/io.github.vilkasek.Nibform.desktop
+          appstreamcli validate --no-net packaging/io.github.vilkasek.Nibform.metainfo.xml
+      - name: Check translations are up to date and complete
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake --build build --target update_translations
+          python3 translations/fill_pl.py
+          git diff --exit-code translations/

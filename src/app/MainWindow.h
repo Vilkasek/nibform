@@ -2,6 +2,7 @@
 
 #include "app/Icons.h"
 #include "app/Theme.h"
+#include "io/Recovery.h"
 #include "sketch/ConstraintCommands.h"
 #include "sketch/SketchEditor.h"
 #include "sketch/SketchTools.h"
@@ -10,6 +11,7 @@
 #include <QTimer>
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <map>
 #include <vector>
@@ -31,6 +33,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     void openPath(const QString& path);
+    // Offers the work of sessions that ended without closing; true if one was restored.
+    bool offerRecovery();
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -66,6 +70,10 @@ private:
     bool save();
     bool saveAs();
     void exportBodies(bool step);
+    void autosave();
+    void addRecentFile(const QString& path);
+    void fillRecentMenu(QMenu* menu);
+    void showAbout();
     QString lastDirectory() const;
     void rememberDirectory(const QString& path);
 
@@ -103,6 +111,9 @@ private:
     QAction* m_operationLabel = nullptr;
     int m_timelinePick = -1; // the history chip last tapped
     QString m_path;   // the open project file, empty until saved
+    std::unique_ptr<RecoverySession> m_recovery;
+    QTimer m_autosaveTimer;
+    int m_autosavedChanges = -1; // the editor's change count at the last autosave
     QString m_accent; // current icon accent color
     QString m_hint;   // the editor's current hint, shown again after a message
     QTimer m_messageTimer;

@@ -6,6 +6,18 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "&Help": "Pomo&c", "About Nibform": "O programie Nibform", "About Qt": "O Qt", "Open Recent": "Otwórz ostatnie",
+  "Autosave failed: %1": "Autozapis nie powiódł się: %1",
+  "Nibform closed unexpectedly. Restore the unsaved project autosaved at %1?":
+      "Nibform zamknął się niespodziewanie. Przywrócić niezapisany projekt z autozapisu o %1?",
+  "Nibform closed unexpectedly. Restore the unsaved changes to %1, autosaved at %2?":
+      "Nibform zamknął się niespodziewanie. Przywrócić niezapisane zmiany w %1 z autozapisu o %2?",
+  "Restore Unsaved Work": "Przywróć niezapisaną pracę", "Restore": "Przywróć", "Discard": "Odrzuć",
+  "Later": "Później", "Restored the unsaved project": "Przywrócono niezapisany projekt", "Restored %1": "Przywrócono %1",
+  "No recent projects": "Brak ostatnich projektów", "Clear List": "Wyczyść listę",
+  "Pen-first parametric CAD for Linux.": "Parametryczny CAD dla Linuksa do pracy rysikiem.",
+  "Free software under the GNU General Public License, version 3 or later. It comes with no warranty.":
+      "Wolne oprogramowanie na licencji GNU General Public License w wersji 3 lub nowszej. Bez żadnej gwarancji.",
   "Quick": "Szybkie", "History": "Historia", "OpenGL error": "Błąd OpenGL", "&File": "&Plik", "New": "Nowy",
   "Open…": "Otwórz…", "Save": "Zapisz", "Save As…": "Zapisz jako…", "Export STEP…": "Eksportuj STEP…",
   "Export STL…": "Eksportuj STL…", "Quit": "Zakończ", "&Edit": "&Edycja", "Undo": "Cofnij", "Redo": "Ponów",

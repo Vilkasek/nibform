@@ -2,6 +2,7 @@
 #include "app/MainWindow.h"
 
 #include <QApplication>
+#include <QCommandLineParser>
 #include <QDebug>
 #include <QIcon>
 #include <QSettings>
@@ -35,18 +36,32 @@ int main(int argc, char** argv)
     // Fusion honours application palettes everywhere, which the light / dark themes rely on.
     QApplication::setStyle(QStringLiteral("Fusion"));
     QApplication::setApplicationVersion(QStringLiteral(PROJECT_VERSION));
-    QApplication::setWindowIcon(QIcon(QStringLiteral(":/nibform.png")));
+    // Matches the installed .desktop file: the desktop shows its icon and name for the window.
+    QGuiApplication::setDesktopFileName(QStringLiteral("io.github.vilkasek.Nibform"));
+    QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("io.github.vilkasek.Nibform"),
+                                                 QIcon(QStringLiteral(":/nibform.png"))));
 
     applyLanguage(savedLanguage()); // before any text is made
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("Nibform – pen-first parametric CAD"));
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.addPositionalArgument(QStringLiteral("project"), QStringLiteral("A .nibform project to open"),
+                                 QStringLiteral("[project]"));
+    parser.process(app);
+
     MainWindow window;
     window.resize(1400, 900);
     // Dev aid: NIBFORM_WINDOW_SIZE=800x1280 tries a portrait (rotated tablet) layout.
     if (const QStringList size = qEnvironmentVariable("NIBFORM_WINDOW_SIZE").split(QLatin1Char('x')); size.size() == 2)
         window.resize(size[0].toInt(), size[1].toInt());
     window.show();
-    // nibform model.nibform opens the project.
-    if (const QStringList args = QApplication::arguments(); args.size() > 1)
-        window.openPath(args.at(1));
+    // Work left by a crash comes first; `nibform model.nibform` then opens the project
+    // (unless the restored work is in its place, which would need saving first).
+    const bool restored = window.offerRecovery();
+    if (const QStringList args = parser.positionalArguments(); !args.isEmpty() && !restored)
+        window.openPath(args.first());
 
     // The xcb backend registers input devices only once a window exists.
     if (qEnvironmentVariableIsSet("NIBFORM_DEBUG_INPUT")) {

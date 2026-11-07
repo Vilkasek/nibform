@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Nibform VERSION 0.3.0 LANGUAGES CXX)
+project(Nibform VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,7 +10,13 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Test LinguistTools)
+option(NIBFORM_BUILD_TESTS "Build the tests" ON)
+include(GNUInstallDirs)
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets LinguistTools)
+if(NIBFORM_BUILD_TESTS)
+  find_package(Qt6 REQUIRED COMPONENTS Test)
+endif()
 find_package(OpenCASCADE REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 
@@ -54,7 +60,7 @@ target_link_libraries(nibform_core PUBLIC
   Eigen3::Eigen)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
-add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h)
+add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h src/io/Recovery.cpp src/io/Recovery.h)
 target_compile_options(nibform_io PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_io PUBLIC nibform_core Qt6::Core)
 
@@ -106,6 +112,24 @@ qt_add_translations(TARGETS nibform
   SOURCE_TARGETS nibform nibform_core nibform_io
   RESOURCE_PREFIX /i18n
   LUPDATE_OPTIONS -no-obsolete -locations none)
+
+# Installed: the app, its desktop entry and icon, the .nibform file type and the
+# AppStream metadata (all named by the app id, as Flatpak and software centers expect).
+set(NIBFORM_APP_ID io.github.vilkasek.Nibform)
+install(TARGETS nibform RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES packaging/${NIBFORM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES packaging/${NIBFORM_APP_ID}.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+install(FILES packaging/${NIBFORM_APP_ID}.mime.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/mime/packages
+        RENAME ${NIBFORM_APP_ID}.xml)
+install(FILES docs/assets/logo.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME ${NIBFORM_APP_ID}.svg)
+install(FILES src/app/nibform.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+        RENAME ${NIBFORM_APP_ID}.png)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/nibform)
+
+if(NOT NIBFORM_BUILD_TESTS)
+  return()
+endif()
 
 enable_testing()
 foreach(name sketch solver trim offset model features input)

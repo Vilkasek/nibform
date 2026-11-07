@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.vilkasek.Nibform</id>
+  <name>Nibform</name>
+  <summary>Pen-first parametric CAD</summary>
+  <summary xml:lang="pl">Parametryczny CAD do pracy rysikiem</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.vilkasek">
+    <name>Jakub Brandt</name>
+  </developer>
+  <description>
+    <p>
+      Nibform is a 3D CAD modeler for Linux tablets and convertibles, made to be used with a
+      pen. Sketch with constraints and dimensions, pull faces into solids, round and chamfer
+      edges, and change any step later from the history.
+    </p>
+    <p xml:lang="pl">
+      Nibform to modeler 3D CAD dla tabletów i laptopów 2 w 1 z Linuksem, stworzony do pracy
+      rysikiem. Szkicuj z więzami i wymiarami, wyciągaj ściany w bryły, zaokrąglaj i fazuj
+      krawędzie, a każdy krok zmieniaj później z historii.
+    </p>
+    <ul>
+      <li>Sketches with constraints and live dimensions</li>
+      <li>Extrude, fillet, chamfer, shell and boolean operations</li>
+      <li>An editable feature history</li>
+      <li>Pen, touch and palm rejection; a tablet mode with large controls</li>
+      <li>STEP and STL export</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.vilkasek.Nibform.desktop</launchable>
+  <url type="homepage">https://vilkasek.github.io/nibform/</url>
+  <url type="bugtracker">https://github.com/Vilkasek/nibform/issues</url>
+  <url type="vcs-browser">https://github.com/Vilkasek/nibform</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://vilkasek.github.io/nibform/img/model.webp</image>
+      <caption>A model with its history</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://vilkasek.github.io/nibform/img/sketch.webp</image>
+      <caption>Sketching with constraints</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  <provides>
+    <binary>nibform</binary>
+    <mediatype>application/x-nibform-project</mediatype>
+  </provides>
+  <releases>
+    <release version="0.4.0" date="2026-11-07">
+      <description>
+        <p>Autosave and crash recovery, recent files, an About dialog, desktop integration and packages.</p>
+      </description>
+    </release>
+  </releases>
+</component>

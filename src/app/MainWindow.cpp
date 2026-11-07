@@ -13,13 +13,16 @@
 #include <QComboBox>
 #include <QFileDialog>
 #include <QDir>
+#include <QLocale>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
+#include <Standard_Version.hxx>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QScopedValueRollback>
 #include <QSettings>
 #include <QStyleHints>
@@ -51,6 +54,11 @@ MainWindow::MainWindow(QWidget* parent)
 
     buildUi();
 
+    // Unsaved work goes to a recovery file every minute (NIBFORM_AUTOSAVE_SECONDS for tests).
+    m_recovery = std::make_unique<RecoverySession>(defaultRecoveryDir());
+    const int autosaveSeconds = qEnvironmentVariableIntValue("NIBFORM_AUTOSAVE_SECONDS");
+    m_autosaveTimer.start((autosaveSeconds > 0 ? autosaveSeconds : 60) * 1000);
+    connect(&m_autosaveTimer, &QTimer::timeout, this, &MainWindow::autosave);
 
     // Messages take the hint's place for a moment (a status bar message would be
     // painted over the hint, not instead of it).
@@ -112,6 +120,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (!shotPath.isEmpty()) {
             QTimer::singleShot(1500, this, [this, shotPath] {
                 grab().save(shotPath);
+                m_recovery->clear(); // not a crash
                 QApplication::quit();
             });
         }
@@ -128,6 +137,10 @@ void MainWindow::buildUi()
     m_uiRoot = new QObject(this); // parent of the window-level actions, deleted with them
     buildActions();
     buildContextBar();
+
+    QMenu* help = menuBar()->addMenu(tr("&Help"));
+    help->addAction(tr("About Nibform"), this, &MainWindow::showAbout);
+    help->addAction(tr("About Qt"), qApp, &QApplication::aboutQt);
 
     // Tablet mode: the keys a keyboard would give, as big buttons along the left edge.
     m_quickBar = new QToolBar(tr("Quick"), this);
@@ -203,6 +216,8 @@ void MainWindow::buildActions()
     QMenu* file = menuBar()->addMenu(tr("&File"));
     file->addAction(tr("New"), QKeySequence::New, this, &MainWindow::newFile);
     file->addAction(tr("Open…"), QKeySequence::Open, this, &MainWindow::openFile);
+    QMenu* recent = file->addMenu(tr("Open Recent"));
+    connect(recent, &QMenu::aboutToShow, this, [this, recent] { fillRecentMenu(recent); });
     file->addSeparator();
     file->addAction(tr("Save"), QKeySequence::Save, this, &MainWindow::save);
     file->addAction(tr("Save As…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this,
@@ -807,6 +822,8 @@ void MainWindow::newFile()
         return;
     m_editor->newProject();
     m_path.clear();
+    m_recovery->clear();
+    m_autosavedChanges = -1;
     updateTitle();
 }
 
@@ -830,7 +847,10 @@ void MainWindow::openPath(const QString& path)
     }
     m_editor->loadProject(std::move(*project));
     m_path = path;
+    m_recovery->clear();
+    m_autosavedChanges = -1;
     rememberDirectory(path);
+    addRecentFile(path);
     updateTitle();
     m_viewer->fitAll();
     showMessage(tr("Opened %1").arg(QFileInfo(path).fileName()));
@@ -846,6 +866,8 @@ bool MainWindow::save()
         return false;
     }
     m_editor->markSaved();
+    m_recovery->clear();
+    addRecentFile(m_path);
     showMessage(tr("Saved %1").arg(QFileInfo(m_path).fileName()));
     return true;
 }
@@ -862,6 +884,106 @@ bool MainWindow::saveAs()
     m_path = path;
     rememberDirectory(path);
     return save();
+}
+
+void MainWindow::autosave()
+{
+    if (!m_editor->isModified()) {
+        m_recovery->clear();
+        return;
+    }
+    if (m_editor->changeCount() == m_autosavedChanges)
+        return;
+    const QString error = m_recovery->write(m_editor->project(), m_path);
+    if (!error.isEmpty()) {
+        showMessage(tr("Autosave failed: %1").arg(error));
+        return;
+    }
+    m_autosavedChanges = m_editor->changeCount();
+}
+
+bool MainWindow::offerRecovery()
+{
+    // Newest first; one project per window, so the rest wait for the next start.
+    for (RecoveredWork& work : findRecoveredWork(defaultRecoveryDir())) {
+        const QString name = QFileInfo(work.sourcePath).fileName();
+        const QString time = QLocale().toString(work.saved, QLocale::ShortFormat);
+        const QString question =
+            name.isEmpty() ? tr("Nibform closed unexpectedly. Restore the unsaved project autosaved at %1?").arg(time)
+                           : tr("Nibform closed unexpectedly. Restore the unsaved changes to %1, autosaved at %2?")
+                                 .arg(name, time);
+        QMessageBox box(QMessageBox::Question, tr("Restore Unsaved Work"), question, QMessageBox::NoButton, this);
+        QPushButton* restore = box.addButton(tr("Restore"), QMessageBox::AcceptRole);
+        QPushButton* discard = box.addButton(tr("Discard"), QMessageBox::DestructiveRole);
+        box.addButton(tr("Later"), QMessageBox::RejectRole);
+        box.setDefaultButton(restore);
+        box.exec();
+        if (box.clickedButton() == discard) {
+            discardRecovery(work.file);
+            continue;
+        }
+        if (box.clickedButton() != restore)
+            return false; // kept for the next start
+        m_editor->loadProject(std::move(work.project));
+        m_editor->markUnsaved();
+        m_path = work.sourcePath;
+        // Ours now: written under this session before the old file goes.
+        m_autosavedChanges = -1;
+        autosave();
+        discardRecovery(work.file);
+        updateTitle();
+        m_viewer->fitAll();
+        showMessage(name.isEmpty() ? tr("Restored the unsaved project") : tr("Restored %1").arg(name));
+        return true;
+    }
+    return false;
+}
+
+void MainWindow::addRecentFile(const QString& path)
+{
+    QSettings settings;
+    QStringList files = settings.value(QStringLiteral("recentFiles")).toStringList();
+    const QString absolute = QFileInfo(path).absoluteFilePath();
+    files.removeAll(absolute);
+    files.prepend(absolute);
+    settings.setValue(QStringLiteral("recentFiles"), files.mid(0, 10));
+}
+
+void MainWindow::fillRecentMenu(QMenu* menu)
+{
+    menu->clear();
+    const QStringList files = QSettings().value(QStringLiteral("recentFiles")).toStringList();
+    for (const QString& path : files) {
+        if (!QFileInfo::exists(path))
+            continue; // moved or deleted; dropped the next time the list changes
+        QAction* action = menu->addAction(QFileInfo(path).fileName(), this, [this, path] {
+            if (maybeSave())
+                openPath(path);
+        });
+        action->setToolTip(path);
+        action->setStatusTip(path);
+    }
+    if (menu->isEmpty()) {
+        menu->addAction(tr("No recent projects"))->setEnabled(false);
+        return;
+    }
+    menu->setToolTipsVisible(true);
+    menu->addSeparator();
+    menu->addAction(tr("Clear List"), this, [] { QSettings().remove(QStringLiteral("recentFiles")); });
+}
+
+void MainWindow::showAbout()
+{
+    const QString website = QStringLiteral("https://vilkasek.github.io/nibform/");
+    const QString source = QStringLiteral("https://github.com/Vilkasek/nibform");
+    QMessageBox::about(
+        this, tr("About Nibform"),
+        QStringLiteral("<h3>Nibform %1</h3><p>%2</p><p>%3</p><p><a href=\"%4\">%4</a><br><a href=\"%5\">%5</a></p>"
+                       "<p><small>Qt %6 · OpenCASCADE %7</small></p>")
+            .arg(QApplication::applicationVersion(), tr("Pen-first parametric CAD for Linux."),
+                 tr("Free software under the GNU General Public License, version 3 or later. "
+                    "It comes with no warranty."),
+                 website, source, QString::fromLatin1(qVersion()), QStringLiteral(OCC_VERSION_COMPLETE)));
 }
 
 void MainWindow::exportBodies(bool step)
@@ -889,10 +1011,12 @@ void MainWindow::exportBodies(bool step)
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-    if (maybeSave())
+    if (maybeSave()) {
+        m_recovery->clear(); // saved or discarded on purpose
         event->accept();
-    else
+    } else {
         event->ignore();
+    }
 }
 
 void MainWindow::iconize(QAction* action, Icon icon)

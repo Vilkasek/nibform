@@ -1,0 +1,27 @@
+# Maintainer: Jakub Brandt <tv.brandon.nr1@gmail.com>
+pkgname=nibform
+pkgver=0.4.0
+pkgrel=1
+pkgdesc='Pen-first parametric CAD'
+arch=('x86_64' 'aarch64')
+url='https://vilkasek.github.io/nibform/'
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'opencascade' 'hicolor-icon-theme' 'gcc-libs' 'glibc')
+makedepends=('cmake' 'ninja' 'eigen' 'qt6-tools')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/Vilkasek/nibform/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -S "$pkgname-$pkgver" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

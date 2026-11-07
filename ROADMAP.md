@@ -1,12 +1,12 @@
 # Roadmap
 
-M0–M6 and i18n are done (see the README). Next, roughly in order: first make Nibform
+M0–M7 and i18n are done (see the README). Next, roughly in order: first make Nibform
 something others can install and trust with their work, then lean into what a pen does
 best, then widen what can be modelled.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
-## M7 – Release basics
+## M7 – Release basics ✓
 
 Make it installable and safe to use for real work.
 
