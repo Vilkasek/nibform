@@ -218,3 +218,13 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M5** – sketch on face, fillet/chamfer/shell
 - [x] **M6** – Framework 12 polish (screen rotation, palm rejection, tablet mode)
 - [x] **i18n** – English UI with a Polish translation, language switching
+- [ ] **M7** – release basics: CI, AUR / Flatpak packages, file association, autosave and recovery
+- [ ] **M8** – pen first: freehand shape recognition, radial menu, gestures, scribble to delete
+- [ ] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns
+- [ ] **M10** – solid features: revolve, sweep, loft, patterns, holes, construction planes
+- [ ] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
+- [ ] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export
+- [ ] **M13** – drawings: views, dimensions, PDF / SVG export
+- [ ] **M14** – speed and robustness: background and incremental rebuild, large models
+
+Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).
