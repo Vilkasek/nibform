@@ -12,7 +12,7 @@ class QLabel;
 class QLineEdit;
 
 // A small number field that floats over the 3D view, next to what it edits
-// (Fusion / Shapr3D style). Unlike a modal dialog it never blocks the event loop,
+// (as CAD apps do on tablets). Unlike a modal dialog it never blocks the event loop,
 // so it is safe to open from pointer handlers. Enter or ✓ accepts, Esc or ✕ cancels.
 class ValueEditor : public QFrame
 {
@@ -44,7 +44,7 @@ public:
     // A row of exclusive choices under the field (e.g. what an extrusion does to bodies),
     // until the field closes. `labels` is asked again by refreshChoices() and when the
     // language changes; `chosen` gets the index tapped.
-    void setChoices(std::function<QStringList()> labels, int current, std::function<void(int)> chosen);
+    void setChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen);
     void refreshChoices();
     // A numeric keypad under the field, for typing values without a keyboard (tablet mode).
     void setKeypad(bool on);

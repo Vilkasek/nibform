@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(ShaprLinux VERSION 0.3.0 LANGUAGES CXX)
+project(Nibform VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,10 +14,10 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Test LinguistTools)
 find_package(OpenCASCADE REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 
-set(SHAPR_WARNINGS -Wall -Wextra -Wno-unused-parameter)
+set(NIBFORM_WARNINGS -Wall -Wextra -Wno-unused-parameter)
 
 # Geometry/model code with no Qt or GUI dependency, so it can be unit tested.
-add_library(shapr_core STATIC
+add_library(nibform_core STATIC
   src/input/PalmRejection.cpp
   src/input/PalmRejection.h
   src/model/Export.cpp
@@ -46,19 +46,19 @@ add_library(shapr_core STATIC
   src/sketch/Trim.cpp
   src/sketch/Trim.h
 )
-target_include_directories(shapr_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
-target_compile_options(shapr_core PRIVATE ${SHAPR_WARNINGS})
-target_link_libraries(shapr_core PUBLIC
+target_include_directories(nibform_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
+target_compile_options(nibform_core PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(nibform_core PUBLIC
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet TKOffset
   TKMesh TKXSBase TKDESTEP TKDESTL
   Eigen3::Eigen)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
-add_library(shapr_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h)
-target_compile_options(shapr_io PRIVATE ${SHAPR_WARNINGS})
-target_link_libraries(shapr_io PUBLIC shapr_core Qt6::Core)
+add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h)
+target_compile_options(nibform_io PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(nibform_io PUBLIC nibform_core Qt6::Core)
 
-add_executable(shapr_linux
+add_executable(nibform
   src/main.cpp
   src/app/MainWindow.cpp
   src/app/Icons.cpp
@@ -84,11 +84,11 @@ add_executable(shapr_linux
   src/viewer/ValueEditor.h
   src/viewer/ViewerInteraction.h
 )
-target_compile_definitions(shapr_linux PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
-target_compile_options(shapr_linux PRIVATE ${SHAPR_WARNINGS})
-target_link_libraries(shapr_linux PRIVATE
-  shapr_core
-  shapr_io
+target_compile_definitions(nibform PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
+target_compile_options(nibform PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(nibform PRIVATE
+  nibform_core
+  nibform_io
   Qt6::Widgets
   Qt6::OpenGLWidgets
   TKG3d TKBRep TKGeomBase TKTopAlgo TKPrim TKBO TKFillet
@@ -99,31 +99,31 @@ target_link_libraries(shapr_linux PRIVATE
 # (Qt Linguist). `cmake --build build --target update_translations` refreshes the .ts
 # files from the sources; the build compiles them into the app (:/i18n/).
 # The window icon (drawn from docs/assets/logo.svg: rsvg-convert -w 256 -h 256).
-qt_add_resources(shapr_linux "app_icon" PREFIX "/" BASE src/app FILES src/app/shapr-linux.png)
+qt_add_resources(nibform "app_icon" PREFIX "/" BASE src/app FILES src/app/nibform.png)
 
-qt_add_translations(TARGETS shapr_linux
-  TS_FILES translations/shapr_pl.ts
-  SOURCE_TARGETS shapr_linux shapr_core shapr_io
+qt_add_translations(TARGETS nibform
+  TS_FILES translations/nibform_pl.ts
+  SOURCE_TARGETS nibform nibform_core nibform_io
   RESOURCE_PREFIX /i18n
   LUPDATE_OPTIONS -no-obsolete -locations none)
 
 enable_testing()
 foreach(name sketch solver trim offset model features input)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
-  target_compile_options(test_${name} PRIVATE ${SHAPR_WARNINGS})
-  target_link_libraries(test_${name} PRIVATE shapr_core)
+  target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
+  target_link_libraries(test_${name} PRIVATE nibform_core)
   add_test(NAME ${name} COMMAND test_${name})
 endforeach()
 
 add_executable(test_project tests/test_project.cpp tests/Check.h)
-target_compile_options(test_project PRIVATE ${SHAPR_WARNINGS})
-target_link_libraries(test_project PRIVATE shapr_io)
+target_compile_options(test_project PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(test_project PRIVATE nibform_io)
 add_test(NAME project COMMAND test_project)
 
 # The floating value field, on Qt's offscreen platform (no display needed).
 add_executable(test_value_editor tests/test_value_editor.cpp src/viewer/ValueEditor.cpp src/viewer/ValueEditor.h)
 target_include_directories(test_value_editor PRIVATE src)
-target_compile_options(test_value_editor PRIVATE ${SHAPR_WARNINGS})
+target_compile_options(test_value_editor PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_value_editor PRIVATE Qt6::Widgets Qt6::Test)
 add_test(NAME value_editor COMMAND test_value_editor)
 set_tests_properties(value_editor PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen)

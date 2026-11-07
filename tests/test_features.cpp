@@ -198,8 +198,8 @@ void testStepAndStlExport()
     const std::vector<TopoDS_Shape> bodies = extrude({}, profiles, 5.0, BodyOperation::Auto).bodies;
 
     const auto dir = std::filesystem::temp_directory_path();
-    const std::string step = (dir / "shapr_test_export.step").string();
-    const std::string stl = (dir / "shapr_test_export.stl").string();
+    const std::string step = (dir / "nibform_test_export.step").string();
+    const std::string stl = (dir / "nibform_test_export.stl").string();
 
     CHECK(exportStep(bodies, step).empty());
     const auto back = importStep(step);

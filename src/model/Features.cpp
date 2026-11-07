@@ -53,7 +53,7 @@ std::optional<gp_Pnt2d> insidePoint(const Sketch& sketch, const TopoDS_Face& reg
         return sketch.to2d(middle);
 
     const TopoDS_Face copy = TopoDS::Face(BRepBuilderAPI_Copy(region).Shape());
-    BRepMesh_IncrementalMesh(copy, 0.1);
+    const BRepMesh_IncrementalMesh mesher(copy, 0.1); // meshes `copy` in place
     TopLoc_Location location;
     const Handle(Poly_Triangulation) mesh = BRep_Tool::Triangulation(copy, location);
     if (mesh.IsNull())

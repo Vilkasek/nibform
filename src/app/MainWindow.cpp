@@ -31,7 +31,7 @@
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(QStringLiteral("Shapr Linux"));
+    setWindowTitle(QStringLiteral("Nibform"));
 
     m_viewer = new OcctViewerWidget(this);
     setCentralWidget(m_viewer);
@@ -103,12 +103,12 @@ MainWindow::MainWindow(QWidget* parent)
             m_viewReady = true; // from now on, turning the screen re-frames the model
         });
 
-        // Dev aid: SHAPR_DEMO=1 builds a small model to look at (with SHAPR_SCREENSHOT, too).
-        if (qEnvironmentVariableIsSet("SHAPR_DEMO"))
+        // Dev aid: NIBFORM_DEMO=1 builds a small model to look at (with NIBFORM_SCREENSHOT, too).
+        if (qEnvironmentVariableIsSet("NIBFORM_DEMO"))
             QTimer::singleShot(0, this, &MainWindow::loadDemo);
 
-        // Dev aid: SHAPR_SCREENSHOT=/path.png renders one frame, saves it and quits.
-        const QString shotPath = qEnvironmentVariable("SHAPR_SCREENSHOT");
+        // Dev aid: NIBFORM_SCREENSHOT=/path.png renders one frame, saves it and quits.
+        const QString shotPath = qEnvironmentVariable("NIBFORM_SCREENSHOT");
         if (!shotPath.isEmpty()) {
             QTimer::singleShot(1500, this, [this, shotPath] {
                 grab().save(shotPath);
@@ -427,7 +427,7 @@ void MainWindow::buildActions()
         themeGroup->addAction(action);
         m_themeActions[mode] = action;
     }
-    auto addView = [this, views](const QString& name, V3d_TypeOfOrientation orientation, QKeySequence key) {
+    auto addView = [this, views](const QString& name, V3d_TypeOfOrientation orientation, const QKeySequence& key) {
         QAction* action = views->addAction(name, this, [this, orientation] { m_viewer->setProjection(orientation); });
         action->setShortcut(key);
         action->setToolTip(QStringLiteral("%1 (%2)").arg(name, key.toString(QKeySequence::NativeText)));
@@ -571,62 +571,12 @@ void MainWindow::setTheme(ThemeMode mode)
 
 void MainWindow::applyStyle(bool dark)
 {
-    struct Tones
-    {
-        const char *bar, *border, *text, *hover, *pressed, *checkedText, *disabled, *panel, *base, *accent;
-    };
-    const Tones t = dark ? Tones{"#26282c", "#3a3e44", "#e3e6eb", "#33363b", "#23395f", "#8ab4ff", "#6b7079",
-                                 "#2c2f34", "#1f2125", "#3b82f6"}
-                         : Tones{"#f6f7f9", "#dde1e6", "#1f2329", "#e8ebef", "#dbe6fd", "#1d4ed8", "#a3a9b1",
-                                 "#ffffff", "#ffffff", "#2563eb"};
-    QString sheet = QStringLiteral(R"(
-QToolBar { background: @bar; border: none; border-bottom: 1px solid @border; padding: 3px 6px; spacing: 2px; }
-QToolBar::separator { background: @border; width: 1px; margin: 8px 6px; }
-QToolButton { color: @text; border: none; border-radius: 8px; padding: 3px 7px; }
-QToolButton:hover { background: @hover; }
-QToolButton:pressed, QToolButton:checked { background: @pressed; color: @checkedText; }
-QToolButton:disabled { color: @disabled; }
-QToolButton::menu-button { border: none; width: 14px; }
-QLabel#modeBadge { color: white; border-radius: 10px; padding: 3px 12px; margin: 0 8px 0 2px; font-weight: 600; }
-QLabel#modeBadge[mode="model"] { background: #2563eb; }
-QLabel#modeBadge[mode="sketch"] { background: #ea580c; }
-QToolButton#closeSketch { background: #ea580c; color: white; font-weight: 600; padding: 3px 12px; }
-QToolButton#closeSketch:hover { background: #f97316; }
-QFrame#valueEditor, QFrame#contextBar { background: @panel; border: 1px solid @border; border-radius: 12px; }
-QFrame#valueEditor QLabel { color: @text; padding-left: 4px; }
-QFrame#valueEditor QLineEdit { border: 1px solid @accent; border-radius: 6px; padding: 3px 6px;
-                               background: @base; color: @text; selection-background-color: @accent; }
-QToolButton#valueAccept { background: @accent; color: white; }
-QToolButton#valueChoice { border: 1px solid @border; border-radius: 6px; padding: 2px 8px; }
-QToolButton#valueChoice:checked { border-color: @accent; }
-QStatusBar { background: @bar; border-top: 1px solid @border; }
-QLabel[message="true"] { color: @checkedText; font-weight: 600; }
-QLabel#statusChip { background: @pressed; color: @checkedText; border-radius: 9px; padding: 2px 10px; }
-QToolBar#timeline { border-bottom: none; border-top: 1px solid @border; padding: 4px 8px; spacing: 6px; }
-QLabel#timelineTitle { color: @disabled; font-weight: 600; padding: 0 8px 0 2px; }
-QToolButton#timelineChip { background: @panel; border: 1px solid @border; border-radius: 10px; padding: 3px 8px; }
-QToolButton#timelineChip:hover { border-color: @accent; }
-QToolButton#timelineChip:checked { border-color: @accent; background: @pressed; color: @checkedText; }
-QToolButton#timelineChip[rolledBack="true"] { color: @disabled; border-style: dashed; }
-QToolButton#timelineChip[failed="true"] { border-color: #e5484d; color: #e5484d; }
-QMenu { background: @panel; border: 1px solid @border; border-radius: 8px; padding: 4px; }
-QMenu::item { padding: 5px 22px 5px 22px; border-radius: 6px; color: @text; }
-QMenu::item:selected { background: @hover; }
-QMenu::item:disabled { color: @disabled; }
-QMenu::separator { height: 1px; background: @border; margin: 4px 8px; }
-)");
-    const std::pair<const char*, const char*> tones[] = {
-        {"@checkedText", t.checkedText}, {"@disabled", t.disabled}, {"@pressed", t.pressed}, {"@border", t.border},
-        {"@accent", t.accent},           {"@hover", t.hover},       {"@panel", t.panel},     {"@text", t.text},
-        {"@base", t.base},               {"@bar", t.bar},
-    };
-    for (const auto& [key, value] : tones)
-        sheet.replace(QLatin1String(key), QLatin1String(value));
-    setStyleSheet(sheet);
+    const ThemeStyle style = themeStyle(dark);
+    setStyleSheet(style.sheet);
 
     // Icons follow the text color; the accent marks what each tool adds or changes.
-    const QColor ink(t.text);
-    const QColor accent(dark ? "#5b9cff" : "#2563eb");
+    const QColor& ink = style.ink;
+    const QColor& accent = style.accent;
     m_accent = accent.name();
     for (const auto& [action, make] : m_icons) {
         const bool onAccent = action == m_closeSketchAction; // drawn on the orange button
@@ -681,8 +631,8 @@ void MainWindow::loadDemo()
     if (const auto loose = m_editor->regionAt(0, {-25, 20}))
         m_editor->selectRegion(*loose);
 
-    // SHAPR_DEMO=sketch: then open a new sketch above it, with a rectangle drawn.
-    if (qEnvironmentVariable("SHAPR_DEMO") == QLatin1String("sketch")) {
+    // NIBFORM_DEMO=sketch: then open a new sketch above it, with a rectangle drawn.
+    if (qEnvironmentVariable("NIBFORM_DEMO") == QLatin1String("sketch")) {
         m_editor->createSketch(gp_Ax3(gp_Pnt(0, 0, 37), gp::DZ(), gp::DX()));
         m_editor->commit([](Sketch& s) {
             const PointId a = s.addPoint({35, 10}), b = s.addPoint({55, 10});
@@ -826,7 +776,7 @@ void MainWindow::resizeEvent(QResizeEvent* event)
 void MainWindow::updateTitle()
 {
     const QString name = m_path.isEmpty() ? tr("Untitled") : QFileInfo(m_path).fileName();
-    setWindowTitle(QStringLiteral("%1%2 – Shapr Linux").arg(name, m_editor->isModified() ? QStringLiteral("*") : QString()));
+    setWindowTitle(QStringLiteral("%1%2 – Nibform").arg(name, m_editor->isModified() ? QStringLiteral("*") : QString()));
 }
 
 QString MainWindow::lastDirectory() const
@@ -865,7 +815,7 @@ void MainWindow::openFile()
     if (!maybeSave())
         return;
     const QString path = QFileDialog::getOpenFileName(this, tr("Open Project"), lastDirectory(),
-                                                      tr("Shapr Linux projects (*.shapr)"));
+                                                      tr("Nibform projects (*.nibform)"));
     if (!path.isEmpty())
         openPath(path);
 }
@@ -904,11 +854,11 @@ bool MainWindow::saveAs()
 {
     QString path = QFileDialog::getSaveFileName(this, tr("Save Project"),
                                                 m_path.isEmpty() ? lastDirectory() : m_path,
-                                                tr("Shapr Linux projects (*.shapr)"));
+                                                tr("Nibform projects (*.nibform)"));
     if (path.isEmpty())
         return false;
-    if (!path.endsWith(QStringLiteral(".shapr")))
-        path += QStringLiteral(".shapr");
+    if (!path.endsWith(QStringLiteral(".nibform")))
+        path += QStringLiteral(".nibform");
     m_path = path;
     rememberDirectory(path);
     return save();

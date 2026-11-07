@@ -12,7 +12,9 @@
 namespace {
 
 constexpr int kVersion = 1;
-const QString kFormat = QStringLiteral("shapr-linux-project");
+const QString kFormat = QStringLiteral("nibform-project");
+// Projects saved before the app was renamed: the same format otherwise.
+const QString kFormerFormat = QStringLiteral("shapr-linux-project");
 
 // Enums are stored by name, so reordering them later doesn't break old files.
 template <typename E, std::size_t N>
@@ -108,11 +110,11 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
     const gp_Ax3 axes(gp_Pnt(toXYZ(plane.value("origin"))), gp_Dir(toXYZ(plane.value("normal"))),
                       gp_Dir(toXYZ(plane.value("xDirection"))));
     Sketch::Contents c;
-    for (const QJsonValue& v : o.value("points").toArray()) {
+    for (const auto& v : o.value("points").toArray()) {
         const QJsonObject p = v.toObject();
         c.points.push_back({p.value("id").toInt(), gp_Pnt2d(p.value("x").toDouble(), p.value("y").toDouble())});
     }
-    for (const QJsonValue& v : o.value("entities").toArray()) {
+    for (const auto& v : o.value("entities").toArray()) {
         const QJsonObject e = v.toObject();
         const auto kind = fromName<EntityKind>(e.value("kind").toString(), kEntityKinds);
         if (!kind) {
@@ -124,7 +126,7 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
                               e.value("c").toInt(kNoId), e.value("radius").toDouble(),
                               e.value("construction").toBool(false)});
     }
-    for (const QJsonValue& v : o.value("constraints").toArray()) {
+    for (const auto& v : o.value("constraints").toArray()) {
         const QJsonObject k = v.toObject();
         const auto kind = fromName<ConstraintKind>(k.value("kind").toString(), kConstraintKinds);
         if (!kind) {
@@ -186,17 +188,17 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
     f.value = o.value("value").toDouble();
     f.operation = fromName<BodyOperation>(o.value("operation").toString(), kOperations).value_or(BodyOperation::Auto);
     f.boolean = fromName<BooleanKind>(o.value("boolean").toString(), kBooleans).value_or(BooleanKind::Union);
-    for (const QJsonValue& v : o.value("regions").toArray())
+    for (const auto& v : o.value("regions").toArray())
         f.regions.push_back({v.toObject().value("sketch").toInt(-1), toXY(v.toObject().value("inside"))});
-    for (const QJsonValue& v : o.value("faces").toArray()) {
+    for (const auto& v : o.value("faces").toArray()) {
         f.faces.push_back({gp_Pnt(toXYZ(v.toObject().value("middle"))),
                            gp_Dir(toXYZ(v.toObject().value("normal")))});
     }
-    for (const QJsonValue& v : o.value("edges").toArray()) {
+    for (const auto& v : o.value("edges").toArray()) {
         f.edges.push_back({gp_Pnt(toXYZ(v.toObject().value("middle"))),
                            gp_Dir(toXYZ(v.toObject().value("direction")))});
     }
-    for (const QJsonValue& v : o.value("bodies").toArray())
+    for (const auto& v : o.value("bodies").toArray())
         f.bodies.push_back(gp_Pnt(toXYZ(v)));
     return f;
 }
@@ -219,9 +221,10 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
     QJsonParseError parse;
     const QJsonDocument doc = QJsonDocument::fromJson(json, &parse);
     const QJsonObject root = doc.object();
-    if (parse.error != QJsonParseError::NoError || root.value("format").toString() != kFormat) {
+    const QString format = root.value("format").toString();
+    if (parse.error != QJsonParseError::NoError || (format != kFormat && format != kFormerFormat)) {
         if (error)
-            *error = QCoreApplication::translate("ProjectFile", "Not a Shapr Linux project file");
+            *error = QCoreApplication::translate("ProjectFile", "Not a Nibform project file");
         return std::nullopt;
     }
     if (root.value("version").toInt() > kVersion) {
@@ -230,13 +233,13 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
         return std::nullopt;
     }
     ProjectData project;
-    for (const QJsonValue& v : root.value("sketches").toArray()) {
+    for (const auto& v : root.value("sketches").toArray()) {
         auto entry = sketchFromJson(v.toObject(), error);
         if (!entry)
             return std::nullopt;
         project.sketches.push_back(std::move(*entry));
     }
-    for (const QJsonValue& v : root.value("features").toArray()) {
+    for (const auto& v : root.value("features").toArray()) {
         auto feature = featureFromJson(v.toObject(), error);
         if (!feature)
             return std::nullopt;

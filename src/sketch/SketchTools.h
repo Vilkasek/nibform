@@ -26,7 +26,7 @@ public:
                           std::function<void(double)> accept, std::function<void()> cancel) = 0;
 };
 
-// A drawing tool. Every tool accepts both input styles Shapr3D users expect:
+// A drawing tool. Every tool accepts both input styles a pen invites:
 // tap-tap (press + release in place, then press again) and press-drag-release.
 class SketchTool
 {

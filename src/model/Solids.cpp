@@ -67,7 +67,7 @@ std::optional<TopoDS_Shape> boolean(BooleanKind kind, const TopoDS_Shape& a, con
     op->Build();
     if (!op->IsDone() || op->HasErrors())
         return std::nullopt;
-    const TopoDS_Shape result = tidy(op->Shape());
+    TopoDS_Shape result = tidy(op->Shape());
     if (!BRepCheck_Analyzer(result).IsValid())
         return std::nullopt;
     return result;
@@ -124,6 +124,7 @@ ModelResult roundEdges(const std::vector<TopoDS_Shape>& bodies, const std::vecto
         try {
             maker.Build();
         } catch (const Standard_Failure&) {
+            // OCCT also throws for impossible sizes; IsDone() below reports it.
         }
         if (!maker.IsDone() || !BRepCheck_Analyzer(maker.Shape()).IsValid()) {
             result.error = failure;
@@ -228,7 +229,7 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
         prisms[p.body].Append(prism.Shape());
     }
 
-    std::vector<TopoDS_Shape> current = bodies;
+    const std::vector<TopoDS_Shape>& current = bodies;
     std::set<int> consumed; // bodies replaced by a result
     std::vector<TopoDS_Shape> added;
 
@@ -421,6 +422,7 @@ ModelResult shellBodies(const std::vector<TopoDS_Shape>& bodies, const std::vect
             maker.MakeThickSolidByJoin(bodies[body], faces, -thickness, 1e-4);
             maker.Build();
         } catch (const Standard_Failure&) {
+            // Falls back to the offset below, as when it isn't done.
         }
         if (maker.IsDone() && usable(maker.Shape())) {
             result.bodies[body] = maker.Shape();

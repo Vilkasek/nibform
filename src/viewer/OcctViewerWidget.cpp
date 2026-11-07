@@ -28,6 +28,8 @@
 #include <OpenGl_GraphicDriver.hxx>
 #include <Prs3d_LineAspect.hxx>
 
+#include <cmath>
+
 namespace {
 
 // Wraps the FBO that QOpenGLWidget renders into, so OCCT draws straight into it.
@@ -110,9 +112,9 @@ OcctViewerWidget::OcctViewerWidget(QWidget* parent)
 {
     // Compatibility profile by default: core profiles cap glLineWidth at 1 px on Mesa,
     // which makes sketch lines too thin.
-    m_coreProfile = qEnvironmentVariableIntValue("SHAPR_GL_CORE") != 0;
-    m_debugInput = qEnvironmentVariableIsSet("SHAPR_DEBUG_INPUT");
-    m_invertScroll = qEnvironmentVariableIntValue("SHAPR_INVERT_SCROLL") != 0;
+    m_coreProfile = qEnvironmentVariableIntValue("NIBFORM_GL_CORE") != 0;
+    m_debugInput = qEnvironmentVariableIsSet("NIBFORM_DEBUG_INPUT");
+    m_invertScroll = qEnvironmentVariableIntValue("NIBFORM_INVERT_SCROLL") != 0;
 
     m_dragEndTimer.setSingleShot(true);
     m_dragEndTimer.setInterval(200);
@@ -133,7 +135,7 @@ OcctViewerWidget::OcctViewerWidget(QWidget* parent)
     m_viewer->ActivateGrid(Aspect_GT_Rectangular, Aspect_GDM_Lines);
 
     m_context = new AIS_InteractiveContext(m_viewer);
-    // Dark edges on shaded bodies, like Shapr3D.
+    // Dark edges on shaded bodies, so their shape reads at a glance.
     const Handle(Prs3d_Drawer)& drawer = m_context->DefaultDrawer();
     drawer->SetFaceBoundaryDraw(true);
     drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(Quantity_Color(0.15, 0.17, 0.20, Quantity_TOC_sRGB),
@@ -336,11 +338,11 @@ void OcctViewerWidget::initializeGL()
 
     Handle(OpenGl_Context) glCtx = new OpenGl_Context();
     if (!glCtx->Init(m_coreProfile)) {
-        emit glFailed(tr("Could not attach OpenCASCADE to the OpenGL context (try SHAPR_GL_CORE=1)."));
+        emit glFailed(tr("Could not attach OpenCASCADE to the OpenGL context (try NIBFORM_GL_CORE=1)."));
         return;
     }
 
-    m_view->ChangeRenderingParams().Resolution = static_cast<unsigned int>(96.0 * dpr + 0.5);
+    m_view->ChangeRenderingParams().Resolution = static_cast<unsigned int>(std::lround(96.0 * dpr));
 
     Handle(Aspect_NeutralWindow) window = Handle(Aspect_NeutralWindow)::DownCast(m_view->Window());
     const bool firstInit = window.IsNull();

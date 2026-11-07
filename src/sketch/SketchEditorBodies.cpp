@@ -465,7 +465,7 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     if (depth(ctx->MainSelector()->PickedPoint(1)) < bestDepth - 1e-6) {
         best = {wanted == TopAbs_EDGE ? Hit::Kind::Edge : Hit::Kind::Face, body};
         best.owner = owner;
-        best.shape = shape;
+        best.shape = std::move(shape);
     }
     return best;
 }

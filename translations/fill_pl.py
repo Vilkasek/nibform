@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fills translations/shapr_pl.ts with the Polish texts below (run after update_translations
+"""Fills translations/nibform_pl.ts with the Polish texts below (run after update_translations
 when sources change; new texts without an entry here are reported and stay unfinished)."""
 import sys
 import xml.etree.ElementTree as ET
@@ -63,7 +63,7 @@ PL = {
   "Double-click: edit the sketch": "Dwuklik: edytuj szkic", "Double-click: change the value": "Dwuklik: zmień wartość",
   "Edit": "Edytuj", "Delete": "Usuń", "Cancel": "Anuluj", "Done": "Gotowe", "Untitled": "Bez nazwy",
   "Unsaved Changes": "Niezapisane zmiany", "Save the changes to the project?": "Zapisać zmiany w projekcie?",
-  "Open Project": "Otwórz projekt", "Shapr Linux projects (*.shapr)": "Projekty Shapr Linux (*.shapr)",
+  "Open Project": "Otwórz projekt", "Nibform projects (*.nibform)": "Projekty Nibform (*.nibform)",
   "Can't Open": "Nie można otworzyć", "Opened %1": "Otwarto %1", "Can't Save": "Nie można zapisać",
   "Saved %1": "Zapisano %1", "Save Project": "Zapisz projekt", "Export STEP": "Eksportuj STEP",
   "Export STL": "Eksportuj STL", "Export Failed": "Eksport nieudany", "Exported %1": "Wyeksportowano %1",
@@ -97,14 +97,14 @@ PL = {
   "The bodies don't intersect": "Bryły nie mają części wspólnej",
  },
  "OcctViewerWidget": {
-  "Could not attach OpenCASCADE to the OpenGL context (try SHAPR_GL_CORE=1).":
-      "Nie udało się podpiąć OpenCASCADE do kontekstu OpenGL (spróbuj SHAPR_GL_CORE=1).",
+  "Could not attach OpenCASCADE to the OpenGL context (try NIBFORM_GL_CORE=1).":
+      "Nie udało się podpiąć OpenCASCADE do kontekstu OpenGL (spróbuj NIBFORM_GL_CORE=1).",
   "Could not wrap the Qt framebuffer.": "Nie udało się opakować framebuffera Qt.",
  },
  "ProjectFile": {
   "Unknown curve kind: %1": "Nieznany rodzaj krzywej: %1", "Unknown constraint kind: %1": "Nieznany rodzaj więzu: %1",
   "Unknown feature kind: %1": "Nieznany rodzaj operacji: %1",
-  "Not a Shapr Linux project file": "To nie jest plik projektu Shapr Linux",
+  "Not a Nibform project file": "To nie jest plik projektu Nibform",
   "The project was saved by a newer version of the app": "Projekt zapisany nowszą wersją programu",
   "Can't save %1: %2": "Nie można zapisać %1: %2", "Can't open %1: %2": "Nie można otworzyć %1: %2",
  },
@@ -168,13 +168,15 @@ PL = {
  "ValueEditor": {"Accept (Enter)": "Zatwierdź (Enter)", "Cancel (Esc)": "Anuluj (Esc)"},
 }
 
-path = sys.argv[1] if len(sys.argv) > 1 else "translations/shapr_pl.ts"
+path = sys.argv[1] if len(sys.argv) > 1 else "translations/nibform_pl.ts"
 tree = ET.parse(path)
 missing = []
+used = set()
 for ctx in tree.getroot().findall("context"):
     name = ctx.find("name").text
     for msg in ctx.findall("message"):
         source = msg.find("source").text
+        used.add((name, source))
         tr = msg.find("translation")
         text = PL.get(name, {}).get(source)
         if text is None:
@@ -191,4 +193,9 @@ if "<!DOCTYPE TS>" not in text:
         f.write(head + "\n<!DOCTYPE TS>\n" + rest)
 for m in missing:
     print("missing:", m)
+# Entries for texts the sources no longer have: delete them from PL above.
+for name, texts in PL.items():
+    for source in texts:
+        if (name, source) not in used:
+            print(f"unused: {name}: {source!r}")
 sys.exit(1 if missing else 0)

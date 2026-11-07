@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <QIcon>
+#include <QSettings>
 #include <QInputDevice>
 
 int main(int argc, char** argv)
@@ -19,30 +20,36 @@ int main(int argc, char** argv)
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORMTHEME"))
         qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
     // Qt logs to journald when stderr is not a tty; keep input diagnostics in the terminal.
-    if (qEnvironmentVariableIsSet("SHAPR_DEBUG_INPUT"))
+    if (qEnvironmentVariableIsSet("NIBFORM_DEBUG_INPUT"))
         qputenv("QT_FORCE_STDERR_LOGGING", "1");
 
     QApplication app(argc, argv);
-    QApplication::setOrganizationName(QStringLiteral("ShaprLinux"));
-    QApplication::setApplicationName(QStringLiteral("Shapr Linux"));
+    QApplication::setOrganizationName(QStringLiteral("Nibform"));
+    QApplication::setApplicationName(QStringLiteral("Nibform"));
+    // Settings from before the app was renamed come along on the first run.
+    if (QSettings settings; settings.allKeys().isEmpty()) {
+        const QSettings former(QStringLiteral("ShaprLinux"), QStringLiteral("Shapr Linux"));
+        for (const QString& key : former.allKeys())
+            settings.setValue(key, former.value(key));
+    }
     // Fusion honours application palettes everywhere, which the light / dark themes rely on.
     QApplication::setStyle(QStringLiteral("Fusion"));
     QApplication::setApplicationVersion(QStringLiteral(PROJECT_VERSION));
-    QApplication::setWindowIcon(QIcon(QStringLiteral(":/shapr-linux.png")));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/nibform.png")));
 
     applyLanguage(savedLanguage()); // before any text is made
     MainWindow window;
     window.resize(1400, 900);
-    // Dev aid: SHAPR_WINDOW_SIZE=800x1280 tries a portrait (rotated tablet) layout.
-    if (const QStringList size = qEnvironmentVariable("SHAPR_WINDOW_SIZE").split(QLatin1Char('x')); size.size() == 2)
+    // Dev aid: NIBFORM_WINDOW_SIZE=800x1280 tries a portrait (rotated tablet) layout.
+    if (const QStringList size = qEnvironmentVariable("NIBFORM_WINDOW_SIZE").split(QLatin1Char('x')); size.size() == 2)
         window.resize(size[0].toInt(), size[1].toInt());
     window.show();
-    // shapr_linux model.shapr opens the project.
+    // nibform model.nibform opens the project.
     if (const QStringList args = QApplication::arguments(); args.size() > 1)
         window.openPath(args.at(1));
 
     // The xcb backend registers input devices only once a window exists.
-    if (qEnvironmentVariableIsSet("SHAPR_DEBUG_INPUT")) {
+    if (qEnvironmentVariableIsSet("NIBFORM_DEBUG_INPUT")) {
         for (const QInputDevice* dev : QInputDevice::devices())
             qInfo() << "input device:" << dev->name() << dev->type() << dev->capabilities();
     }

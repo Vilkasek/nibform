@@ -1,11 +1,11 @@
-# Shapr Linux
+# Nibform
 
-A native, pen-first CAD app for Linux in the spirit of Shapr3D (target: the Framework 12 with a stylus).
+A native, pen-first CAD app for Linux (target: the Framework 12 with a stylus).
 C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen.
 
-**Website:** https://vilkasek.github.io/shapr3d/ (from `docs/`: GitHub Pages, *Deploy from a branch*, `main` / `/docs`).
-The logo is `docs/assets/logo.svg`; the window icon `src/app/shapr-linux.png` is drawn from it
-(`rsvg-convert -w 256 -h 256 docs/assets/logo.svg -o src/app/shapr-linux.png`).
+**Website:** https://vilkasek.github.io/nibform/ (from `docs/`: GitHub Pages, *Deploy from a branch*, `main` / `/docs`).
+The logo is `docs/assets/logo.svg`; the window icon `src/app/nibform.png` is drawn from it
+(`rsvg-convert -w 256 -h 256 docs/assets/logo.svg -o src/app/nibform.png`).
 
 ## Building
 
@@ -13,15 +13,15 @@ The logo is `docs/assets/logo.svg`; the window icon `src/app/shapr-linux.png` is
 sudo pacman -S --needed qt6-base qt6-tools opencascade eigen cmake ninja
 cmake -S . -B build -G Ninja
 cmake --build build
-./build/shapr_linux
+./build/nibform
 ```
 
 Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb` itself
 (on Wayland it runs through XWayland). The OpenGL compatibility profile is used by default
-(in core, Mesa limits line width to 1 px); for the core profile: `SHAPR_GL_CORE=1`.
-`SHAPR_SCREENSHOT=file.png` renders one frame, saves it and quits.
-`SHAPR_DEBUG_INPUT=1` prints the input devices and scroll/gesture events,
-`SHAPR_INVERT_SCROLL=1` inverts the touchpad's orbit/pan direction.
+(in core, Mesa limits line width to 1 px); for the core profile: `NIBFORM_GL_CORE=1`.
+`NIBFORM_SCREENSHOT=file.png` renders one frame, saves it and quits.
+`NIBFORM_DEBUG_INPUT=1` prints the input devices and scroll/gesture events,
+`NIBFORM_INVERT_SCROLL=1` inverts the touchpad's orbit/pan direction.
 
 Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`).
 
@@ -31,7 +31,7 @@ The interface is in English or Polish: *View → Język / Language* offers *Syst
 desktop is Polish, English otherwise), *Polski* and *English*. The choice is remembered and applies
 right away, without a restart; standard Qt dialogs and the decimal separator follow it.
 
-The sources are in English; the Polish text lives in `translations/shapr_pl.ts` (Qt Linguist),
+The sources are in English; the Polish text lives in `translations/nibform_pl.ts` (Qt Linguist),
 built into the app. After changing user-facing strings:
 
 ```sh
@@ -143,8 +143,8 @@ An extrusion that failed leaves its region in sight.
 The *Bodies* menu unions, subtracts (from the first selected) or intersects the bodies whose faces
 are selected. `Delete` removes bodies with selected faces and sketches with selected regions.
 Undo covers sketches and bodies together.
-`SHAPR_DEMO=1` builds a sample model (`SHAPR_DEMO=sketch` also opens a sketch) –
-handy with `SHAPR_SCREENSHOT`.
+`NIBFORM_DEMO=1` builds a sample model (`NIBFORM_DEMO=sketch` also opens a sketch) –
+handy with `NIBFORM_SCREENSHOT`.
 
 ## History, projects, export
 
@@ -166,8 +166,8 @@ point inside it, a face by its middle and normal, an edge by its middle and dire
 point inside it.
 
 **File**: *New* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save As…*
-(`Ctrl+Shift+S`) – a `.shapr` project is readable JSON with the sketches and the history;
-`shapr_linux file.shapr` opens one right away. The window title shows `*` for unsaved changes,
+(`Ctrl+Shift+S`) – a `.nibform` project is readable JSON with the sketches and the history;
+`nibform file.nibform` opens one right away. The window title shows `*` for unsaved changes,
 and closing asks to save. *Export STEP…* / *Export STL…* save the bodies (binary STL, 0.05 mm mesh).
 
 ## View controls
@@ -205,7 +205,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
   a side bar with *Undo / Redo / Delete / Cancel / Done / Fit* (instead of keys)
   and a numeric keypad in the value field.
 - **Screen rotation**: in a narrow (portrait) window the bars show icons only; after the
-  orientation changes, the model is framed again. `SHAPR_WINDOW_SIZE=800x1280` tries it on a
+  orientation changes, the model is framed again. `NIBFORM_WINDOW_SIZE=800x1280` tries it on a
   regular screen.
 
 ## Plan

@@ -28,7 +28,6 @@ public:
     void setPlane(const gp_Ax3& plane) { m_plane = plane; }
     void setDrawList(DrawList list) { m_list = std::move(list); }
     void setStyle(const Style& style) { m_style = style; }
-    const DrawList& drawList() const { return m_list; }
 
     bool AcceptDisplayMode(const Standard_Integer mode) const override { return mode == 0; }
 

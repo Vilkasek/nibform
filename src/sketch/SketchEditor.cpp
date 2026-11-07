@@ -609,7 +609,7 @@ bool SketchEditor::validate(Sketch& candidate)
 }
 
 void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anchor,
-                                   std::function<void(double)> accepted, std::function<void()> cancelled)
+                                   const std::function<void(double)>& accepted, std::function<void()> cancelled)
 {
     const double current = measure(sketch(), c);
     // Distances to a line and angles are signed: keep the side / turning direction.

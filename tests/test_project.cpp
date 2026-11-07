@@ -99,7 +99,7 @@ void testRoundTrip()
 void testSavedProjectRebuildsTheSameModel()
 {
     QTemporaryDir dir;
-    const QString path = dir.filePath(QStringLiteral("model.shapr"));
+    const QString path = dir.filePath(QStringLiteral("model.nibform"));
     const ProjectData original = sample();
     CHECK(saveProject(path, original).isEmpty());
     QString error;
@@ -128,9 +128,19 @@ void testRejectsOtherFiles()
     QString error;
     CHECK(!projectFromJson("{\"hello\": 1}", &error) && !error.isEmpty());
     CHECK(!projectFromJson("not json at all", &error));
-    CHECK(!loadProject(QStringLiteral("/nonexistent/x.shapr"), &error) && !error.isEmpty());
+    CHECK(!loadProject(QStringLiteral("/nonexistent/x.nibform"), &error) && !error.isEmpty());
     const QByteArray newer = projectToJson(sample()).replace("\"version\": 1", "\"version\": 99");
     CHECK(!projectFromJson(newer, &error));
+}
+
+void testOpensProjectsFromBeforeTheRename()
+{
+    const QByteArray former =
+        projectToJson(sample()).replace("\"nibform-project\"", "\"shapr-linux-project\"");
+    CHECK(former.contains("shapr-linux-project"));
+    QString error;
+    const auto loaded = projectFromJson(former, &error);
+    CHECK(loaded && error.isEmpty() && loaded->features.size() == sample().features.size());
 }
 
 } // namespace
@@ -141,5 +151,6 @@ int main()
         {"round trip", testRoundTrip},
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
+        {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},
     });
 }

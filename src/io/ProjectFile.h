@@ -9,7 +9,7 @@
 #include <optional>
 #include <vector>
 
-// What a .shapr project holds: the sketches and the feature history. Bodies are not
+// What a .nibform project holds: the sketches and the feature history. Bodies are not
 // stored; opening a project rebuilds them, exactly as editing does.
 struct ProjectData
 {

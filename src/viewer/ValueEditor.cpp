@@ -144,7 +144,7 @@ void ValueEditor::changeEvent(QEvent* event)
     QFrame::changeEvent(event);
 }
 
-void ValueEditor::setChoices(std::function<QStringList()> labels, int current, std::function<void(int)> chosen)
+void ValueEditor::setChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen)
 {
     clearChoices();
     m_choiceLabels = std::move(labels);

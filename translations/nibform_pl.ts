@@ -548,8 +548,8 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Otwórz projekt</translation>
     </message>
     <message>
-        <source>Shapr Linux projects (*.shapr)</source>
-        <translation>Projekty Shapr Linux (*.shapr)</translation>
+        <source>Nibform projects (*.nibform)</source>
+        <translation>Projekty Nibform (*.nibform)</translation>
     </message>
     <message>
         <source>Can't Open</source>
@@ -710,8 +710,8 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
 <context>
     <name>OcctViewerWidget</name>
     <message>
-        <source>Could not attach OpenCASCADE to the OpenGL context (try SHAPR_GL_CORE=1).</source>
-        <translation>Nie udało się podpiąć OpenCASCADE do kontekstu OpenGL (spróbuj SHAPR_GL_CORE=1).</translation>
+        <source>Could not attach OpenCASCADE to the OpenGL context (try NIBFORM_GL_CORE=1).</source>
+        <translation>Nie udało się podpiąć OpenCASCADE do kontekstu OpenGL (spróbuj NIBFORM_GL_CORE=1).</translation>
     </message>
     <message>
         <source>Could not wrap the Qt framebuffer.</source>
@@ -733,8 +733,8 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Nieznany rodzaj operacji: %1</translation>
     </message>
     <message>
-        <source>Not a Shapr Linux project file</source>
-        <translation>To nie jest plik projektu Shapr Linux</translation>
+        <source>Not a Nibform project file</source>
+        <translation>To nie jest plik projektu Nibform</translation>
     </message>
     <message>
         <source>The project was saved by a newer version of the app</source>

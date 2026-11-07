@@ -271,7 +271,7 @@ private:
     bool validate(Sketch& candidate);
     // Opens the value field for `c` near `anchor`; `accepted` gets the new value in
     // solver units, on the same side / turning direction as the current one.
-    void promptDimension(const SketchConstraint& c, const QPointF& anchor, std::function<void(double)> accepted,
+    void promptDimension(const SketchConstraint& c, const QPointF& anchor, const std::function<void(double)>& accepted,
                          std::function<void()> cancelled = {});
 
     void enterSketch(int index, bool lookAt);
