@@ -1,6 +1,6 @@
 pkgbase = nibform
 	pkgdesc = Pen-first parametric CAD
-	pkgver = 0.4.0
+	pkgver = A.1.1
 	pkgrel = 1
 	url = https://vilkasek.github.io/nibform/
 	arch = x86_64
@@ -15,7 +15,7 @@ pkgbase = nibform
 	depends = hicolor-icon-theme
 	depends = gcc-libs
 	depends = glibc
-	source = nibform-0.4.0.tar.gz::https://github.com/Vilkasek/nibform/archive/refs/tags/v0.4.0.tar.gz
-	sha256sums = SKIP
+	source = nibform-A.1.1.tar.gz::https://github.com/Vilkasek/nibform/archive/refs/tags/vA.1.1.tar.gz
+	sha256sums = 4411f93846c12c9c9422c6644ea94f023159625203001be0669574a5d5085f73
 
 pkgname = nibform
