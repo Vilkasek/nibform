@@ -4,6 +4,7 @@
 #include "sketch/Trim.h"
 #include "viewer/Glyphs.h"
 #include "viewer/OcctViewerWidget.h"
+#include "viewer/UnitText.h"
 #include "viewer/ValueEditor.h"
 
 #include <QCoreApplication>
@@ -64,13 +65,13 @@ QString dimensionText(const SketchConstraint& c)
 {
     switch (c.kind) {
     case ConstraintKind::Radius:
-        return QStringLiteral("R %1").arg(c.value, 0, 'f', 2);
+        return QStringLiteral("R %1").arg(lengthText(c.value, false));
     case ConstraintKind::Diameter:
-        return QStringLiteral("Ø %1").arg(c.value, 0, 'f', 2);
+        return QStringLiteral("Ø %1").arg(lengthText(c.value, false));
     case ConstraintKind::Angle:
         return QStringLiteral("%1°").arg(std::abs(c.value) * 180.0 / M_PI, 0, 'f', 1);
     default:
-        return QString::number(std::abs(c.value), 'f', 2);
+        return lengthText(std::abs(c.value), false);
     }
 }
 
@@ -145,6 +146,8 @@ void SketchEditor::setTool(ToolKind kind)
         return;
     endValueSession(true); // before the field is dropped, so dropping it doesn't clear picks
     m_valueEditor->cancel(); // may call back into the old tool, so before it goes
+    const std::vector<int> pickedBodies = selectedBodies(); // Move starts with them
+    inspectToolChanged();
     if (m_tool)
         m_tool->cancel();
     const SketchSelection picked = m_selection; // mirror and patterns start from it
@@ -188,6 +191,12 @@ void SketchEditor::setTool(ToolKind kind)
         } else if (kind == ToolKind::BodyMirror || kind == ToolKind::BodyLinearPattern
                    || kind == ToolKind::BodyCircularPattern) {
             m_solid.bodies = bodies;
+        } else if (kind == ToolKind::Move || kind == ToolKind::Measure || kind == ToolKind::Section) {
+            clearModelSelection();
+        }
+        if (kind == ToolKind::Move && !pickedBodies.empty()) {
+            m_move.bodies = pickedBodies;
+            refreshMovePreview();
         }
         updateSelectionModes();
         syncValueSession();
@@ -1223,7 +1232,16 @@ void SketchEditor::cancel()
     }
     if (mode() == EditorMode::Model) {
         // First drop what is picked, then leave the tool.
-        if (solidCancel()) {
+        if (m_toolKind == ToolKind::Move && (m_move.anchor || !m_move.bodies.empty())) {
+            if (m_move.anchor)
+                m_move.anchor.reset();
+            else
+                endMove();
+            updateHint();
+        } else if (m_toolKind == ToolKind::Measure && !m_measured.empty()) {
+            m_measured.clear();
+            refreshMeasure();
+        } else if (solidCancel()) {
             // the solid tool's picks went
         } else if (!m_regionSelection.empty() || !m_bodySelection.empty() || m_selectedDatum != 0) {
             endValueSession(true);
@@ -1251,6 +1269,10 @@ void SketchEditor::confirm()
     }
     if (solidConfirm())
         return;
+    if (mode() == EditorMode::Model && m_toolKind == ToolKind::Move && !m_move.bodies.empty()) {
+        askMoveValues();
+        return;
+    }
     if (m_tool && m_tool->confirm()) {
         refreshOverlay();
         updateHint();
@@ -1372,6 +1394,25 @@ void SketchEditor::updateHint()
         emit hintChanged(solidHint());
         return;
     }
+    if (mode() == EditorMode::Model && m_toolKind == ToolKind::Move) {
+        emit hintChanged(m_valueEditor->isOpen() ? tr("Move: type the offset or the turn  ·  Enter goes on")
+                         : m_move.bodies.empty() ? tr("Move: tap the bodies to move or copy")
+                         : m_move.anchor ? tr("Move: tap where it goes: a corner, round edge or face of another body")
+                                         : tr("Move: drag an arrow or ring, or tap a corner, round edge or face of it and "
+                                              "then where it goes  ·  Enter types values and applies"));
+        return;
+    }
+    if (mode() == EditorMode::Model && m_toolKind == ToolKind::Measure) {
+        emit hintChanged(tr("Measure: tap a face, edge or corner, and a second one to measure between them"));
+        return;
+    }
+    if (mode() == EditorMode::Model && m_toolKind == ToolKind::Section) {
+        emit hintChanged(m_valueEditor->isOpen() ? tr("Section: type how far to shift the cut  ·  Enter accepts")
+                         : sectionActive() ? tr("Section: tap another face or plane to cut along it  ·  "
+                                                "View → Section View turns it off")
+                                           : tr("Section: tap a flat face or a plane to cut the model open along it"));
+        return;
+    }
     if (mode() == EditorMode::Model) {
         const bool open = m_session.kind != ValueSession::Kind::None;
         const QString error = modelText(m_session.error);
@@ -1465,6 +1506,8 @@ void SketchEditor::paintOverlay(QPainter& p)
     m_labels.clear();
     if (m_active < 0) {
         paintArrow(p);
+        if (m_toolKind == ToolKind::Measure)
+            paintMeasure(p);
         return;
     }
     const Sketch& s = sketch();

@@ -590,6 +590,31 @@ FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoD
             result.error = QT_TRANSLATE_NOOP("Model", "The hole doesn't reach any body");
         return result;
     }
+    case Feature::Kind::Move: {
+        const auto trsf = trsfOf(f.matrix);
+        if (!trsf)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The move isn't a rigid motion"));
+        FeatureResult result;
+        result.bodies = bodies;
+        std::vector<int> picked;
+        for (const gp_Pnt& p : f.bodies) {
+            const auto body = findBody(bodies, p);
+            if (!body)
+                return failed(bodies, QT_TRANSLATE_NOOP("Model", "The body this applied to is gone"));
+            if (std::find(picked.begin(), picked.end(), *body) == picked.end())
+                picked.push_back(*body);
+        }
+        if (picked.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick the bodies to move"));
+        for (int b : picked) {
+            const TopoDS_Shape moved = transformed(bodies[b], *trsf);
+            if (f.copy)
+                result.bodies.push_back(moved);
+            else
+                result.bodies[b] = moved; // stays where it was in the list
+        }
+        return result;
+    }
     case Feature::Kind::Datum: {
         FeatureResult result;
         result.bodies = bodies;
@@ -652,6 +677,55 @@ void remember(ModelContext& context, const Feature& feature, const FeatureResult
     }
     if (result.tool)
         context.tools[feature.id] = *result.tool;
+}
+
+std::vector<double> matrixOf(const gp_Trsf& trsf)
+{
+    std::vector<double> m;
+    for (int row = 1; row <= 3; ++row) {
+        for (int col = 1; col <= 4; ++col)
+            m.push_back(trsf.Value(row, col));
+    }
+    return m;
+}
+
+std::optional<gp_Trsf> trsfOf(const std::vector<double>& m)
+{
+    if (m.size() != 12)
+        return std::nullopt;
+    // Orthonormal, right-handed: a rotation and a shift, nothing that scales or mirrors.
+    const gp_Vec r0(m[0], m[1], m[2]), r1(m[4], m[5], m[6]), r2(m[8], m[9], m[10]);
+    if (std::abs(r0.Magnitude() - 1.0) > 1e-6 || std::abs(r1.Magnitude() - 1.0) > 1e-6
+        || std::abs(r2.Magnitude() - 1.0) > 1e-6 || std::abs(r0.Dot(r1)) > 1e-6 || std::abs(r0.Dot(r2)) > 1e-6
+        || std::abs(r1.Dot(r2)) > 1e-6 || r0.Crossed(r1).Dot(r2) < 0.0)
+        return std::nullopt;
+    gp_Trsf t;
+    try {
+        t.SetValues(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11]);
+    } catch (const Standard_Failure&) {
+        return std::nullopt;
+    }
+    return t;
+}
+
+std::optional<int> bodyContaining(const std::vector<TopoDS_Shape>& bodies, const gp_Pnt& p)
+{
+    for (int b = 0; b < static_cast<int>(bodies.size()); ++b) {
+        if (BRepClass3d_SolidClassifier(bodies[b], p, kTolerance).State() == TopAbs_IN)
+            return b;
+    }
+    return std::nullopt;
+}
+
+std::vector<int> matchBodyStyles(const std::vector<TopoDS_Shape>& bodies, const std::vector<BodyStyle>& styles)
+{
+    std::vector<int> owner(bodies.size(), -1);
+    for (int s = 0; s < static_cast<int>(styles.size()); ++s) {
+        const auto body = bodyContaining(bodies, styles[s].inside);
+        if (body && owner[*body] < 0)
+            owner[*body] = s;
+    }
+    return owner;
 }
 
 void numberFeatures(std::vector<Feature>& features)

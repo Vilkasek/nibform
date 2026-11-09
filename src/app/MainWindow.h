@@ -6,6 +6,7 @@
 #include "sketch/ConstraintCommands.h"
 #include "sketch/SketchEditor.h"
 #include "sketch/SketchTools.h"
+#include "model/Units.h"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -25,6 +26,8 @@ class QToolButton;
 class QLabel;
 class QMenu;
 class QToolBar;
+class QDockWidget;
+class QTreeWidget;
 class RadialMenu;
 struct PenSample;
 
@@ -54,6 +57,10 @@ private:
     void showRadialMenu(const QPointF& pos);
     // Two fingers undo, three redo.
     void onFingerTap(int fingers);
+    // The Bodies panel: names, visibility and colors of the bodies.
+    void buildBodyList();
+    void updateBodyList();
+    void setUnits(LengthUnit unit);
     void updateEditActions();
     void updateMode(EditorMode mode);
     void loadDemo();
@@ -143,6 +150,11 @@ private:
     QAction* m_redoAction = nullptr;
     QAction* m_deleteAction = nullptr;
     QPointer<RadialMenu> m_radialMenu;
+    QDockWidget* m_bodyDock = nullptr;
+    QTreeWidget* m_bodyList = nullptr;
+    bool m_fillingBodyList = false;
+    QAction* m_sectionAction = nullptr;
+    std::map<LengthUnit, QAction*> m_unitActions;
 
     QLabel* m_hintLabel = nullptr;
     QLabel* m_dofLabel = nullptr;

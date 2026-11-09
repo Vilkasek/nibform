@@ -9,9 +9,11 @@
 #include <gp_Ax1.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Dir.hxx>
+#include <gp_Trsf.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Pnt2d.hxx>
 
+#include <array>
 #include <functional>
 #include <map>
 #include <optional>
@@ -107,6 +109,7 @@ struct Feature
         Pattern, // copies of feature `source` (or of bodies, when 0) along / around `axis`
         Hole,    // holes into `faces[0]` at `holeAt` / `points`, shaped by `hole`
         Datum,   // a construction plane or axis (`datum`)
+        Move,    // bodies moved (or copied, `copy`) by `matrix`
     };
     enum class PatternKind { Linear, Circular };
     enum class DatumKind { OffsetPlane, AnglePlane, ThreePointPlane, Axis, TwoPointAxis };
@@ -137,7 +140,29 @@ struct Feature
     std::vector<SketchPointRef> holeAt;
     std::vector<gp_Pnt> points; // Hole: where else; Datum: through these
     DatumKind datum = DatumKind::OffsetPlane; // `value`: offset (mm) / angle (degrees)
+    // Move: a rigid motion, the 3 × 4 matrix row by row (rotation | translation).
+    std::vector<double> matrix;
+    bool copy = false;
 };
+
+std::vector<double> matrixOf(const gp_Trsf& trsf);
+std::optional<gp_Trsf> trsfOf(const std::vector<double>& matrix); // empty unless a rigid motion
+
+// How a body looks, kept apart from the history: found again after rebuilds by a point
+// inside it (moved along when the body moves).
+struct BodyStyle
+{
+    gp_Pnt inside;
+    std::string name;   // empty: "Body n"
+    bool hidden = false;
+    std::optional<std::array<double, 3>> color; // sRGB 0..1; empty: the default
+};
+
+// The body (index) that has `p` inside it, if any.
+std::optional<int> bodyContaining(const std::vector<TopoDS_Shape>& bodies, const gp_Pnt& p);
+// For each body, the style that belongs to it (index into `styles`) or -1; a style goes
+// to one body at most, earlier styles first.
+std::vector<int> matchBodyStyles(const std::vector<TopoDS_Shape>& bodies, const std::vector<BodyStyle>& styles);
 
 // What a replay knows besides the bodies: the datums so far, and each applied feature's
 // tool solid (by feature id), for patterns.

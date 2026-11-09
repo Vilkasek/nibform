@@ -3,6 +3,7 @@
 #include "sketch/Offset.h"
 #include "sketch/SketchOps.h"
 #include "sketch/Trim.h"
+#include "viewer/UnitText.h"
 
 #include <QCoreApplication>
 
@@ -14,7 +15,7 @@ constexpr double kMinSize = 1e-6;
 
 QString mm(double v)
 {
-    return QString::number(v, 'f', 2) + QStringLiteral(" mm");
+    return lengthText(v);
 }
 
 void appendPolyline(std::vector<Segment2d>& out, const std::vector<gp_Pnt2d>& pts)

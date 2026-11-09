@@ -5,6 +5,7 @@
 
 #include "model/Profiles.h"
 #include "viewer/OcctViewerWidget.h"
+#include "viewer/UnitText.h"
 #include "viewer/ValueEditor.h"
 
 #include <AIS_InteractiveContext.hxx>
@@ -225,20 +226,27 @@ void SketchEditor::refreshBodies()
         ctx->Remove(prs, false);
     m_bodyPrs.clear();
 
-    for (const TopoDS_Shape& body : m_bodies) {
+    matchStyles();
+    for (int index = 0; index < static_cast<int>(m_bodies.size()); ++index) {
+        const TopoDS_Shape& body = m_bodies[index];
         Handle(AIS_Shape) prs = new AIS_Shape(body);
         // Matte: with the light coming from the camera, a glossy face seen head-on burns to white.
         Graphic3d_MaterialAspect material(Graphic3d_NameOfMaterial_Plastified);
         material.SetSpecularColor(Quantity_Color(0.06, 0.06, 0.06, Quantity_TOC_RGB));
         prs->SetMaterial(material);
-        prs->SetColor(m_colors.body);
+        prs->SetColor(bodyColor(index));
         // Displayed with a real selection mode: shown with -1 ("not selectable"), OCCT
         // ignores any later Activate() and the body can never be picked.
         ctx->Display(prs, AIS_Shaded, AIS_Shape::SelectionMode(TopAbs_FACE), false);
+        if (m_styleOf[index] >= 0 && m_bodyStyles[m_styleOf[index]].hidden)
+            ctx->Erase(prs, false);
         m_bodyPrs.push_back(prs);
     }
+    if (!m_move.bodies.empty())
+        endMove(); // the bodies it held are rebuilt
     updateSelectionModes();
     emit selectionChanged();
+    emit bodiesChanged();
 }
 
 void SketchEditor::updateSelectionModes()
@@ -250,6 +258,8 @@ void SketchEditor::updateSelectionModes()
     const int faces = AIS_Shape::SelectionMode(TopAbs_FACE);
     const int edges = AIS_Shape::SelectionMode(TopAbs_EDGE);
     for (const Handle(AIS_Shape)& prs : m_bodyPrs) {
+        if (!ctx->IsDisplayed(prs))
+            continue; // hidden, or being moved
         // Mode by mode, asking the selection manager itself: the context's own list of
         // active modes can claim a mode the selector never got, and then nothing is picked.
         auto set = [&](int selectionMode, bool on) {
@@ -260,11 +270,12 @@ void SketchEditor::updateSelectionModes()
                 ctx->Deactivate(prs, selectionMode);
         };
         // Tools that take corners, and those that don't want edges in the way.
-        const bool corners = m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Axis;
+        const bool corners = m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Axis
+                          || m_toolKind == ToolKind::Move || m_toolKind == ToolKind::Measure;
         const bool noEdges = m_toolKind == ToolKind::PushPull || m_toolKind == ToolKind::Shell
                           || m_toolKind == ToolKind::Hole || m_toolKind == ToolKind::Loft
                           || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::OffsetPlane
-                          || m_toolKind == ToolKind::ThreePointPlane;
+                          || m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Section;
         set(faces, model);
         set(edges, model && !noEdges);
         set(AIS_Shape::SelectionMode(TopAbs_VERTEX), model && corners);
@@ -442,8 +453,8 @@ void SketchEditor::showHoverRegion()
 void SketchEditor::applyModelColors()
 {
     const auto& ctx = m_viewer->aisContext();
-    for (const Handle(AIS_Shape)& prs : m_bodyPrs)
-        ctx->SetColor(prs, m_colors.body, false);
+    for (int i = 0; i < static_cast<int>(m_bodyPrs.size()); ++i)
+        ctx->SetColor(m_bodyPrs[i], bodyColor(i), false);
     // Faces / edges under the pointer and picked, matching the sketch's hover and selection.
     ctx->HighlightStyle(Prs3d_TypeOfHighlight_LocalDynamic)->SetColor(m_colors.preview);
     ctx->HighlightStyle(Prs3d_TypeOfHighlight_LocalSelected)->SetColor(m_colors.accent);
@@ -699,6 +710,8 @@ bool SketchEditor::modelPress(const PointerEvent& e)
 {
     m_modelPress = {};
     m_tapPos = e.pos;
+    if (m_toolKind == ToolKind::Move)
+        return movePress(e); // the gizmo; a tap is handled on release
     // The arrow takes the press first: dragging it sets the distance / radius.
     if (hitsArrow(e.pos)) {
         m_session.dragging = true;
@@ -722,6 +735,8 @@ bool SketchEditor::modelMove(const PointerEvent& e, bool pressed)
         showHoverRegion();
         return true;
     }
+    if (m_toolKind == ToolKind::Move)
+        return moveDrag(e);
     if (!m_session.dragging)
         return false;
     m_session.value = m_session.dragStartValue + arrowParam(e.pixel) - m_session.dragStartParam;
@@ -733,8 +748,10 @@ bool SketchEditor::modelMove(const PointerEvent& e, bool pressed)
     return true;
 }
 
-bool SketchEditor::modelRelease(const PointerEvent&)
+bool SketchEditor::modelRelease(const PointerEvent& e)
 {
+    if (m_toolKind == ToolKind::Move)
+        return moveRelease(e);
     if (m_session.dragging) {
         m_session.dragging = false;
         // Snap the dragged distance to what the field shows, and keep typing there.
@@ -747,6 +764,14 @@ bool SketchEditor::modelRelease(const PointerEvent&)
     m_modelPress = {};
     if (isSolidTool(m_toolKind)) {
         solidTap(hit);
+        return true;
+    }
+    if (m_toolKind == ToolKind::Measure) {
+        measureTap(hit);
+        return true;
+    }
+    if (m_toolKind == ToolKind::Section) {
+        sectionTap(hit);
         return true;
     }
     if (hit.kind == Hit::Kind::Datum) {
@@ -1121,15 +1146,15 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             break;
         case Feature::Kind::Extrude:
             base = tr("Extrude");
-            item.detail = mm(f.value) + QStringLiteral(" mm");
+            item.detail = lengthShort(f.value);
             break;
         case Feature::Kind::Fillet:
             base = tr("Fillet");
-            item.detail = QStringLiteral("r ") + mm(f.value) + QStringLiteral(" mm");
+            item.detail = QStringLiteral("r ") + lengthShort(f.value);
             break;
         case Feature::Kind::Chamfer:
             base = tr("Chamfer");
-            item.detail = mm(f.value) + QStringLiteral(" mm");
+            item.detail = lengthShort(f.value);
             break;
         case Feature::Kind::Combine:
             base = f.boolean == BooleanKind::Union      ? tr("Union")
@@ -1141,7 +1166,7 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             break;
         case Feature::Kind::Shell:
             base = tr("Shell");
-            item.detail = mm(f.value) + QStringLiteral(" mm");
+            item.detail = lengthShort(f.value);
             break;
         case Feature::Kind::Revolve:
             base = tr("Revolve");
@@ -1160,11 +1185,14 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             base = f.pattern == Feature::PatternKind::Circular ? tr("Circular Pattern") : tr("Linear Pattern");
             item.detail = f.pattern == Feature::PatternKind::Circular
                             ? QStringLiteral("%1 × %2°").arg(f.count).arg(mm(f.value))
-                            : QStringLiteral("%1 × %2 mm").arg(f.count).arg(mm(f.value));
+                            : QStringLiteral("%1 × %2").arg(f.count).arg(lengthShort(f.value));
             break;
         case Feature::Kind::Hole:
             base = tr("Hole");
-            item.detail = QStringLiteral("⌀ %1 mm").arg(mm(f.hole.diameter));
+            item.detail = QStringLiteral("⌀ %1").arg(lengthShort(f.hole.diameter));
+            break;
+        case Feature::Kind::Move:
+            base = f.copy ? tr("Copy") : tr("Move");
             break;
         case Feature::Kind::Datum:
             if (f.datum == Feature::DatumKind::Axis || f.datum == Feature::DatumKind::TwoPointAxis) {
@@ -1172,7 +1200,7 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             } else {
                 base = tr("Plane");
                 if (f.datum == Feature::DatumKind::OffsetPlane)
-                    item.detail = mm(f.value) + QStringLiteral(" mm");
+                    item.detail = lengthShort(f.value);
                 else if (f.datum == Feature::DatumKind::AnglePlane)
                     item.detail = mm(f.value) + QStringLiteral("°");
             }
@@ -1337,6 +1365,7 @@ ProjectData SketchEditor::project() const
     for (const Slot& slot : m_slots)
         data.sketches.push_back({slot.id, slot.sketch});
     data.features = m_features;
+    data.bodyStyles = m_bodyStyles;
     return data;
 }
 
@@ -1354,6 +1383,7 @@ void SketchEditor::loadProject(ProjectData project)
         m_viewer->aisContext()->Remove(slot.prs, false);
     m_slots.clear();
     m_nextSketchId = 1;
+    m_bodyStyles = std::move(project.bodyStyles);
     Snapshot loaded{std::move(project.sketches), std::move(project.features)};
     restore(std::move(loaded));
     m_undo.clear();

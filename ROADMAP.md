@@ -1,7 +1,7 @@
 # Roadmap
 
-M0–M10 and i18n are done (see the README). Next, roughly in order: transform and inspect,
-interop, drawings, then make big models fast.
+M0–M11 and i18n are done (see the README). Next, roughly in order: interop, drawings, then
+make big models fast.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -64,7 +64,7 @@ Beyond extrude.
 **Done when:** a flange (revolve), a handle (sweep) and a bolt circle (pattern of holes)
 can be built and edited from the history.
 
-## M11 – Transform and inspect
+## M11 – Transform and inspect ✓
 
 Working with what is already there.
 

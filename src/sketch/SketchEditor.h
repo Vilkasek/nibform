@@ -11,7 +11,9 @@
 #include "viewer/PlanarPrs.h"
 #include "viewer/ViewerInteraction.h"
 
+#include <AIS_Manipulator.hxx>
 #include <AIS_Shape.hxx>
+#include <Graphic3d_ClipPlane.hxx>
 #include <Bnd_Box.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Edge.hxx>
@@ -165,6 +167,24 @@ public:
     void activateTimelineItem(int index);
     // Removes the feature (or the sketch, with its entry); later features are rebuilt.
     void removeTimelineItem(int index);
+    // --- Bodies: names, visibility, colors (kept with the project, not in the history) ---
+    struct BodyInfo
+    {
+        QString name;
+        bool hidden = false;
+        QColor color;
+        bool customColor = false;
+    };
+    std::vector<BodyInfo> bodyInfos() const;
+    void setBodyName(int body, const QString& name);
+    void setBodyHidden(int body, bool hidden);
+    void setBodyColor(int body, std::optional<QColor> color); // empty: the default
+    // Section view: the model cut open along a plane (picked with the Section tool).
+    bool sectionActive() const { return !m_section.IsNull(); }
+    void clearSection();
+    // The length unit changed: redraw values in it.
+    void unitsChanged();
+
     // Whether the entry made a solid a pattern can repeat (an extrusion from a sketch, a
     // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
     bool canPattern(int index) const;
@@ -203,6 +223,8 @@ signals:
     void statusChanged(const QString& status); // DOF of the open sketch / body count
     void message(const QString& text);         // short-lived feedback (rejected constraint, ...)
     void bodyOperationChanged(BodyOperation operation);
+    void bodiesChanged();          // count, names, visibility or colors
+    void sectionChanged(bool on);
 
 private:
     struct Slot
@@ -378,6 +400,49 @@ private:
     ModelContext m_context;  // datums and feature tools, from the last rebuild
     QPointF m_tapPos;        // where the last model press was, for hole placement
     std::string m_solidError; // why the feature being set up doesn't apply
+
+    // Moving, measuring, sections (SketchEditorInspect.cpp)
+    struct MoveSession
+    {
+        std::vector<int> bodies;
+        gp_Trsf draft; // what has been done to them so far
+        Handle(AIS_Shape) preview;
+        Handle(AIS_Manipulator) gizmo;
+        bool dragging = false;
+        std::optional<TopoDS_Shape> anchor; // a corner / edge / face of the moved bodies, where it is now
+        bool copy = false;
+    };
+    MoveSession m_move;
+    void movePickBody(int body);
+    void refreshMovePreview();
+    void endMove();
+    bool movePress(const PointerEvent& e);
+    bool moveDrag(const PointerEvent& e);
+    bool moveRelease(const PointerEvent& e);
+    void moveTap(const PointerEvent& e);
+    void askMoveValues(); // Enter: typed offsets and a turn, then applies
+    gp_Pnt moveCenter() const;
+
+    std::vector<BodyPick> m_measured; // up to two
+    Handle(AIS_Shape) m_measurePrs;   // the line between the nearest points
+    void measureTap(const Hit& hit);
+    void refreshMeasure();
+    void paintMeasure(QPainter& painter) const;
+    QStringList measureLines() const;
+
+    Handle(Graphic3d_ClipPlane) m_section;
+    gp_Ax3 m_sectionBase;
+    double m_sectionOffset = 0.0;
+    bool m_sectionFlip = false;
+    void sectionTap(const Hit& hit);
+    void applySection();
+
+    std::vector<BodyStyle> m_bodyStyles;
+    std::vector<int> m_styleOf; // per body, index into m_bodyStyles or -1
+    void matchStyles();         // after the bodies change
+    BodyStyle& styleFor(int body);
+    Quantity_Color bodyColor(int body) const;
+    void inspectToolChanged(); // tool switched: end what the old tool had going
 
     // Model mode (SketchEditorBodies.cpp)
     Hit modelHitAt(const PointerEvent& e) const;

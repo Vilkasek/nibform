@@ -39,9 +39,9 @@ constexpr std::array<const char*, 19> kConstraintKinds{
     "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
     "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
     "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
-constexpr std::array<const char*, 14> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine",
+constexpr std::array<const char*, 15> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine",
                                                     "delete", "shell",   "revolve", "sweep",  "loft",
-                                                    "mirror", "pattern", "hole",    "datum"};
+                                                    "mirror", "pattern", "hole",    "datum",  "move"};
 constexpr std::array<const char*, 4> kAxisKinds{"none", "edge", "sketchLine", "datum"};
 constexpr std::array<const char*, 3> kPlaneKinds{"none", "face", "datum"};
 constexpr std::array<const char*, 2> kPatternKinds{"linear", "circular"};
@@ -241,6 +241,13 @@ QJsonObject featureToJson(const Feature& f)
         {"holeAt", holeAt},
         {"points", points},
         {"datum", nameOf(f.datum, kDatumKinds)},
+        {"matrix", [&] {
+             QJsonArray m;
+             for (double v : f.matrix)
+                 m.append(v);
+             return m;
+         }()},
+        {"copy", f.copy},
         {"sketch", f.sketch},
         {"value", f.value},
         {"operation", nameOf(f.operation, kOperations)},
@@ -318,6 +325,9 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
         f.points.push_back(gp_Pnt(toXYZ(v)));
     f.datum = fromName<Feature::DatumKind>(o.value("datum").toString(), kDatumKinds)
                   .value_or(Feature::DatumKind::OffsetPlane);
+    for (const auto& v : o.value("matrix").toArray())
+        f.matrix.push_back(v.toDouble());
+    f.copy = o.value("copy").toBool(false);
     return f;
 }
 
@@ -330,7 +340,15 @@ QByteArray projectToJson(const ProjectData& project)
         sketches.append(sketchToJson(entry.id, entry.sketch));
     for (const Feature& f : project.features)
         features.append(featureToJson(f));
-    const QJsonObject root{{"format", kFormat}, {"version", kVersion}, {"sketches", sketches}, {"features", features}};
+    QJsonArray styles;
+    for (const BodyStyle& b : project.bodyStyles) {
+        QJsonObject o{{"inside", xyz(b.inside.XYZ())}, {"name", QString::fromStdString(b.name)}, {"hidden", b.hidden}};
+        if (b.color)
+            o.insert("color", QJsonArray{(*b.color)[0], (*b.color)[1], (*b.color)[2]});
+        styles.append(o);
+    }
+    const QJsonObject root{{"format", kFormat},     {"version", kVersion},  {"sketches", sketches},
+                           {"features", features}, {"bodies", styles}};
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -362,6 +380,18 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
         if (!feature)
             return std::nullopt;
         project.features.push_back(std::move(*feature));
+    }
+    for (const auto& v : root.value("bodies").toArray()) {
+        const QJsonObject o = v.toObject();
+        BodyStyle b;
+        b.inside = gp_Pnt(toXYZ(o.value("inside")));
+        b.name = o.value("name").toString().toStdString();
+        b.hidden = o.value("hidden").toBool(false);
+        if (o.contains("color")) {
+            const QJsonArray c = o.value("color").toArray();
+            b.color = std::array<double, 3>{c.at(0).toDouble(), c.at(1).toDouble(), c.at(2).toDouble()};
+        }
+        project.bodyStyles.push_back(std::move(b));
     }
     numberFeatures(project.features); // older files: ids in history order
     return project;

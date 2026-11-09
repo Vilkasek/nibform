@@ -97,6 +97,7 @@ bool SketchEditor::wantsBaseDatums() const
     case ToolKind::BodyCircularPattern:
     case ToolKind::OffsetPlane:
     case ToolKind::AnglePlane:
+    case ToolKind::Section:
         return true;
     default:
         return false;
@@ -372,7 +373,7 @@ void SketchEditor::refreshSolidMarks()
     // Picked bodies in the accent color.
     for (int i = 0; i < static_cast<int>(m_bodyPrs.size()); ++i) {
         const bool picked = std::find(m_solid.bodies.begin(), m_solid.bodies.end(), i) != m_solid.bodies.end();
-        ctx->SetColor(m_bodyPrs[i], picked ? m_colors.accent : m_colors.body, false);
+        ctx->SetColor(m_bodyPrs[i], picked ? m_colors.accent : bodyColor(i), false);
     }
     // The axis, path and points picked so far.
     TopoDS_Compound marks = compound();

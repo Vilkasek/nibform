@@ -58,7 +58,13 @@ private:
     void edited(); // typed or keyed in: clear the error mark, report the value
     void key(const QString& key);
     void moveClamped(double x, double y);
-    std::optional<double> parsed() const;
+    std::optional<double> parsed() const; // in the unit shown
+    // A label with "[mm]" asks for a length: shown (and typed) in the current length unit,
+    // always handed back in millimetres.
+    QString shownLabel() const;
+    double shown(double value) const;
+    double taken(double value) const;
+    bool m_length = false;
     static QString format(double value);
 
     QLabel* m_label;

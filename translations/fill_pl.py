@@ -6,6 +6,20 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "The checkbox shows or hides a body; double-click the name to rename it":
+      "Pole wyboru pokazuje albo ukrywa bryłę; dwuklik na nazwie zmienia ją",
+  "Choose Color…": "Wybierz kolor…", "Body Color": "Kolor bryły", "Default Color": "Domyślny kolor",
+  "Move": "Przesuń", "Measure": "Zmierz", "Section": "Przekrój",
+  "Move (T): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)":
+      "Przesuń (T): dotknij brył, potem przeciągnij strzałki i pierścienie albo dotknij ich narożnika, okrągłej "
+      "krawędzi lub ściany, a potem miejsca docelowego; Enter pozwala wpisać przesunięcie i zatwierdza (albo kopiuje)",
+  "Measure (I): tap a face, edge or corner, and a second one to measure between them; the body's volume and mass properties too":
+      "Zmierz (I): dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi; "
+      "pokazuje też objętość i właściwości masowe bryły",
+  "Section: tap a flat face or a plane to cut the view open along it; View → Section View turns it off":
+      "Przekrój: dotknij płaskiej ściany albo płaszczyzny, by przeciąć widok wzdłuż niej; Widok → Przekrój wyłącza go",
+  "Units": "Jednostki", "Millimetres": "Milimetry", "Inches": "Cale", "Section View": "Przekrój",
+  "Bodies": "Bryły", "Body": "Bryła", "Color": "Kolor", "Body List": "Lista brył",
   "Revolve": "Obrót", "Sweep": "Przeciągnij", "Loft": "Wyciągnij przez profile", "Hole": "Otwór",
   "Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)":
       "Obrót (R): dotknij obszarów szkicu, potem osi (linii szkicu, krawędzi albo osi)",
@@ -142,6 +156,8 @@ PL = {
       "2 punkty i linia: punkty są swoimi odbiciami względem linii",
  },
  "Model": {
+  "The move isn't a rigid motion": "Przesunięcie nie jest ruchem sztywnym",
+  "Pick the bodies to move": "Wybierz bryły do przesunięcia",
   "The sketch region it was made from is gone": "Obszar szkicu, z którego powstała, zniknął",
   "The axis is gone": "Oś zniknęła", "The path is gone": "Ścieżka zniknęła",
   "The mirror plane is gone": "Płaszczyzna odbicia zniknęła", "Pick the bodies to mirror": "Wybierz bryły do odbicia",
@@ -199,6 +215,32 @@ PL = {
   "Can't save %1: %2": "Nie można zapisać %1: %2", "Can't open %1: %2": "Nie można otworzyć %1: %2",
  },
  "SketchEditor": {
+  "Move: type the offset or the turn  ·  Enter goes on": "Przesuń: wpisz przesunięcie albo obrót  ·  Enter przechodzi dalej",
+  "Move: tap the bodies to move or copy": "Przesuń: dotknij brył do przesunięcia albo skopiowania",
+  "Move: tap where it goes: a corner, round edge or face of another body":
+      "Przesuń: dotknij miejsca docelowego: narożnika, okrągłej krawędzi albo ściany innej bryły",
+  "Move: drag an arrow or ring, or tap a corner, round edge or face of it and then where it goes  ·  Enter types values and applies":
+      "Przesuń: przeciągnij strzałkę albo pierścień, albo dotknij narożnika, okrągłej krawędzi lub ściany, a potem "
+      "miejsca docelowego  ·  Enter: wpisz wartości i zatwierdź",
+  "Measure: tap a face, edge or corner, and a second one to measure between them":
+      "Zmierz: dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi",
+  "Section: type how far to shift the cut  ·  Enter accepts": "Przekrój: wpisz, o ile przesunąć cięcie  ·  Enter zatwierdza",
+  "Section: tap another face or plane to cut along it  ·  View → Section View turns it off":
+      "Przekrój: dotknij innej ściany albo płaszczyzny, by ciąć wzdłuż niej  ·  Widok → Przekrój wyłącza",
+  "Section: tap a flat face or a plane to cut the model open along it":
+      "Przekrój: dotknij płaskiej ściany albo płaszczyzny, by przeciąć model wzdłuż niej",
+  "Copy": "Kopia", "Move": "Przesunięcie", "Body %1": "Bryła %1", "Point: %1": "Punkt: %1",
+  "Length: %1": "Długość: %1", "Area: %1": "Pole: %1", "Radius: %1  ·  diameter %2": "Promień: %1  ·  średnica %2",
+  "Distance: %1": "Odległość: %1", "Angle: %1°": "Kąt: %1°", "Between centers: %1": "Między środkami: %1",
+  "Volume: %1  ·  surface %2": "Objętość: %1  ·  powierzchnia %2", "Center of mass: %1": "Środek masy: %1",
+  "Size: %1 × %2 × %3": "Wymiary: %1 × %2 × %3", "Mass at 1.24 g/cm³ (PLA): %1 g": "Masa przy 1,24 g/cm³ (PLA): %1 g",
+  "Section: tap a flat face or a plane": "Przekrój: dotknij płaskiej ściany albo płaszczyzny",
+  "Section offset [mm]": "Przesunięcie przekroju [mm]", "Keep this side": "Zostaw tę stronę",
+  "Keep the other side": "Zostaw drugą stronę",
+  "Move: these don't line up: pick corners, round edges or flat faces":
+      "Przesuń: tego nie da się dopasować: wybierz narożniki, okrągłe krawędzie albo płaskie ściany",
+  "Move along X [mm]": "Przesuń wzdłuż X [mm]", "Move along Y [mm]": "Przesuń wzdłuż Y [mm]",
+  "Move along Z [mm]": "Przesuń wzdłuż Z [mm]", "Turn about Z [°]": "Obróć wokół Z [°]",
   "Revolve": "Obrót", "Sweep": "Przeciągnięcie", "Loft": "Wyciągnięcie przez profile", "Mirror": "Lustro",
   "Circular Pattern": "Szyk kołowy", "Linear Pattern": "Szyk liniowy", "Hole": "Otwór", "Axis": "Oś",
   "Plane": "Płaszczyzna", "Hole: pick a flat face": "Otwór: wybierz płaską ścianę",

@@ -457,6 +457,37 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.drawRect(QRectF(15, 8, 6, 10));
         break;
     }
+    case Icon::Move: {
+        // Arrows out of a block.
+        p.drawRect(QRectF(5, 9, 8, 8));
+        p.setPen(pen(accent, 1.8));
+        p.drawLine(QPointF(9, 13), QPointF(20, 13));
+        arrowHead(p, {21, 13}, {16, 13}, accent);
+        p.drawLine(QPointF(9, 13), QPointF(9, 3));
+        arrowHead(p, {9, 2}, {9, 7}, accent);
+        break;
+    }
+    case Icon::Measure: {
+        // A ruler with ticks.
+        p.save();
+        p.translate(12, 12);
+        p.rotate(-35);
+        p.drawRect(QRectF(-10, -3.5, 20, 7));
+        p.setPen(pen(accent, 1.4));
+        for (int k = -7; k <= 7; k += 3)
+            p.drawLine(QPointF(k, -3.5), QPointF(k, k % 2 ? -0.5 : 0.5));
+        p.restore();
+        break;
+    }
+    case Icon::Section: {
+        // A block cut by a plane, the cut face filled.
+        p.drawRect(QRectF(4, 7, 14, 12));
+        p.setPen(pen(accent, 1.8));
+        p.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 90));
+        p.drawPolygon(QPolygonF({{11, 3}, {20, 6}, {20, 21}, {11, 18}}));
+        p.setBrush(Qt::NoBrush);
+        break;
+    }
     case Icon::Freehand: {
         // A rough loop drawn by a pen nib.
         QPainterPath loop;

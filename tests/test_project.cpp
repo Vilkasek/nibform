@@ -237,6 +237,41 @@ void testSolidFeaturesRoundTrip()
     CHECK(renumbered && renumbered->features[0].id == 9);
 }
 
+void testMovesAndBodyStylesRoundTrip()
+{
+    ProjectData project;
+    Feature move;
+    move.kind = Feature::Kind::Move;
+    move.id = 3;
+    move.bodies = {gp_Pnt(1, 2, 3)};
+    gp_Trsf t;
+    t.SetTranslation(gp_Vec(4, 5, 6));
+    move.matrix = matrixOf(t);
+    move.copy = true;
+    project.features = {move};
+    BodyStyle style;
+    style.inside = gp_Pnt(7, 8, 9);
+    style.name = "Pokrywa";
+    style.hidden = true;
+    style.color = std::array<double, 3>{0.25, 0.5, 0.75};
+    BodyStyle plain;
+    plain.inside = gp_Pnt(-1, 0, 0);
+    project.bodyStyles = {style, plain};
+
+    QString error;
+    const auto loaded = projectFromJson(projectToJson(project), &error);
+    CHECK(loaded.has_value());
+    if (!loaded)
+        return;
+    const Feature& f = loaded->features.at(0);
+    CHECK(f.kind == Feature::Kind::Move && f.copy && f.matrix == move.matrix);
+    CHECK(loaded->bodyStyles.size() == 2);
+    const BodyStyle& s = loaded->bodyStyles[0];
+    CHECK(s.name == "Pokrywa" && s.hidden && s.color && (*s.color)[2] == 0.75);
+    CHECK(near(s.inside.Distance(gp_Pnt(7, 8, 9)), 0.0));
+    CHECK(!loaded->bodyStyles[1].color && !loaded->bodyStyles[1].hidden);
+}
+
 void testSavedProjectRebuildsTheSameModel()
 {
     QTemporaryDir dir;
@@ -340,6 +375,7 @@ int main()
         {"round trip", testRoundTrip},
         {"toolkit geometry round trip", testToolkitGeometryRoundTrip},
         {"solid features round trip", testSolidFeaturesRoundTrip},
+        {"moves and body styles round trip", testMovesAndBodyStylesRoundTrip},
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
         {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},

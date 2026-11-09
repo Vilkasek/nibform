@@ -36,7 +36,7 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
-Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`, `./build/test_inspect`).
 
 ## Language
 
@@ -159,12 +159,21 @@ regions/faces. `Enter` or ✓ extrudes, `Esc` or ✕ cancels.
 | Hole | `H` | tap a flat face where the hole goes – it snaps to sketch points on that face (then it follows the point when the sketch changes) and to round edges' centers; more taps add holes. Type the diameter and pick *Through*, *Blind* (then the depth), *Counterbore* (head diameter and depth) or *Countersink* (90°, head diameter) |
 | Mirror | `M` | tap bodies, `Enter`, then the mirror plane (a flat face or a plane; tapping a plane right away works too). A mirrored half that touches the original joins it |
 | Linear / Circular Pattern | `Shift+L` / `Shift+O` | tap bodies, then the direction / axis (an edge, an axis or a sketch line; for a circular one a round edge gives its center axis); type the count (with the original) and the spacing or the angle covered (360 = evenly around) |
+| Move | `T` | tap bodies (or pick them in Select first): they show where they go, with a gizmo – drag its arrows to slide them, its rings to turn them. Or tap a corner, round edge or flat face of them, then one of another body: corners and round edges' centers meet, a face lies flush against the other (turned to face it), a corner lands on a face. `Enter` asks offsets along X / Y / Z and a turn about Z (typed on top of what was dragged), with *Move* / *Copy*, and applies – a step of the history |
+| Measure | `I` | tap a face (area, radius), an edge (length, radius) or a corner (position); a second pick gives the distance (with a line), the angle between flat faces / straight edges and the distance between round edges' centers. The card also shows the body's volume, surface, center of mass, size and its mass in PLA |
+| Section | | tap a flat face or a plane (the base ones show): the view is cut open there, the cut filled in red; type an offset, pick the side to keep. *View → Section View* turns it off |
 | Offset Plane, Plane at Angle, Plane Through 3 Points, Axis | | construction geometry: a plane parallel to a face or plane at a distance, turned about an edge / axis, through three body corners; an axis along an edge, through a round edge's center or two corners |
 
 **Patterns of features**: the arrow of an extrusion (from a sketch), revolve, sweep, loft or hole on
 the *History* bar offers *Linear Pattern…* / *Circular Pattern…*: tap the direction and the copies
 repeat that operation (each hole is drilled again, each boss joined), following later changes of the
 original – a bolt circle is one hole and a circular pattern of it.
+
+**Bodies panel** (*View → Body List*): every body with a checkbox to show / hide it, its name
+(double-click to rename) and a color swatch (*Choose Color…* / *Default Color*). Names, visibility
+and colors are saved with the project and follow the bodies as the history rebuilds (each is found
+again by a point inside it). **Units** (*View → Units*): millimetres or inches – values are shown
+and typed in the chosen unit, the model stays in millimetres.
 
 **Construction planes and axes** show as see-through squares and lines. The base planes (XY, XZ, YZ)
 and axes (X, Y, Z) through the origin appear while a tool can use them (revolve, mirror, patterns,
@@ -200,8 +209,8 @@ handy with `NIBFORM_SCREENSHOT`.
 ## History, projects, export
 
 The model is parametric: bodies aren't saved but rebuilt from the history of operations
-(sketch, extrude, fillet, chamfer, shell, revolve, sweep, loft, hole, mirror, pattern, construction
-planes and axes, body operations, delete). The **History** bar at the bottom
+(sketch, extrude, fillet, chamfer, shell, revolve, sweep, loft, hole, mirror, pattern, move / copy,
+construction planes and axes, body operations, delete). The **History** bar at the bottom
 shows them in order. A tap selects an entry, a **double-click** (double tap) edits it, and the
 arrow next to it offers *Edit* / *Delete*:
 
@@ -292,7 +301,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M8** – pen first: freehand shape recognition, radial menu, touch gestures, scribble to delete, hover preview
 - [x] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns, projection, reference images
 - [x] **M10** – solid features: revolve, sweep, loft, mirror, patterns, holes, construction planes
-- [ ] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
+- [x] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
 - [ ] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export
 - [ ] **M13** – drawings: views, dimensions, PDF / SVG export
 - [ ] **M14** – speed and robustness: background and incremental rebuild, large models

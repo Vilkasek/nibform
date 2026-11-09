@@ -3,6 +3,7 @@
 #include "app/Icons.h"
 #include "app/Language.h"
 #include "app/RadialMenu.h"
+#include "viewer/UnitText.h"
 #include "model/Export.h"
 #include "sketch/SketchEditor.h"
 #include "viewer/OcctViewerWidget.h"
@@ -11,7 +12,11 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QColorDialog>
 #include <QComboBox>
+#include <QDockWidget>
+#include <QHeaderView>
+#include <QTreeWidget>
 #include <QFileDialog>
 #include <QDir>
 #include <QLocale>
@@ -42,6 +47,10 @@ MainWindow::MainWindow(QWidget* parent)
 
     m_editor = new SketchEditor(m_viewer, this);
     m_viewer->setInteraction(m_editor);
+    // Remembered length unit, and the Bodies panel (the View menu shows it).
+    setLengthUnit(QSettings().value(QStringLiteral("units")).toString() == QLatin1String("in") ? LengthUnit::Inch
+                                                                                                : LengthUnit::Millimetre);
+    buildBodyList();
 
     m_hintLabel = new QLabel(this);
     m_dofLabel = new QLabel(this);
@@ -82,6 +91,13 @@ MainWindow::MainWindow(QWidget* parent)
     });
     connect(m_editor, &SketchEditor::historyChanged, this, &MainWindow::updateEditActions);
     connect(m_editor, &SketchEditor::selectionChanged, this, &MainWindow::updateEditActions);
+    connect(m_editor, &SketchEditor::bodiesChanged, this, &MainWindow::updateBodyList);
+    connect(m_editor, &SketchEditor::sectionChanged, this, [this](bool on) {
+        if (m_sectionAction) {
+            const QSignalBlocker block(m_sectionAction);
+            m_sectionAction->setChecked(on);
+        }
+    });
     // Remembered theme; System also follows the desktop when it switches.
     const QString saved = QSettings().value(QStringLiteral("theme")).toString();
     setTheme(saved == QLatin1String("light") ? ThemeMode::Light
@@ -122,6 +138,7 @@ MainWindow::MainWindow(QWidget* parent)
             QTimer::singleShot(1500, this, [this, shotPath] {
                 grab().save(shotPath);
                 m_recovery->clear(); // not a crash
+                m_editor->markSaved(); // and nothing to ask about
                 QApplication::quit();
             });
         }
@@ -172,6 +189,83 @@ void MainWindow::showRadialMenu(const QPointF& pos)
     const double scale = m_tabletAction && m_tabletAction->isChecked() ? 1.3 : 1.0;
     const RadialMenu::Colors colors{themePalette(dark).color(QPalette::Window), style.ink, style.accent};
     m_radialMenu = new RadialMenu(std::move(items), m_viewer->mapTo(this, pos), scale, colors, this);
+}
+
+void MainWindow::setUnits(LengthUnit unit)
+{
+    setLengthUnit(unit);
+    QSettings().setValue(QStringLiteral("units"), unit == LengthUnit::Inch ? QStringLiteral("in") : QStringLiteral("mm"));
+    if (QAction* action = m_unitActions[unit])
+        action->setChecked(true);
+    m_editor->unitsChanged();
+}
+
+void MainWindow::buildBodyList()
+{
+    m_bodyDock = new QDockWidget(this);
+    m_bodyDock->setObjectName(QStringLiteral("bodyDock"));
+    m_bodyList = new QTreeWidget(m_bodyDock);
+    m_bodyList->setColumnCount(2);
+    m_bodyList->setRootIsDecorated(false);
+    m_bodyList->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    m_bodyList->header()->setStretchLastSection(false);
+    m_bodyList->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_bodyList->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_bodyList->setToolTip(tr("The checkbox shows or hides a body; double-click the name to rename it"));
+    m_bodyDock->setWidget(m_bodyList);
+    addDockWidget(Qt::RightDockWidgetArea, m_bodyDock);
+    m_bodyDock->setVisible(QSettings().value(QStringLiteral("bodyList"), false).toBool());
+    connect(m_bodyDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (!isMinimized())
+            QSettings().setValue(QStringLiteral("bodyList"), visible);
+    });
+    connect(m_bodyList, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem* item, int column) {
+        if (m_fillingBodyList || column != 0)
+            return;
+        const int body = m_bodyList->indexOfTopLevelItem(item);
+        const std::vector<SketchEditor::BodyInfo> infos = m_editor->bodyInfos();
+        if (body < 0 || body >= static_cast<int>(infos.size()))
+            return;
+        const bool hidden = item->checkState(0) != Qt::Checked;
+        if (hidden != infos[body].hidden)
+            m_editor->setBodyHidden(body, hidden);
+        else if (item->text(0) != infos[body].name)
+            m_editor->setBodyName(body, item->text(0));
+    });
+    updateBodyList();
+}
+
+void MainWindow::updateBodyList()
+{
+    if (!m_bodyList)
+        return;
+    const QScopedValueRollback guard(m_fillingBodyList, true);
+    m_bodyList->clear();
+    const std::vector<SketchEditor::BodyInfo> infos = m_editor->bodyInfos();
+    for (int i = 0; i < static_cast<int>(infos.size()); ++i) {
+        const SketchEditor::BodyInfo& info = infos[i];
+        auto* item = new QTreeWidgetItem(m_bodyList);
+        item->setText(0, info.name);
+        item->setFlags(item->flags() | Qt::ItemIsEditable | Qt::ItemIsUserCheckable);
+        item->setCheckState(0, info.hidden ? Qt::Unchecked : Qt::Checked);
+        // A swatch: tap for another color, or back to the default.
+        auto* swatch = new QToolButton(m_bodyList);
+        QPixmap chip(18, 18);
+        chip.fill(info.color);
+        swatch->setIcon(QIcon(chip));
+        swatch->setAutoRaise(true);
+        swatch->setPopupMode(QToolButton::InstantPopup);
+        auto* menu = new QMenu(swatch);
+        menu->addAction(tr("Choose Color…"), this, [this, i, color = info.color] {
+            const QColor picked = QColorDialog::getColor(color, this, tr("Body Color"));
+            if (picked.isValid())
+                m_editor->setBodyColor(i, picked);
+        });
+        menu->addAction(tr("Default Color"), this, [this, i] { m_editor->setBodyColor(i, std::nullopt); })
+            ->setEnabled(info.customColor);
+        swatch->setMenu(menu);
+        m_bodyList->setItemWidget(item, 1, swatch);
+    }
 }
 
 void MainWindow::onFingerTap(int fingers)
@@ -414,6 +508,15 @@ void MainWindow::buildActions()
     m_modelBar->addAction(
         makeTool(ToolKind::Shell, tr("Shell"), QKeySequence(Qt::Key_J), Icon::Shell));
     m_modelBar->addSeparator();
+    m_modelBar->addAction(makeTool(ToolKind::Move, tr("Move"), QKeySequence(Qt::Key_T), Icon::Move));
+    tip(ToolKind::Move, tr("Move (T): tap bodies, then drag the arrows and rings, or tap a corner, round edge or "
+                           "face of them and then where it goes; Enter types offsets and applies (or copies)"));
+    modelGroup({makeTool(ToolKind::Measure, tr("Measure"), QKeySequence(Qt::Key_I), Icon::Measure),
+                makeTool(ToolKind::Section, tr("Section"), QKeySequence(), Icon::Section)});
+    tip(ToolKind::Measure, tr("Measure (I): tap a face, edge or corner, and a second one to measure between them; "
+                              "the body's volume and mass properties too"));
+    tip(ToolKind::Section, tr("Section: tap a flat face or a plane to cut the view open along it; "
+                              "View → Section View turns it off"));
     modelGroup({makeTool(ToolKind::BodyMirror, tr("Mirror"), QKeySequence(Qt::Key_M), Icon::BodyMirror),
                 makeTool(ToolKind::BodyLinearPattern, tr("Linear Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_L),
                          Icon::LinearPattern),
@@ -577,6 +680,39 @@ void MainWindow::buildActions()
     // --- Views: digits = faces, Ctrl+digit = corners, Shift+digit = edges --------------
     QMenu* views = menuBar()->addMenu(tr("&View"));
     views->addAction(fit);
+
+    // Units, the section view and the Bodies panel.
+    QMenu* units = views->addMenu(tr("Units"));
+    auto* unitGroup = new QActionGroup(units);
+    for (const auto& [unit, name] : {std::pair(LengthUnit::Millimetre, tr("Millimetres")),
+                                     std::pair(LengthUnit::Inch, tr("Inches"))}) {
+        QAction* action = units->addAction(name, this, [this, unit] { setUnits(unit); });
+        action->setCheckable(true);
+        action->setChecked(lengthUnit() == unit);
+        unitGroup->addAction(action);
+        m_unitActions[unit] = action;
+    }
+    m_sectionAction = views->addAction(tr("Section View"), this, [this](bool on) {
+        if (!on) {
+            m_editor->clearSection();
+            return;
+        }
+        // Turned on: pick the plane to cut along (it stays off until one is picked).
+        const QSignalBlocker block(m_sectionAction);
+        m_sectionAction->setChecked(m_editor->sectionActive());
+        if (m_editor->mode() == EditorMode::Sketch)
+            m_editor->closeSketch();
+        if (QAction* section = m_toolActions[ToolKind::Section])
+            section->trigger();
+    });
+    m_sectionAction->setCheckable(true);
+    m_sectionAction->setChecked(m_editor->sectionActive());
+    m_bodyDock->setWindowTitle(tr("Bodies"));
+    m_bodyList->setHeaderLabels({tr("Body"), tr("Color")});
+    QAction* bodyPanel = m_bodyDock->toggleViewAction();
+    bodyPanel->setText(tr("Body List"));
+    views->addAction(bodyPanel);
+    views->addSeparator();
 
     // Pen and touch: without a keyboard, and with a hand resting on the screen.
     m_tabletAction = views->addAction(tr("Tablet Mode"), this, [this](bool on) {

@@ -20,6 +20,7 @@ struct ProjectData
     };
     std::vector<SketchEntry> sketches;
     std::vector<Feature> features;
+    std::vector<BodyStyle> bodyStyles; // names, visibility, colors of bodies
 };
 
 QByteArray projectToJson(const ProjectData& project);

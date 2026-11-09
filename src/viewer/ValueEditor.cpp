@@ -1,5 +1,7 @@
 #include "viewer/ValueEditor.h"
 
+#include "model/Units.h"
+
 #include <QEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -91,14 +93,15 @@ void ValueEditor::open(std::function<QString()> label, double value, double min,
         this->cancel();
     clearChoices();
     m_labelText = std::move(label);
-    m_label->setText(m_labelText());
-    m_min = min;
-    m_max = max;
+    m_length = m_labelText().contains(QStringLiteral("[mm]"));
+    m_label->setText(shownLabel());
+    m_min = shown(min);
+    m_max = shown(max);
     m_anchor = anchor;
     m_accept = std::move(accept);
     m_cancel = std::move(cancel);
     m_changed = std::move(changed);
-    m_edit->setText(format(value));
+    m_edit->setText(format(shown(value)));
     m_edit->selectAll(); // right away: the first key or keypad tap replaces the value
     m_edit->setStyleSheet(QString());
 
@@ -136,7 +139,7 @@ void ValueEditor::changeEvent(QEvent* event)
     if (event->type() == QEvent::LanguageChange) {
         retranslate();
         if (m_labelText) {
-            m_label->setText(m_labelText());
+            m_label->setText(shownLabel());
             refreshChoices();
             adjustSize();
         }
@@ -198,7 +201,25 @@ void ValueEditor::edited()
 {
     m_edit->setStyleSheet(QString());
     if (const auto value = parsed(); value && m_changed)
-        m_changed(*value);
+        m_changed(taken(*value));
+}
+
+QString ValueEditor::shownLabel() const
+{
+    QString text = m_labelText ? m_labelText() : QString();
+    if (m_length)
+        text.replace(QStringLiteral("[mm]"), QStringLiteral("[%1]").arg(QString::fromLatin1(lengthSymbol())));
+    return text;
+}
+
+double ValueEditor::shown(double value) const
+{
+    return m_length ? toDisplayLength(value) : value;
+}
+
+double ValueEditor::taken(double value) const
+{
+    return m_length ? fromDisplayLength(value) : value;
 }
 
 void ValueEditor::key(const QString& key)
@@ -228,7 +249,7 @@ QString ValueEditor::format(double value)
 
 void ValueEditor::setValue(double value)
 {
-    m_edit->setText(format(value));
+    m_edit->setText(format(shown(value)));
     m_edit->setStyleSheet(QString());
     if (m_edit->hasFocus())
         m_edit->selectAll();
@@ -284,7 +305,7 @@ void ValueEditor::accept()
     m_cancel = nullptr;
     m_changed = nullptr;
     if (done)
-        done(*value);
+        done(taken(*value));
 }
 
 bool ValueEditor::eventFilter(QObject* watched, QEvent* event)

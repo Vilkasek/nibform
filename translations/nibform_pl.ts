@@ -320,6 +320,22 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Lustro</translation>
     </message>
     <message>
+        <source>The checkbox shows or hides a body; double-click the name to rename it</source>
+        <translation>Pole wyboru pokazuje albo ukrywa bryłę; dwuklik na nazwie zmienia ją</translation>
+    </message>
+    <message>
+        <source>Choose Color…</source>
+        <translation>Wybierz kolor…</translation>
+    </message>
+    <message>
+        <source>Body Color</source>
+        <translation>Kolor bryły</translation>
+    </message>
+    <message>
+        <source>Default Color</source>
+        <translation>Domyślny kolor</translation>
+    </message>
+    <message>
         <source>Revolve</source>
         <translation>Obrót</translation>
     </message>
@@ -350,6 +366,30 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored or countersunk</source>
         <translation>Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym</translation>
+    </message>
+    <message>
+        <source>Move</source>
+        <translation>Przesuń</translation>
+    </message>
+    <message>
+        <source>Move (T): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)</source>
+        <translation>Przesuń (T): dotknij brył, potem przeciągnij strzałki i pierścienie albo dotknij ich narożnika, okrągłej krawędzi lub ściany, a potem miejsca docelowego; Enter pozwala wpisać przesunięcie i zatwierdza (albo kopiuje)</translation>
+    </message>
+    <message>
+        <source>Measure</source>
+        <translation>Zmierz</translation>
+    </message>
+    <message>
+        <source>Section</source>
+        <translation>Przekrój</translation>
+    </message>
+    <message>
+        <source>Measure (I): tap a face, edge or corner, and a second one to measure between them; the body's volume and mass properties too</source>
+        <translation>Zmierz (I): dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi; pokazuje też objętość i właściwości masowe bryły</translation>
+    </message>
+    <message>
+        <source>Section: tap a flat face or a plane to cut the view open along it; View → Section View turns it off</source>
+        <translation>Przekrój: dotknij płaskiej ściany albo płaszczyzny, by przeciąć widok wzdłuż niej; Widok → Przekrój wyłącza go</translation>
     </message>
     <message>
         <source>Linear Pattern</source>
@@ -462,6 +502,38 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Reference image: insert a picture to trace over, scale it by two points</source>
         <translation>Obraz podkładowy – wstaw obraz do odrysowania, przeskaluj go dwoma punktami</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>Jednostki</translation>
+    </message>
+    <message>
+        <source>Millimetres</source>
+        <translation>Milimetry</translation>
+    </message>
+    <message>
+        <source>Inches</source>
+        <translation>Cale</translation>
+    </message>
+    <message>
+        <source>Section View</source>
+        <translation>Przekrój</translation>
+    </message>
+    <message>
+        <source>Bodies</source>
+        <translation>Bryły</translation>
+    </message>
+    <message>
+        <source>Body</source>
+        <translation>Bryła</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Kolor</translation>
+    </message>
+    <message>
+        <source>Body List</source>
+        <translation>Lista brył</translation>
     </message>
     <message>
         <source>Show Extruded Regions</source>
@@ -999,6 +1071,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Otwór nie sięga żadnej bryły</translation>
     </message>
     <message>
+        <source>The move isn't a rigid motion</source>
+        <translation>Przesunięcie nie jest ruchem sztywnym</translation>
+    </message>
+    <message>
+        <source>Pick the bodies to move</source>
+        <translation>Wybierz bryły do przesunięcia</translation>
+    </message>
+    <message>
         <source>The plane it was made from is gone</source>
         <translation>Płaszczyzna, z której powstała, zniknęła</translation>
     </message>
@@ -1202,6 +1282,38 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Scribbled out</source>
         <translation>Zamazane – usunięto</translation>
+    </message>
+    <message>
+        <source>Move: type the offset or the turn  ·  Enter goes on</source>
+        <translation>Przesuń: wpisz przesunięcie albo obrót  ·  Enter przechodzi dalej</translation>
+    </message>
+    <message>
+        <source>Move: tap the bodies to move or copy</source>
+        <translation>Przesuń: dotknij brył do przesunięcia albo skopiowania</translation>
+    </message>
+    <message>
+        <source>Move: tap where it goes: a corner, round edge or face of another body</source>
+        <translation>Przesuń: dotknij miejsca docelowego: narożnika, okrągłej krawędzi albo ściany innej bryły</translation>
+    </message>
+    <message>
+        <source>Move: drag an arrow or ring, or tap a corner, round edge or face of it and then where it goes  ·  Enter types values and applies</source>
+        <translation>Przesuń: przeciągnij strzałkę albo pierścień, albo dotknij narożnika, okrągłej krawędzi lub ściany, a potem miejsca docelowego  ·  Enter: wpisz wartości i zatwierdź</translation>
+    </message>
+    <message>
+        <source>Measure: tap a face, edge or corner, and a second one to measure between them</source>
+        <translation>Zmierz: dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi</translation>
+    </message>
+    <message>
+        <source>Section: type how far to shift the cut  ·  Enter accepts</source>
+        <translation>Przekrój: wpisz, o ile przesunąć cięcie  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Section: tap another face or plane to cut along it  ·  View → Section View turns it off</source>
+        <translation>Przekrój: dotknij innej ściany albo płaszczyzny, by ciąć wzdłuż niej  ·  Widok → Przekrój wyłącza</translation>
+    </message>
+    <message>
+        <source>Section: tap a flat face or a plane to cut the model open along it</source>
+        <translation>Przekrój: dotknij płaskiej ściany albo płaszczyzny, by przeciąć model wzdłuż niej</translation>
     </message>
     <message>
         <source>Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels</source>
@@ -1428,6 +1540,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Otwór</translation>
     </message>
     <message>
+        <source>Copy</source>
+        <translation>Kopia</translation>
+    </message>
+    <message>
+        <source>Move</source>
+        <translation>Przesunięcie</translation>
+    </message>
+    <message>
         <source>Axis</source>
         <translation>Oś</translation>
     </message>
@@ -1614,6 +1734,90 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Axis: tap the second corner</source>
         <translation>Oś: dotknij drugiego narożnika</translation>
+    </message>
+    <message>
+        <source>Body %1</source>
+        <translation>Bryła %1</translation>
+    </message>
+    <message>
+        <source>Point: %1</source>
+        <translation>Punkt: %1</translation>
+    </message>
+    <message>
+        <source>Length: %1</source>
+        <translation>Długość: %1</translation>
+    </message>
+    <message>
+        <source>Area: %1</source>
+        <translation>Pole: %1</translation>
+    </message>
+    <message>
+        <source>Radius: %1  ·  diameter %2</source>
+        <translation>Promień: %1  ·  średnica %2</translation>
+    </message>
+    <message>
+        <source>Distance: %1</source>
+        <translation>Odległość: %1</translation>
+    </message>
+    <message>
+        <source>Angle: %1°</source>
+        <translation>Kąt: %1°</translation>
+    </message>
+    <message>
+        <source>Between centers: %1</source>
+        <translation>Między środkami: %1</translation>
+    </message>
+    <message>
+        <source>Volume: %1  ·  surface %2</source>
+        <translation>Objętość: %1  ·  powierzchnia %2</translation>
+    </message>
+    <message>
+        <source>Center of mass: %1</source>
+        <translation>Środek masy: %1</translation>
+    </message>
+    <message>
+        <source>Size: %1 × %2 × %3</source>
+        <translation>Wymiary: %1 × %2 × %3</translation>
+    </message>
+    <message>
+        <source>Mass at 1.24 g/cm³ (PLA): %1 g</source>
+        <translation>Masa przy 1,24 g/cm³ (PLA): %1 g</translation>
+    </message>
+    <message>
+        <source>Section: tap a flat face or a plane</source>
+        <translation>Przekrój: dotknij płaskiej ściany albo płaszczyzny</translation>
+    </message>
+    <message>
+        <source>Section offset [mm]</source>
+        <translation>Przesunięcie przekroju [mm]</translation>
+    </message>
+    <message>
+        <source>Keep this side</source>
+        <translation>Zostaw tę stronę</translation>
+    </message>
+    <message>
+        <source>Keep the other side</source>
+        <translation>Zostaw drugą stronę</translation>
+    </message>
+    <message>
+        <source>Move: these don't line up: pick corners, round edges or flat faces</source>
+        <translation>Przesuń: tego nie da się dopasować: wybierz narożniki, okrągłe krawędzie albo płaskie ściany</translation>
+    </message>
+    <message>
+        <source>Move along X [mm]</source>
+        <translation>Przesuń wzdłuż X [mm]</translation>
+    </message>
+    <message>
+        <source>Move along Y [mm]</source>
+        <translation>Przesuń wzdłuż Y [mm]</translation>
+    </message>
+    <message>
+        <source>Move along Z [mm]</source>
+        <translation>Przesuń wzdłuż Z [mm]</translation>
+    </message>
+    <message>
+        <source>Turn about Z [°]</source>
+        <translation>Obróć wokół Z [°]</translation>
     </message>
 </context>
 <context>
