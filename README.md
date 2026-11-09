@@ -36,7 +36,7 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
-Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`).
 
 ## Language
 
@@ -74,6 +74,7 @@ sketch whose region is selected. Shortcuts only work in their own mode.
 | Rectangle | `R` | two opposite corners |
 | Circle | `C` | center, then a point on the circumference |
 | Arc | `A` | start, end, a point on the arc |
+| Freehand | `P` | draw it roughly in one stroke and get the clean shape: a line, corners (a polyline or a closed polygon), a rectangle (turned or not), a circle or an arc. Ends and corners join points nearby, nearly level / upright sides become horizontal / vertical, a turned rectangle keeps its right angles. A scribble deletes what it covers (curves, dimensions, relations); a tap selects as in Select |
 | Offset | `U` | tap a curve – takes the whole connected chain (or circle); the copy follows the cursor (side and distance), another tap asks for an exact value. Corners are intersected again, lines get "parallel", arcs share the center with the original |
 | Construction | `Q` | toggles the selected curves to helper geometry (dashed): you can snap to and dimension them, but they don't make regions |
 | Trim | `X` | like in Fusion: highlights in red the piece between the nearest intersections, a tap removes it; a drag removes everything along the way (one undo step). A curve without intersections disappears whole, a circle turns into an arc |
@@ -238,7 +239,19 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
   (hovering, drawing or just drawn), touch is ignored and a touch gesture in progress is
   cancelled; wide contacts (the side of the palm) are always ignored.
 - **The pen's eraser** in a sketch works like *Trim*: it removes the pieces it passes over
-  (the whole stroke is one undo step), whatever tool is selected.
+  (the whole stroke is one undo step), whatever tool is selected. Hovering, it shows the
+  piece it would remove.
+- **Radial menu**: a long press of the pen (half a second without moving), a click of its
+  barrel button or a right click opens the tools of the current mode in a ring around the
+  pointer (in a sketch: Select, Freehand, Line, Rectangle, Circle, Arc, Trim, Dimension, Undo,
+  Finish; in the model: Select, New / Edit Sketch, Extrude, Fillet, Chamfer, Shell, Undo, Fit).
+  Tap an item, or after a long press slide onto one and lift; a tap elsewhere or `Esc` closes it.
+- **Scribble to delete**: in Select (from empty space) and Freehand, scribbling back and forth
+  over curves, dimensions or relation glyphs deletes them (one undo step).
+- **Touch gestures**: a quick two-finger tap undoes, a three-finger tap redoes.
+- **Hover**: before the pen touches, what a tap would pick lights up – sketch points, curves and
+  labels, body faces and edges, and sketch regions in the model (a region in front of a face
+  wins, so the face isn't lit then).
 - **Tablet mode** (*View → Tablet Mode*, `Ctrl+T`, remembered): bigger buttons and hit areas,
   a side bar with *Undo / Redo / Delete / Cancel / Done / Fit* (instead of keys)
   and a numeric keypad in the value field.
@@ -257,13 +270,13 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M6** – Framework 12 polish (screen rotation, palm rejection, tablet mode)
 - [x] **i18n** – English UI with a Polish translation, language switching
 - [x] **M7** – release basics: CI, AUR / Flatpak packages, file association, autosave and recovery
+- [x] **M8** – pen first: freehand shape recognition, radial menu, touch gestures, scribble to delete, hover preview
 - [x] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns, projection, reference images
 - [ ] **M10** – solid features: revolve, sweep, loft, patterns, holes, construction planes
 - [ ] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
 - [ ] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export
 - [ ] **M13** – drawings: views, dimensions, PDF / SVG export
 - [ ] **M14** – speed and robustness: background and incremental rebuild, large models
-- [ ] **M8** – pen first (after M14): freehand shape recognition, radial menu, gestures, scribble to delete
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).
 

@@ -187,6 +187,7 @@ public:
     bool move(const PointerEvent& e, bool pressed) override;
     bool release(const PointerEvent& e) override;
     bool leave() override;
+    void abortPress() override;
     void paintOverlay(QPainter& painter) override;
 
 signals:
@@ -275,6 +276,15 @@ private:
 
     // The pen's eraser end trims whatever sketch curve it passes over, whatever the tool.
     void eraseAt(const PointerEvent& e);
+    // Freehand ink: the stroke being drawn (Freehand tool, or a drag from empty space in
+    // Select, which can only scribble things out).
+    void strokeTo(const PointerEvent& e);
+    // The stroke ends: a scribble deletes the curves and labels it covers; otherwise,
+    // with `shapes`, it becomes the clean shape it looks like.
+    // False when the stroke was neither (Select: then it is no tap either).
+    bool finishStroke(bool shapes);
+    void scribbleOut();
+    bool strokeMoved() const; // the ink went further than a tap would
     bool selectPress(const PointerEvent& e);
     bool selectMove(const PointerEvent& e, bool pressed);
     bool selectRelease(const PointerEvent& e);
@@ -379,6 +389,12 @@ private:
     double m_touchScale = 1.0;      // pick radii multiplier (tablet mode)
     bool m_erasing = false;         // the eraser is down
     bool m_eraseStroke = false;     // and has already trimmed something in this stroke
+    std::vector<Segment2d> m_eraserHover; // the piece the hovering eraser would trim
+    int m_pressChanges = 0;         // m_changes when the press began (abortPress undoes it)
+
+    bool m_stroking = false;
+    std::vector<gp_Pnt2d> m_stroke;      // sketch coordinates
+    std::vector<QPointF> m_strokeScreen; // the same on screen, for the ink and labels
 
     // Select-mode press / drag
     Hit m_pressHit;
@@ -408,6 +424,8 @@ private:
     Hit m_modelPress; // what the current model-mode press landed on
     Handle(AIS_Shape) m_regionPrs;         // all regions, faint fill
     Handle(AIS_Shape) m_selectedRegionPrs; // picked ones, accent fill
+    Handle(AIS_Shape) m_hoverRegionPrs;    // the one a tap would pick
+    void showHoverRegion();
     Handle(AIS_Shape) m_previewPrs3d;      // extrusion / rounded bodies being previewed
 
     Handle(AIS_InteractiveObject) m_imagePrs; // the open sketch's reference image

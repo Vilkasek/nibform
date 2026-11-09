@@ -6,6 +6,13 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "Freehand": "Odręcznie",
+  "Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it":
+      "Odręcznie (P): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); "
+      "zamaż coś, by to usunąć",
+  "Nothing to undo": "Nie ma czego cofnąć", "Nothing to redo": "Nie ma czego ponowić",
+  "Undone (two-finger tap)": "Cofnięto (stuknięcie dwoma palcami)",
+  "Redone (three-finger tap)": "Ponowiono (stuknięcie trzema palcami)",
   "&Help": "Pomo&c", "About Nibform": "O programie Nibform", "About Qt": "O Qt", "Open Recent": "Otwórz ostatnie",
   "Autosave failed: %1": "Autozapis nie powiódł się: %1",
   "Nibform closed unexpectedly. Restore the unsaved project autosaved at %1?":
@@ -178,8 +185,15 @@ PL = {
       "Dotknij obszaru szkicu, by go wyciągnąć, albo ściany bryły  ·  Stwórz szkic, by rysować",
   "  ·  point": "  ·  punkt", "  ·  midpoint": "  ·  środek odcinka", "  ·  origin": "  ·  początek układu",
   "  ·  aligned": "  ·  wyrównanie",
-  "Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it":
-      "Zaznacz: dotknij, by dodać  ·  przeciągnij, by przesunąć  ·  zaznaczony wymiar: dotknij, by zmienić",
+  "Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it  ·  scribble over something to delete it":
+      "Zaznacz: dotknij, by dodać  ·  przeciągnij, by przesunąć  ·  zaznaczony wymiar: dotknij, by zmienić  ·  "
+      "zamaż coś, by to usunąć",
+  "Freehand: draw a line, corners, a rectangle, a circle or an arc  ·  scribble over something to delete it  ·  tap to select":
+      "Odręcznie: narysuj linię, łamaną, prostokąt, okrąg albo łuk  ·  zamaż coś, by to usunąć  ·  dotknij, by zaznaczyć",
+  "Freehand: not recognized  ·  draw a line, corners, a rectangle, a circle or an arc":
+      "Odręcznie: nie rozpoznano  ·  narysuj linię, łamaną, prostokąt, okrąg albo łuk",
+  "Nothing under the scribble to delete": "Pod zamazaniem nie ma nic do usunięcia",
+  "Scribbled out": "Zamazane – usunięto",
   "Bodies: %1": "Bryły: %1", "Sketch: empty": "Szkic pusty", "Sketch: conflicting constraints": "Szkic: sprzeczne więzy",
   "Sketch: fully defined": "Szkic w pełni określony", "Sketch: %1 DOF": "Szkic: %1 st. swobody",
   "Wall thickness [mm]": "Grubość [mm]", "Chamfer [mm]": "Faza [mm]",

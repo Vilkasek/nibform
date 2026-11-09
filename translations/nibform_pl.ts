@@ -256,6 +256,22 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Systemowy</translation>
     </message>
     <message>
+        <source>Nothing to undo</source>
+        <translation>Nie ma czego cofnąć</translation>
+    </message>
+    <message>
+        <source>Nothing to redo</source>
+        <translation>Nie ma czego ponowić</translation>
+    </message>
+    <message>
+        <source>Undone (two-finger tap)</source>
+        <translation>Cofnięto (stuknięcie dwoma palcami)</translation>
+    </message>
+    <message>
+        <source>Redone (three-finger tap)</source>
+        <translation>Ponowiono (stuknięcie trzema palcami)</translation>
+    </message>
+    <message>
         <source>&amp;Help</source>
         <translation>Pomo&amp;c</translation>
     </message>
@@ -274,6 +290,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>S&amp;ketch</source>
         <translation>S&amp;zkic</translation>
+    </message>
+    <message>
+        <source>Freehand</source>
+        <translation>Odręcznie</translation>
+    </message>
+    <message>
+        <source>Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it</source>
+        <translation>Odręcznie (P): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); zamaż coś, by to usunąć</translation>
     </message>
     <message>
         <source>Polygon</source>
@@ -984,6 +1008,18 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Odległość pionowa [mm]</translation>
     </message>
     <message>
+        <source>Freehand: not recognized  ·  draw a line, corners, a rectangle, a circle or an arc</source>
+        <translation>Odręcznie: nie rozpoznano  ·  narysuj linię, łamaną, prostokąt, okrąg albo łuk</translation>
+    </message>
+    <message>
+        <source>Nothing under the scribble to delete</source>
+        <translation>Pod zamazaniem nie ma nic do usunięcia</translation>
+    </message>
+    <message>
+        <source>Scribbled out</source>
+        <translation>Zamazane – usunięto</translation>
+    </message>
+    <message>
         <source>Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels</source>
         <translation>Wyciągnij: przeciągnij strzałkę albo wpisz odległość  ·  Enter zatwierdza, Esc anuluje</translation>
     </message>
@@ -1080,8 +1116,12 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Wymiar: dotknij linii, okręgu lub łuku albo dwóch punktów, punktu i linii, dwóch linii  ·  Esc wraca do zaznaczania</translation>
     </message>
     <message>
-        <source>Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it</source>
-        <translation>Zaznacz: dotknij, by dodać  ·  przeciągnij, by przesunąć  ·  zaznaczony wymiar: dotknij, by zmienić</translation>
+        <source>Freehand: draw a line, corners, a rectangle, a circle or an arc  ·  scribble over something to delete it  ·  tap to select</source>
+        <translation>Odręcznie: narysuj linię, łamaną, prostokąt, okrąg albo łuk  ·  zamaż coś, by to usunąć  ·  dotknij, by zaznaczyć</translation>
+    </message>
+    <message>
+        <source>Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it  ·  scribble over something to delete it</source>
+        <translation>Zaznacz: dotknij, by dodać  ·  przeciągnij, by przesunąć  ·  zaznaczony wymiar: dotknij, by zmienić  ·  zamaż coś, by to usunąć</translation>
     </message>
     <message>
         <source>Bodies: %1</source>

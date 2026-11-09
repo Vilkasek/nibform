@@ -397,6 +397,31 @@ void SketchEditor::showRegions()
     };
     show(m_regionPrs, plain, anyPlain, m_colors.region, 0.85);
     show(m_selectedRegionPrs, picked, anyPicked, m_colors.accent, 0.5);
+    showHoverRegion();
+}
+
+void SketchEditor::showHoverRegion()
+{
+    const auto& ctx = m_viewer->aisContext();
+    if (!m_hoverRegionPrs.IsNull())
+        ctx->Remove(m_hoverRegionPrs, false);
+    m_hoverRegionPrs.Nullify();
+    const RegionRef r = m_hover.region;
+    const bool region = mode() == EditorMode::Model && m_hover.kind == Hit::Kind::Region && r.sketch >= 0
+                     && r.sketch < static_cast<int>(m_slots.size()) && r.index >= 0
+                     && r.index < static_cast<int>(m_slots[r.sketch].regions.size()) && regionShown(r);
+    // A face behind the region isn't what a tap would pick: no highlight for it.
+    m_viewer->SetAllowHighlight(!region);
+    if (region)
+        ctx->ClearDetected(false);
+    if (!region || m_regionSelection.count(r))
+        return;
+    m_hoverRegionPrs = new AIS_Shape(m_slots[r.sketch].regions[r.index]);
+    m_hoverRegionPrs->Attributes()->SetFaceBoundaryDraw(false);
+    m_hoverRegionPrs->SetColor(m_colors.preview);
+    m_hoverRegionPrs->SetTransparency(0.7);
+    m_hoverRegionPrs->SetZLayer(Graphic3d_ZLayerId_Top);
+    ctx->Display(m_hoverRegionPrs, AIS_Shaded, -1, false);
 }
 
 void SketchEditor::applyModelColors()
@@ -605,8 +630,18 @@ bool SketchEditor::modelPress(const PointerEvent& e)
 
 bool SketchEditor::modelMove(const PointerEvent& e, bool pressed)
 {
-    if (!pressed || !m_session.dragging)
-        return false; // hovering: AIS highlights faces / edges by itself
+    if (!pressed) {
+        // Hovering shows what a tap would pick: AIS highlights faces / edges by itself,
+        // regions (which win when nearer) are lit here.
+        const Hit hit = modelHitAt(e);
+        if (hit == m_hover)
+            return hit.kind == Hit::Kind::Region;
+        m_hover = hit;
+        showHoverRegion();
+        return true;
+    }
+    if (!m_session.dragging)
+        return false;
     m_session.value = m_session.dragStartValue + arrowParam(e.pixel) - m_session.dragStartParam;
     if (m_session.kind != ValueSession::Kind::Extrude)
         m_session.value = std::max(m_session.value, 0.01); // a round can't go below nothing

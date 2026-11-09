@@ -34,6 +34,9 @@ public:
     virtual bool move(const PointerEvent& e, bool pressed) = 0;
     virtual bool release(const PointerEvent& e) = 0;
     virtual bool leave() { return false; }
+    // The press turned out to be a long press (the radial menu opens instead): undo
+    // whatever it started. No release follows.
+    virtual void abortPress() {}
     virtual bool key(QKeyEvent* e) { return false; }
     // Screen-space drawing on top of the 3D view, in logical pixels (labels, dimensions).
     virtual void paintOverlay(QPainter& painter) {}

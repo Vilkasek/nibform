@@ -399,6 +399,19 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.restore();
         break;
     }
+    case Icon::Freehand: {
+        // A rough loop drawn by a pen nib.
+        QPainterPath loop;
+        loop.moveTo(13, 20);
+        loop.cubicTo(5, 21, 2, 14, 5, 9);
+        loop.cubicTo(8, 4, 15, 5, 15.5, 9);
+        p.drawPath(loop);
+        p.setPen(pen(accent, 1.6));
+        p.setBrush(accent);
+        p.drawPolygon(QPolygonF({{15.5, 9}, {17.5, 13}, {21.5, 5}, {19.5, 4}}));
+        p.setBrush(Qt::NoBrush);
+        break;
+    }
     }
 }
 

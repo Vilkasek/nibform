@@ -2,6 +2,7 @@
 
 #include "app/Icons.h"
 #include "app/Language.h"
+#include "app/RadialMenu.h"
 #include "model/Export.h"
 #include "sketch/SketchEditor.h"
 #include "viewer/OcctViewerWidget.h"
@@ -129,6 +130,60 @@ MainWindow::MainWindow(QWidget* parent)
         QMessageBox::critical(this, tr("OpenGL error"), reason);
     });
     connect(m_viewer, &OcctViewerWidget::penInput, this, &MainWindow::onPenInput);
+    connect(m_viewer, &OcctViewerWidget::radialMenuRequested, this, &MainWindow::showRadialMenu);
+    connect(m_viewer, &OcctViewerWidget::radialMenuTrack, this, [this](const QPointF& pos, bool lifted) {
+        if (m_radialMenu)
+            m_radialMenu->track(m_viewer->mapTo(this, pos), lifted);
+    });
+    connect(m_viewer, &OcctViewerWidget::fingerTap, this, &MainWindow::onFingerTap);
+    // The ring belongs to the mode it was opened in.
+    connect(m_editor, &SketchEditor::modeChanged, this, [this] {
+        if (m_radialMenu)
+            m_radialMenu->close();
+    });
+}
+
+void MainWindow::showRadialMenu(const QPointF& pos)
+{
+    if (m_radialMenu)
+        m_radialMenu->close();
+    std::vector<QAction*> actions;
+    auto toolAction = [this](ToolKind kind) { return m_toolActions[kind]; };
+    if (m_editor->mode() == EditorMode::Sketch) {
+        actions = {toolAction(ToolKind::Select), toolAction(ToolKind::Freehand), toolAction(ToolKind::Line),
+                   toolAction(ToolKind::Rectangle), toolAction(ToolKind::Circle), toolAction(ToolKind::Arc),
+                   toolAction(ToolKind::Trim), toolAction(ToolKind::Dimension), m_undoAction, m_closeSketchAction};
+    } else {
+        actions = {toolAction(ToolKind::Select), m_newSketchAction, m_editSketchAction, toolAction(ToolKind::PushPull),
+                   toolAction(ToolKind::Fillet), toolAction(ToolKind::Chamfer), toolAction(ToolKind::Shell),
+                   m_undoAction, m_fitAction};
+    }
+    // Icons as the bars draw them, except the one made for the orange Finish button.
+    const bool dark = resolvesToDark(m_theme);
+    const ThemeStyle style = themeStyle(dark);
+    std::vector<RadialMenu::Item> items;
+    for (QAction* action : actions) {
+        if (!action)
+            continue;
+        items.push_back({action, action == m_closeSketchAction ? makeIcon(Icon::CloseSketch, style.ink, style.accent)
+                                                                : action->icon()});
+    }
+    const double scale = m_tabletAction && m_tabletAction->isChecked() ? 1.3 : 1.0;
+    const RadialMenu::Colors colors{themePalette(dark).color(QPalette::Window), style.ink, style.accent};
+    m_radialMenu = new RadialMenu(std::move(items), m_viewer->mapTo(this, pos), scale, colors, this);
+}
+
+void MainWindow::onFingerTap(int fingers)
+{
+    QAction* action = fingers == 2 ? m_undoAction : fingers == 3 ? m_redoAction : nullptr;
+    if (!action)
+        return;
+    if (!action->isEnabled()) {
+        showMessage(fingers == 2 ? tr("Nothing to undo") : tr("Nothing to redo"));
+        return;
+    }
+    action->trigger();
+    showMessage(fingers == 2 ? tr("Undone (two-finger tap)") : tr("Redone (three-finger tap)"));
 }
 
 void MainWindow::buildUi()
@@ -382,6 +437,10 @@ void MainWindow::buildActions()
     m_sketchBar->addAction(select);
     m_sketchBar->addSeparator();
     m_sketchBar->addAction(tool(ToolKind::Line, tr("Line"), QKeySequence(Qt::Key_L), Icon::Line));
+    m_sketchBar->addAction(tool(ToolKind::Freehand, tr("Freehand"), QKeySequence(Qt::Key_P), Icon::Freehand));
+    m_toolActions[ToolKind::Freehand]->setToolTip(
+        tr("Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); "
+           "scribble over something to delete it"));
     group({tool(ToolKind::Rectangle, tr("Rectangle"), QKeySequence(Qt::Key_R), Icon::Rectangle),
            tool(ToolKind::Polygon, tr("Polygon"), QKeySequence(Qt::SHIFT | Qt::Key_P), Icon::Polygon),
            tool(ToolKind::Slot, tr("Slot"), QKeySequence(Qt::SHIFT | Qt::Key_S), Icon::Slot)});

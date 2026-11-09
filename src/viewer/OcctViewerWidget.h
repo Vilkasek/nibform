@@ -1,6 +1,7 @@
 #pragma once
 
 #include "input/PalmRejection.h"
+#include "input/TapGesture.h"
 #include "viewer/PenSample.h"
 #include "viewer/ViewerInteraction.h"
 
@@ -23,11 +24,13 @@ class QTouchEvent;
 
 // 3D viewport: renders OCCT into a QOpenGLWidget and maps input the way a
 // pen-first CAD expects it:
-//   pen            -> active interaction (sketch tools), else AIS selection
-//   pen barrel btn -> orbit
+//   pen            -> active interaction (sketch tools), else AIS selection;
+//                     a long press opens the radial menu
+//   pen barrel btn -> orbit; a click opens the radial menu
 //   1 finger       -> orbit
-//   2 fingers      -> pan + pinch zoom
-//   mouse          -> LMB select, RMB orbit, MMB / Shift+RMB pan, wheel zoom
+//   2 fingers      -> pan + pinch zoom; a quick tap undoes (3 fingers redo)
+//   mouse          -> LMB select, RMB orbit (a click: radial menu), MMB / Shift+RMB pan,
+//                     wheel zoom
 //   touchpad       -> 2-finger scroll orbit, Shift+scroll pan, pinch zoom,
 //                     3-finger swipe pan (TrackPoint scroll behaves the same)
 class OcctViewerWidget : public QOpenGLWidget, public AIS_ViewController
@@ -76,6 +79,14 @@ signals:
     void glReady(const QString& info);
     void glFailed(const QString& reason);
     void penInput(const PenSample& sample);
+    // A long press of the pen tip, or a click of its barrel button / the right mouse
+    // button, at `pos` (widget coordinates): the radial menu goes there.
+    void radialMenuRequested(const QPointF& pos);
+    // The pen that opened the menu with a long press is still down: where it is now,
+    // and whether it just lifted (releasing over an item picks it).
+    void radialMenuTrack(const QPointF& pos, bool lifted);
+    // A quick tap of `fingers` (2 or 3) fingers on the touch screen.
+    void fingerTap(int fingers);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override; // pen proximity
@@ -123,6 +134,26 @@ private:
     bool m_primaryGrab = false; // interaction owns the current primary press
     bool m_debugInput = false;
     bool m_invertScroll = false;
+
+    // A press that stays put this long opens the radial menu instead.
+    static constexpr int kLongPressMs = 500;
+    // How far the pointer may drift and still be holding / clicking (the editor's drag threshold).
+    static constexpr double kHoldSlopPx = 6.0;
+    static constexpr qint64 kClickMs = 600;
+    void longPress();
+    // Right button / barrel button: a click (no drag, quick) opens the radial menu.
+    void secondaryDown(const QPointF& pos);
+    void secondaryMove(const QPointF& pos);
+    void secondaryUp(const QPointF& pos);
+
+    QTimer m_longPress;
+    QPointF m_longPressAt;
+    bool m_longPressed = false; // the menu is open; the rest of this press goes to it
+    bool m_secondaryDown = false;
+    bool m_secondaryMoved = false;
+    QPointF m_secondaryAt;
+    qint64 m_secondaryTime = 0;
+    TapGesture m_tap;
 
     PalmRejection m_palm;
     QElapsedTimer m_clock;

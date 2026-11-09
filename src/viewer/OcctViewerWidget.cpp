@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QKeyEvent>
+#include <QLineF>
 #include <QDebug>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
@@ -119,6 +120,9 @@ OcctViewerWidget::OcctViewerWidget(QWidget* parent)
     m_dragEndTimer.setSingleShot(true);
     m_dragEndTimer.setInterval(200);
     connect(&m_dragEndTimer, &QTimer::timeout, this, [this] { m_dragGesture = DragGesture::None; });
+    m_longPress.setSingleShot(true);
+    m_longPress.setInterval(kLongPressMs);
+    connect(&m_longPress, &QTimer::timeout, this, &OcctViewerWidget::longPress);
 
     Handle(Aspect_DisplayConnection) display = new Aspect_DisplayConnection();
     Handle(OpenGl_GraphicDriver) driver = new OpenGl_GraphicDriver(display, false);
@@ -484,6 +488,7 @@ void OcctViewerWidget::penActivity()
     m_palm.penSeen(m_clock.elapsed());
     if (!m_palm.enabled() || m_touches.empty())
         return;
+    m_tap.cancel();
     // A hand already on the screen when the pen shows up was resting, not navigating.
     for (int id : m_touches) {
         RemoveTouchPoint(static_cast<Standard_Size>(id));
@@ -510,6 +515,7 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
         return dpi > 0.0 ? std::max(d.width(), d.height()) * dpr * 25.4 / dpi : 0.0;
     };
 
+    int tapped = 0; // fingers of a tap that just ended
     for (const QEventPoint& point : e->points()) {
         const int id = point.id();
         const Graphic3d_Vec2d pos(point.position().x() * dpr, point.position().y() * dpr);
@@ -518,6 +524,7 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
             if (m_touches.erase(id))
                 RemoveTouchPoint(static_cast<Standard_Size>(id));
             m_rejectedTouches.erase(id);
+            m_tap.cancel();
             continue;
         }
         // A rejected contact stays ignored for its whole life, even after the pen leaves.
@@ -535,14 +542,20 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
             setFocus(Qt::MouseFocusReason);
             m_touches.insert(id);
             AddTouchPoint(static_cast<Standard_Size>(id), pos);
+            m_tap.down(id, point.position().x(), point.position().y(), m_clock.elapsed());
             break;
         case QEventPoint::Updated:
-            if (m_touches.count(id))
+            if (m_touches.count(id)) {
                 UpdateTouchPoint(static_cast<Standard_Size>(id), pos);
+                m_tap.move(id, point.position().x(), point.position().y());
+            }
             break;
         case QEventPoint::Released:
-            if (m_touches.erase(id))
+            if (m_touches.erase(id)) {
                 RemoveTouchPoint(static_cast<Standard_Size>(id));
+                if (const int fingers = m_tap.up(id, m_clock.elapsed()))
+                    tapped = fingers;
+            }
             break;
         default:
             break;
@@ -551,6 +564,8 @@ bool OcctViewerWidget::handleTouch(QTouchEvent* e)
 
     e->accept();
     updateView();
+    if (tapped)
+        emit fingerTap(tapped);
     return true;
 }
 
@@ -579,6 +594,8 @@ void OcctViewerWidget::mousePressEvent(QMouseEvent* e)
     QOpenGLWidget::mousePressEvent(e);
     if (m_view.IsNull())
         return;
+    if (e->button() == Qt::RightButton)
+        secondaryDown(e->position());
 
     if (e->button() == Qt::LeftButton && m_interaction && !isViewCubeAt(toPixels(e->position()))) {
         const PointerEvent pe = makePointer(PointerEvent::Source::Mouse, e->position(), 1.0, e->modifiers());
@@ -600,6 +617,14 @@ void OcctViewerWidget::mouseReleaseEvent(QMouseEvent* e)
     QOpenGLWidget::mouseReleaseEvent(e);
     if (m_view.IsNull())
         return;
+    if (e->button() == Qt::RightButton) {
+        // The orbit it may have started ends first.
+        UpdateMouseButtons(toPixels(e->position()), navigationButtons(e->buttons()), toVKeyFlags(e->modifiers()),
+                           false);
+        updateView();
+        secondaryUp(e->position());
+        return;
+    }
 
     if (e->button() == Qt::LeftButton && m_primaryGrab) {
         m_primaryGrab = false;
@@ -619,6 +644,7 @@ void OcctViewerWidget::mouseMoveEvent(QMouseEvent* e)
     QOpenGLWidget::mouseMoveEvent(e);
     if (m_view.IsNull())
         return;
+    secondaryMove(e->position());
 
     bool redraw = false;
     if (m_interaction) {
@@ -728,6 +754,20 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
 
     penActivity();
 
+    // The radial menu opened by a long press follows the pen until it lifts.
+    if (m_longPressed) {
+        if (e->type() == QEvent::TabletRelease) {
+            m_longPressed = false;
+            m_penDown = false;
+        }
+        emit radialMenuTrack(e->position(), e->type() == QEvent::TabletRelease);
+        e->accept();
+        return;
+    }
+    if (m_longPress.isActive()
+        && (e->type() == QEvent::TabletRelease || QLineF(m_longPressAt, e->position()).length() > kHoldSlopPx))
+        m_longPress.stop();
+
     PenSample sample;
     sample.pos = e->position();
     sample.pixel = e->position() * devicePixelRatioF();
@@ -766,6 +806,10 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
                 m_primaryGrab = true;
                 redraw = m_interaction->press(pe);
                 handled = true;
+                if (!pe.eraser) {
+                    m_longPressAt = e->position();
+                    m_longPress.start();
+                }
             }
             break;
         case QEvent::TabletRelease:
@@ -796,8 +840,51 @@ void OcctViewerWidget::tabletEvent(QTabletEvent* e)
     if (redraw)
         updateView();
 
+    // The barrel button: a click (rather than an orbit) opens the radial menu.
+    const bool barrel = e->button() == Qt::MiddleButton || e->button() == Qt::RightButton;
+    if (e->type() == QEvent::TabletPress && barrel)
+        secondaryDown(e->position());
+    else if (e->type() == QEvent::TabletMove)
+        secondaryMove(e->position());
+    else if (e->type() == QEvent::TabletRelease && barrel)
+        secondaryUp(e->position());
+
     emit penInput(sample);
     e->accept(); // no synthesized mouse events
+}
+
+void OcctViewerWidget::longPress()
+{
+    if (!m_primaryGrab || !m_penDown || !m_interaction)
+        return;
+    m_interaction->abortPress();
+    m_primaryGrab = false;
+    m_longPressed = true;
+    updateView();
+    emit radialMenuRequested(m_longPressAt);
+}
+
+void OcctViewerWidget::secondaryDown(const QPointF& pos)
+{
+    m_secondaryDown = true;
+    m_secondaryMoved = false;
+    m_secondaryAt = pos;
+    m_secondaryTime = m_clock.elapsed();
+}
+
+void OcctViewerWidget::secondaryMove(const QPointF& pos)
+{
+    if (m_secondaryDown && QLineF(m_secondaryAt, pos).length() > kHoldSlopPx)
+        m_secondaryMoved = true; // orbiting
+}
+
+void OcctViewerWidget::secondaryUp(const QPointF& pos)
+{
+    if (!m_secondaryDown)
+        return;
+    m_secondaryDown = false;
+    if (!m_secondaryMoved && m_clock.elapsed() - m_secondaryTime <= kClickMs)
+        emit radialMenuRequested(pos);
 }
 
 void OcctViewerWidget::keyPressEvent(QKeyEvent* e)

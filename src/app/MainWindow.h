@@ -8,6 +8,7 @@
 #include "sketch/SketchTools.h"
 
 #include <QMainWindow>
+#include <QPointer>
 #include <QTimer>
 
 #include <functional>
@@ -24,6 +25,7 @@ class QToolButton;
 class QLabel;
 class QMenu;
 class QToolBar;
+class RadialMenu;
 struct PenSample;
 
 class MainWindow : public QMainWindow
@@ -48,6 +50,10 @@ private:
     void rebuildUi();
     void buildActions();
     void onPenInput(const PenSample& sample);
+    // The tools of the current mode in a ring at `pos` (viewer coordinates).
+    void showRadialMenu(const QPointF& pos);
+    // Two fingers undo, three redo.
+    void onFingerTap(int fingers);
     void updateEditActions();
     void updateMode(EditorMode mode);
     void loadDemo();
@@ -136,6 +142,7 @@ private:
     QAction* m_undoAction = nullptr;
     QAction* m_redoAction = nullptr;
     QAction* m_deleteAction = nullptr;
+    QPointer<RadialMenu> m_radialMenu;
 
     QLabel* m_hintLabel = nullptr;
     QLabel* m_dofLabel = nullptr;

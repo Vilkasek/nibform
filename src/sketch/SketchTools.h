@@ -70,12 +70,12 @@ protected:
 // Sketch tools draw on the open sketch. PushPull, Fillet and Chamfer work on regions
 // and bodies in model mode, so the editor handles them itself, like Select and
 // Dimension (picking, like Select): makeTool() gives no SketchTool for those.
-// Project picks body edges, so the editor handles it as well.
+// Project picks body edges, and Freehand draws ink, so the editor handles them as well.
 enum class ToolKind
 {
     Select, Line, Rectangle, Circle, Arc, Trim, Offset, Dimension, PushPull, Fillet, Chamfer, Shell,
     Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
-    Project, Image,
+    Project, Image, Freehand,
 };
 
 // Whether the tool belongs to sketch mode (Select works in both).

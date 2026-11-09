@@ -1471,6 +1471,7 @@ std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
     case ToolKind::Image:
         return std::make_unique<ImageTool>(host);
     case ToolKind::Project:
+    case ToolKind::Freehand:
     case ToolKind::Select:
     case ToolKind::Dimension:
     case ToolKind::PushPull:

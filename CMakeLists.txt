@@ -26,6 +26,8 @@ set(NIBFORM_WARNINGS -Wall -Wextra -Wno-unused-parameter)
 add_library(nibform_core STATIC
   src/input/PalmRejection.cpp
   src/input/PalmRejection.h
+  src/input/TapGesture.cpp
+  src/input/TapGesture.h
   src/model/Export.cpp
   src/model/Export.h
   src/model/Features.cpp
@@ -39,6 +41,8 @@ add_library(nibform_core STATIC
   src/sketch/ConstraintCommands.h
   src/sketch/DrawList.cpp
   src/sketch/DrawList.h
+  src/sketch/Freehand.cpp
+  src/sketch/Freehand.h
   src/sketch/Geometry.cpp
   src/sketch/Geometry.h
   src/sketch/Offset.cpp
@@ -74,6 +78,8 @@ add_executable(nibform
   src/app/Language.cpp
   src/app/Language.h
   src/app/MainWindow.h
+  src/app/RadialMenu.cpp
+  src/app/RadialMenu.h
   src/app/Theme.cpp
   src/app/Theme.h
   src/sketch/SketchEditor.cpp
@@ -134,7 +140,7 @@ if(NOT NIBFORM_BUILD_TESTS)
 endif()
 
 enable_testing()
-foreach(name sketch solver trim offset model features input toolkit)
+foreach(name sketch solver trim offset model features input toolkit freehand)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
   target_link_libraries(test_${name} PRIVATE nibform_core)

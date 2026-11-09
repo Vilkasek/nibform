@@ -1,5 +1,6 @@
 #include "sketch/SketchEditor.h"
 
+#include "sketch/Freehand.h"
 #include "sketch/Trim.h"
 #include "viewer/Glyphs.h"
 #include "viewer/OcctViewerWidget.h"
@@ -154,6 +155,10 @@ void SketchEditor::setTool(ToolKind kind)
     updatePreviewStyle();
     m_snap.reset();
     m_hover = {};
+    m_stroking = false;
+    m_stroke.clear();
+    m_strokeScreen.clear();
+    showHoverRegion();
     if (kind != ToolKind::Select)
         setSelection({});
     if (mode() == EditorMode::Sketch)
@@ -787,6 +792,7 @@ SketchEditor::Hit SketchEditor::hitAt(const PointerEvent& e) const
 
 bool SketchEditor::press(const PointerEvent& e)
 {
+    m_pressChanges = m_changes;
     m_pressPixel = e.pixel;
     m_pointerPixel = e.pixel;
     m_pointerPos = e.pos;
@@ -827,6 +833,16 @@ bool SketchEditor::press(const PointerEvent& e)
         projectAt(e);
         return true;
     }
+    if (m_toolKind == ToolKind::Freehand) {
+        // Ink from wherever it starts; a tap (no stroke) picks like Select.
+        m_pressHit = hitAt(e);
+        m_dragging = false;
+        m_stroking = true;
+        m_stroke.clear();
+        m_strokeScreen.clear();
+        strokeTo(e);
+        return true;
+    }
     if (!m_tool)
         return selectPress(e);
 
@@ -850,6 +866,20 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
             eraseAt(e);
         return pressed;
     }
+    // The hovering eraser shows the piece it would trim.
+    if (!pressed && e.eraser && mode() == EditorMode::Sketch) {
+        m_eraserHover.clear();
+        if (const auto raw = toSketch(e.pixel)) {
+            if (const auto piece = findTrimPiece(sketch(), *raw, pixelsToModel(e.pixel, kHitPx * m_touchScale)))
+                m_eraserHover = trimPieceSegments(sketch(), *piece);
+        }
+        refreshOverlay();
+        return true;
+    }
+    if (!m_eraserHover.empty()) {
+        m_eraserHover.clear();
+        refreshOverlay();
+    }
     if (mode() == EditorMode::Model)
         return modelMove(e, pressed);
     if (m_toolKind == ToolKind::Project) {
@@ -859,6 +889,13 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
         if (changed)
             updateHint();
         return true;
+    }
+    if (m_toolKind == ToolKind::Freehand) {
+        if (pressed && m_stroking) {
+            strokeTo(e);
+            return true;
+        }
+        return selectMove(e, false); // hovering: what a tap would pick
     }
     if (!m_tool)
         return selectMove(e, pressed);
@@ -887,6 +924,11 @@ bool SketchEditor::release(const PointerEvent& e)
         return modelRelease(e);
     if (m_toolKind == ToolKind::Project)
         return true;
+    if (m_toolKind == ToolKind::Freehand) {
+        if (m_stroking)
+            strokeTo(e);
+        return selectRelease(e); // a stroke becomes its shape, a tap picks
+    }
     if (!m_tool)
         return selectRelease(e);
 
@@ -916,10 +958,84 @@ void SketchEditor::eraseAt(const PointerEvent& e)
     m_viewer->update();
 }
 
+void SketchEditor::strokeTo(const PointerEvent& e)
+{
+    const auto p = toSketch(e.pixel);
+    if (!p)
+        return;
+    m_stroke.push_back(*p);
+    m_strokeScreen.push_back(e.pos);
+}
+
+bool SketchEditor::strokeMoved() const
+{
+    const double threshold = kDragThresholdPx;
+    return std::any_of(m_strokeScreen.begin(), m_strokeScreen.end(), [&](const QPointF& q) {
+        return QLineF(m_strokeScreen.front(), q).length() > threshold;
+    });
+}
+
+bool SketchEditor::finishStroke(bool shapes)
+{
+    const StrokeShape shape = recognizeStroke(m_stroke, pickTolerance());
+    bool used = true;
+    if (shape.kind == StrokeShape::Kind::Scribble) {
+        scribbleOut();
+    } else if (!shapes) {
+        used = false;
+    } else if (shape.kind == StrokeShape::Kind::None) {
+        emit message(tr("Freehand: not recognized  ·  draw a line, corners, a rectangle, a circle or an arc"));
+    } else {
+        const double snap = pixelsToModel(m_pointerPixel, kPointSnapPx * m_touchScale);
+        setSelection({});
+        commit([&](Sketch& s) { addStrokeShape(s, shape, snap); });
+    }
+    m_stroking = false;
+    m_stroke.clear();
+    m_strokeScreen.clear();
+    m_viewer->update();
+    return used;
+}
+
+void SketchEditor::scribbleOut()
+{
+    const std::set<EntityId> curves = entitiesCrossed(sketch(), m_stroke, 0.6 * pickTolerance());
+    // Dimension labels and relation glyphs it went over (checked every few pixels).
+    std::set<ConstraintId> labels;
+    for (std::size_t i = 1; i < m_strokeScreen.size(); ++i) {
+        const QLineF piece(m_strokeScreen[i - 1], m_strokeScreen[i]);
+        const int steps = std::max(1, static_cast<int>(piece.length() / 3.0));
+        for (int k = 0; k <= steps; ++k) {
+            const QPointF q = piece.pointAt(static_cast<double>(k) / steps);
+            for (const Label& label : m_labels) {
+                if (label.rect.contains(q))
+                    labels.insert(label.id);
+            }
+        }
+    }
+    if (curves.empty() && labels.empty()) {
+        emit message(tr("Nothing under the scribble to delete"));
+        return;
+    }
+    setSelection({});
+    m_hover = {};
+    commit([&](Sketch& s) {
+        s.removeConstraints(labels);
+        s.removeEntities(curves);
+    });
+    emit message(tr("Scribbled out"));
+}
+
 bool SketchEditor::selectPress(const PointerEvent& e)
 {
     m_pressHit = hitAt(e);
     m_dragging = false;
+    // From empty space a drag is ink that can scribble things out.
+    m_stroking = m_pressHit.kind == Hit::Kind::None && m_toolKind == ToolKind::Select;
+    m_stroke.clear();
+    m_strokeScreen.clear();
+    if (m_stroking)
+        strokeTo(e);
     return false;
 }
 
@@ -934,6 +1050,10 @@ bool SketchEditor::selectMove(const PointerEvent& e, bool pressed)
         return true;
     }
 
+    if (m_stroking && m_toolKind == ToolKind::Select) {
+        strokeTo(e);
+        return true;
+    }
     if (m_pressHit.kind != Hit::Kind::Point && m_pressHit.kind != Hit::Kind::Entity)
         return false;
 
@@ -976,6 +1096,17 @@ bool SketchEditor::selectRelease(const PointerEvent& e)
 {
     const Hit hit = m_pressHit;
     m_pressHit = {};
+    if (m_stroking) {
+        // Freehand turns the stroke into a shape; Select only takes scribbles.
+        const bool stroke = strokeMoved();
+        if (stroke && finishStroke(m_toolKind == ToolKind::Freehand))
+            return true;
+        m_stroking = false;
+        m_stroke.clear();
+        m_strokeScreen.clear();
+        if (stroke)
+            return true; // a drag over nothing: no tap either
+    }
     if (m_dragging) {
         m_dragging = false;
         m_dragStart.clear();
@@ -1028,14 +1159,43 @@ void SketchEditor::toggle(const Hit& hit, bool additive)
 
 bool SketchEditor::leave()
 {
-    const bool had = m_snap.has_value() || m_hover.kind != Hit::Kind::None;
+    const bool had = m_snap.has_value() || m_hover.kind != Hit::Kind::None || !m_eraserHover.empty();
     m_snap.reset();
     m_hover = {};
+    m_eraserHover.clear();
     if (had) {
+        showHoverRegion();
         refreshSketches();
         refreshOverlay();
     }
     return had;
+}
+
+void SketchEditor::abortPress()
+{
+    m_stroking = false;
+    m_stroke.clear();
+    m_strokeScreen.clear();
+    m_erasing = false;
+    m_swallowRelease = false;
+    m_pressHit = {};
+    m_modelPress = {};
+    m_session.dragging = false;
+    // Whatever the press already changed (a trim, a segment closing a polyline) goes.
+    if (m_changes != m_pressChanges && !m_undo.empty()) {
+        undo();
+        m_redo.pop_back();
+        emit historyChanged();
+    }
+    if (mode() == EditorMode::Sketch) {
+        m_valueEditor->cancel();
+        if (m_tool)
+            m_tool->cancel();
+    }
+    m_snap.reset();
+    refreshOverlay();
+    updateHint();
+    m_viewer->update();
 }
 
 void SketchEditor::cancel()
@@ -1105,6 +1265,10 @@ void SketchEditor::resetInteraction()
     m_hover = {};
     m_pressHit = {};
     m_dragging = false;
+    m_stroking = false;
+    m_stroke.clear();
+    m_strokeScreen.clear();
+    showHoverRegion();
     updateHint();
 }
 
@@ -1160,6 +1324,7 @@ void SketchEditor::refreshOverlay()
         if (m_snap->snapped())
             overlay.accentPoints.push_back(m_snap->pos);
     }
+    overlay.accentSegments = m_eraserHover;
     m_overlayPrs->setDrawList(std::move(overlay));
 
     const auto& ctx = m_viewer->aisContext();
@@ -1244,7 +1409,13 @@ void SketchEditor::updateHint()
                                 "  ·  Esc goes back to Select"));
         return;
     }
-    emit hintChanged(tr("Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it"));
+    if (m_toolKind == ToolKind::Freehand) {
+        emit hintChanged(tr("Freehand: draw a line, corners, a rectangle, a circle or an arc  ·  "
+                            "scribble over something to delete it  ·  tap to select"));
+        return;
+    }
+    emit hintChanged(tr("Select: tap to add  ·  drag to move  ·  tap a selected dimension to change it  ·  "
+                        "scribble over something to delete it"));
 }
 
 void SketchEditor::updateStatus()
@@ -1552,6 +1723,17 @@ void SketchEditor::paintOverlay(QPainter& p)
             drawConstraintGlyph(p, c.kind, rect, hot ? Qt::white : m_colors.glyphInk);
             m_labels.push_back({c.id, rect});
         }
+    }
+
+    // Freehand ink, on top of everything.
+    if (m_stroking && m_strokeScreen.size() > 1) {
+        QPen ink(m_colors.overlayAccent, 2.5);
+        ink.setCapStyle(Qt::RoundCap);
+        ink.setJoinStyle(Qt::RoundJoin);
+        p.setPen(ink);
+        p.setBrush(Qt::NoBrush);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.drawPolyline(m_strokeScreen.data(), static_cast<int>(m_strokeScreen.size()));
     }
 }
 
