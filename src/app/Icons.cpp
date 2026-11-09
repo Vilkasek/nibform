@@ -496,6 +496,25 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         arrowHead(p, {12, 16}, {12, 11}, accent);
         break;
     }
+    case Icon::Drawing: {
+        // A sheet with a view and its title block.
+        p.drawRect(QRectF(3, 5, 18, 14));
+        p.drawRect(QRectF(13, 15, 8, 4));
+        p.setPen(pen(accent, 1.6));
+        p.drawRect(QRectF(6, 8, 5, 5));
+        p.drawLine(QPointF(14, 9), QPointF(18, 9));
+        p.drawLine(QPointF(14, 12), QPointF(18, 12));
+        break;
+    }
+    case Icon::Note: {
+        // Lines of text under a capital.
+        p.drawLine(QPointF(5, 13), QPointF(19, 13));
+        p.drawLine(QPointF(5, 17), QPointF(16, 17));
+        p.setPen(pen(accent, 1.8));
+        p.drawPolyline(QPolygonF({{5, 10}, {8.5, 3}, {12, 10}}));
+        p.drawLine(QPointF(6.4, 7.5), QPointF(10.6, 7.5));
+        break;
+    }
     case Icon::Freehand: {
         // A rough loop drawn by a pen nib.
         QPainterPath loop;

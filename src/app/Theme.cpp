@@ -77,6 +77,7 @@ QToolButton::menu-button { border: none; width: 14px; }
 QLabel#modeBadge { color: white; border-radius: 10px; padding: 3px 12px; margin: 0 8px 0 2px; font-weight: 600; }
 QLabel#modeBadge[mode="model"] { background: #2563eb; }
 QLabel#modeBadge[mode="sketch"] { background: #ea580c; }
+QLabel#modeBadge[mode="drawing"] { background: #059669; }
 QToolButton#closeSketch { background: #ea580c; color: white; font-weight: 600; padding: 3px 12px; }
 QToolButton#closeSketch:hover { background: #f97316; }
 QFrame#valueEditor, QFrame#contextBar { background: @panel; border: 1px solid @border; border-radius: 12px; }

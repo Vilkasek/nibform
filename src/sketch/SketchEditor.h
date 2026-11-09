@@ -201,6 +201,14 @@ public:
     void copy();
     void paste();
 
+    // --- Drawings (kept with the project, undone with the rest) ------------------------
+    const std::vector<Drawing>& drawings() const { return m_drawings; }
+    // Replaces drawing `index` (one more at the end makes a new one); `undoable` records
+    // an undo step, otherwise it only follows the model (dimensions moving along).
+    void setDrawing(int index, const Drawing& drawing, bool undoable = true);
+    // The bodies a drawing shows (the shown ones).
+    std::vector<TopoDS_Shape> visibleBodies() const;
+
     // Whether the entry made a solid a pattern can repeat (an extrusion from a sketch, a
     // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
     bool canPattern(int index) const;
@@ -241,6 +249,7 @@ signals:
     void bodyOperationChanged(BodyOperation operation);
     void bodiesChanged();          // count, names, visibility or colors
     void sectionChanged(bool on);
+    void drawingsChanged();
 
 private:
     struct Slot
@@ -255,6 +264,7 @@ private:
     {
         std::vector<ProjectData::SketchEntry> sketches;
         std::vector<Feature> features;
+        std::vector<Drawing> drawings;
     };
     // What is under the pointer. Sketch mode: points, curves, constraint labels.
     // Model mode: Region (`region`), Face / Edge of body `id` (picked through AIS).
@@ -453,6 +463,7 @@ private:
     void sectionTap(const Hit& hit);
     void applySection();
 
+    std::vector<Drawing> m_drawings;
     std::vector<BodyStyle> m_bodyStyles;
     std::vector<int> m_styleOf; // per body, index into m_bodyStyles or -1
     void matchStyles();         // after the bodies change

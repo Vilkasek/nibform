@@ -42,6 +42,8 @@ constexpr std::array<const char*, 19> kConstraintKinds{
 constexpr std::array<const char*, 16> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine", "delete",
                                                     "shell",  "revolve", "sweep",  "loft",    "mirror",  "pattern",
                                                     "hole",   "datum",   "move",   "import"};
+constexpr std::array<const char*, 8> kViewKinds{"front", "back", "top", "bottom", "right", "left", "iso", "section"};
+constexpr std::array<const char*, 5> kDimensionKinds{"distance", "horizontal", "vertical", "radius", "diameter"};
 constexpr std::array<const char*, 4> kAxisKinds{"none", "edge", "sketchLine", "datum"};
 constexpr std::array<const char*, 3> kPlaneKinds{"none", "face", "datum"};
 constexpr std::array<const char*, 2> kPatternKinds{"linear", "circular"};
@@ -354,8 +356,26 @@ QByteArray projectToJson(const ProjectData& project)
             o.insert("color", QJsonArray{(*b.color)[0], (*b.color)[1], (*b.color)[2]});
         styles.append(o);
     }
-    const QJsonObject root{{"format", kFormat},     {"version", kVersion},  {"sketches", sketches},
-                           {"features", features}, {"bodies", styles}};
+    QJsonArray drawings;
+    for (const Drawing& d : project.drawings) {
+        QJsonArray views, dimensions, notes;
+        for (const SheetView& v : d.views) {
+            views.append(QJsonObject{{"kind", nameOf(v.kind, kViewKinds)}, {"at", xy(v.at)},          {"scale", v.scale},
+                                     {"base", nameOf(v.base, kViewKinds)}, {"offset", v.offset},     {"label", QString::fromStdString(v.label)},
+                                     {"hidden", v.hidden}});
+        }
+        for (const SheetDimension& m : d.dimensions) {
+            dimensions.append(QJsonObject{{"kind", nameOf(m.kind, kDimensionKinds)}, {"view", m.view},
+                                          {"a", xyz(m.a.XYZ())}, {"b", xyz(m.b.XYZ())}, {"radius", m.radius},
+                                          {"offset", m.offset}, {"angle", m.angle}});
+        }
+        for (const SheetNote& n : d.notes)
+            notes.append(QJsonObject{{"at", xy(n.at)}, {"text", QString::fromStdString(n.text)}, {"height", n.height}});
+        drawings.append(QJsonObject{{"title", QString::fromStdString(d.title)}, {"width", d.width}, {"height", d.height},
+                                    {"views", views}, {"dimensions", dimensions}, {"notes", notes}});
+    }
+    const QJsonObject root{{"format", kFormat},     {"version", kVersion}, {"sketches", sketches},
+                           {"features", features}, {"bodies", styles},    {"drawings", drawings}};
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -399,6 +419,44 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
             b.color = std::array<double, 3>{c.at(0).toDouble(), c.at(1).toDouble(), c.at(2).toDouble()};
         }
         project.bodyStyles.push_back(std::move(b));
+    }
+    for (const auto& v : root.value("drawings").toArray()) {
+        const QJsonObject o = v.toObject();
+        Drawing d;
+        d.title = o.value("title").toString().toStdString();
+        d.width = o.value("width").toDouble(297.0);
+        d.height = o.value("height").toDouble(210.0);
+        for (const auto& w : o.value("views").toArray()) {
+            const QJsonObject j = w.toObject();
+            SheetView view;
+            view.kind = fromName<ViewKind>(j.value("kind").toString(), kViewKinds).value_or(ViewKind::Front);
+            view.at = toXY(j.value("at"));
+            view.scale = j.value("scale").toDouble(1.0);
+            view.base = fromName<ViewKind>(j.value("base").toString(), kViewKinds).value_or(ViewKind::Front);
+            view.offset = j.value("offset").toDouble();
+            view.label = j.value("label").toString().toStdString();
+            view.hidden = j.value("hidden").toBool(true);
+            if (view.scale > 0.0)
+                d.views.push_back(view);
+        }
+        for (const auto& w : o.value("dimensions").toArray()) {
+            const QJsonObject j = w.toObject();
+            SheetDimension m;
+            m.kind = fromName<SheetDimension::Kind>(j.value("kind").toString(), kDimensionKinds)
+                         .value_or(SheetDimension::Kind::Distance);
+            m.view = j.value("view").toInt();
+            m.a = gp_Pnt(toXYZ(j.value("a")));
+            m.b = gp_Pnt(toXYZ(j.value("b")));
+            m.radius = j.value("radius").toDouble();
+            m.offset = j.value("offset").toDouble(10.0);
+            m.angle = j.value("angle").toDouble(45.0);
+            d.dimensions.push_back(m);
+        }
+        for (const auto& w : o.value("notes").toArray()) {
+            const QJsonObject j = w.toObject();
+            d.notes.push_back({toXY(j.value("at")), j.value("text").toString().toStdString(), j.value("height").toDouble(3.5)});
+        }
+        project.drawings.push_back(std::move(d));
     }
     numberFeatures(project.features); // older files: ids in history order
     return project;

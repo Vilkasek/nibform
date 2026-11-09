@@ -171,3 +171,27 @@ void SketchEditor::paste()
     }
     emit message(tr("Nothing to paste: copy curves or bodies first"));
 }
+
+void SketchEditor::setDrawing(int index, const Drawing& drawing, bool undoable)
+{
+    if (index < 0 || index > static_cast<int>(m_drawings.size()))
+        return;
+    if (undoable)
+        pushUndo();
+    if (index == static_cast<int>(m_drawings.size()))
+        m_drawings.push_back(drawing);
+    else
+        m_drawings[index] = drawing;
+    if (undoable) {
+        emit historyChanged();
+        emit drawingsChanged();
+    }
+}
+
+std::vector<TopoDS_Shape> SketchEditor::visibleBodies() const
+{
+    std::vector<TopoDS_Shape> out;
+    for (const PrintBody& b : printBodies())
+        out.push_back(b.shape);
+    return out;
+}

@@ -2,6 +2,168 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
 <context>
+    <name>DrawingSheet</name>
+    <message>
+        <source>Scale</source>
+        <translation>Skala</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>Jednostki</translation>
+    </message>
+    <message>
+        <source>Sheet</source>
+        <translation>Arkusz</translation>
+    </message>
+    <message>
+        <source>Date</source>
+        <translation>Data</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Bez tytułu</translation>
+    </message>
+</context>
+<context>
+    <name>DrawingWidget</name>
+    <message>
+        <source>Part</source>
+        <translation>Część</translation>
+    </message>
+    <message>
+        <source>Front</source>
+        <translation>Przód</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Góra</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Lewo</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Prawo</translation>
+    </message>
+    <message>
+        <source>Section View</source>
+        <translation>Przekrój</translation>
+    </message>
+    <message>
+        <source>Cut and seen like the view:</source>
+        <translation>Cięty i widziany jak rzut:</translation>
+    </message>
+    <message>
+        <source>Drag the new view to its place</source>
+        <translation>Przeciągnij nowy rzut na miejsce</translation>
+    </message>
+    <message>
+        <source>Drawing Title</source>
+        <translation>Tytuł rysunku</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>Tytuł:</translation>
+    </message>
+    <message>
+        <source>Drawing: drag views, dimensions and notes  ·  double-tap one for its options  ·  right drag pans, the wheel zooms</source>
+        <translation>Rysunek: przeciągaj rzuty, wymiary i notatki  ·  dwuklik otwiera ich opcje  ·  prawy przycisk przesuwa, kółko przybliża</translation>
+    </message>
+    <message>
+        <source>Dimension: tap the second corner or center in the same view</source>
+        <translation>Wymiar: dotknij drugiego narożnika albo środka w tym samym rzucie</translation>
+    </message>
+    <message>
+        <source>Dimension: tap two corners or centers of a view, or the rim of a hole for its size</source>
+        <translation>Wymiar: dotknij dwóch narożników albo środków w rzucie, albo krawędzi otworu, by podać jego średnicę</translation>
+    </message>
+    <message>
+        <source>Note: tap where the text goes</source>
+        <translation>Notatka: dotknij miejsca, gdzie ma być tekst</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>Skala</translation>
+    </message>
+    <message>
+        <source>Hidden Edges</source>
+        <translation>Krawędzie niewidoczne</translation>
+    </message>
+    <message>
+        <source>Cut Position…</source>
+        <translation>Położenie cięcia…</translation>
+    </message>
+    <message>
+        <source>Section</source>
+        <translation>Przekrój</translation>
+    </message>
+    <message>
+        <source>Cut, from the middle of the part [%1]:</source>
+        <translation>Cięcie, od środka części [%1]:</translation>
+    </message>
+    <message>
+        <source>Delete View</source>
+        <translation>Usuń rzut</translation>
+    </message>
+    <message>
+        <source>Radius</source>
+        <translation>Promień</translation>
+    </message>
+    <message>
+        <source>Diameter</source>
+        <translation>Średnica</translation>
+    </message>
+    <message>
+        <source>Aligned</source>
+        <translation>Równoległy</translation>
+    </message>
+    <message>
+        <source>Horizontal</source>
+        <translation>Poziomy</translation>
+    </message>
+    <message>
+        <source>Vertical</source>
+        <translation>Pionowy</translation>
+    </message>
+    <message>
+        <source>Delete Dimension</source>
+        <translation>Usuń wymiar</translation>
+    </message>
+    <message>
+        <source>Edit Text…</source>
+        <translation>Edytuj tekst…</translation>
+    </message>
+    <message>
+        <source>Note</source>
+        <translation>Notatka</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>Tekst:</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>Wielkość tekstu</translation>
+    </message>
+    <message>
+        <source>Delete Note</source>
+        <translation>Usuń notatkę</translation>
+    </message>
+    <message>
+        <source>Title…</source>
+        <translation>Tytuł…</translation>
+    </message>
+    <message>
+        <source>Fit the Sheet</source>
+        <translation>Dopasuj arkusz</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Nie udało się zapisać %1</translation>
+    </message>
+</context>
+<context>
     <name>MainWindow</name>
     <message>
         <source>Quick</source>
@@ -312,6 +474,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Lustro</translation>
     </message>
     <message>
+        <source>Make a body first: a drawing shows the bodies</source>
+        <translation>Najpierw utwórz bryłę: rysunek pokazuje bryły</translation>
+    </message>
+    <message>
+        <source>Export Drawing</source>
+        <translation>Eksportuj rysunek</translation>
+    </message>
+    <message>
         <source>The checkbox shows or hides a body; double-click the name to rename it</source>
         <translation>Pole wyboru pokazuje albo ukrywa bryłę; dwuklik na nazwie zmienia ją</translation>
     </message>
@@ -366,6 +536,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Paste</source>
         <translation>Wklej</translation>
+    </message>
+    <message>
+        <source>Drawing</source>
+        <translation>Rysunek</translation>
+    </message>
+    <message>
+        <source>A technical drawing of the bodies: views, sections, dimensions; PDF, SVG or printed</source>
+        <translation>Rysunek techniczny brył: rzuty, przekroje, wymiary; PDF, SVG albo wydruk</translation>
     </message>
     <message>
         <source>Revolve</source>
@@ -554,6 +732,86 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Reference image: insert a picture to trace over, scale it by two points</source>
         <translation>Obraz podkładowy – wstaw obraz do odrysowania, przeskaluj go dwoma punktami</translation>
+    </message>
+    <message>
+        <source>DRAWING</source>
+        <translation>RYSUNEK</translation>
+    </message>
+    <message>
+        <source>Back to Model</source>
+        <translation>Wróć do modelu</translation>
+    </message>
+    <message>
+        <source>Drag views, dimensions and notes; double-tap one for its options</source>
+        <translation>Przeciągaj rzuty, wymiary i notatki; dwuklik otwiera ich opcje</translation>
+    </message>
+    <message>
+        <source>Tap two corners or centers of a view, or a hole's rim for its diameter</source>
+        <translation>Dotknij dwóch narożników albo środków w rzucie, albo krawędzi otworu, by podać jego średnicę</translation>
+    </message>
+    <message>
+        <source>Note</source>
+        <translation>Notatka</translation>
+    </message>
+    <message>
+        <source>Tap where a note goes</source>
+        <translation>Dotknij miejsca na notatkę</translation>
+    </message>
+    <message>
+        <source>Section…</source>
+        <translation>Przekrój…</translation>
+    </message>
+    <message>
+        <source>Add View</source>
+        <translation>Dodaj rzut</translation>
+    </message>
+    <message>
+        <source>A4 Landscape</source>
+        <translation>A4 poziomo</translation>
+    </message>
+    <message>
+        <source>A4 Portrait</source>
+        <translation>A4 pionowo</translation>
+    </message>
+    <message>
+        <source>A3 Landscape</source>
+        <translation>A3 poziomo</translation>
+    </message>
+    <message>
+        <source>A3 Portrait</source>
+        <translation>A3 pionowo</translation>
+    </message>
+    <message>
+        <source>A2 Landscape</source>
+        <translation>A2 poziomo</translation>
+    </message>
+    <message>
+        <source>Title…</source>
+        <translation>Tytuł…</translation>
+    </message>
+    <message>
+        <source>Sheet</source>
+        <translation>Arkusz</translation>
+    </message>
+    <message>
+        <source>PDF</source>
+        <translation>PDF</translation>
+    </message>
+    <message>
+        <source>Export the sheet as PDF</source>
+        <translation>Eksportuj arkusz do PDF</translation>
+    </message>
+    <message>
+        <source>SVG</source>
+        <translation>SVG</translation>
+    </message>
+    <message>
+        <source>Export the sheet as SVG</source>
+        <translation>Eksportuj arkusz do SVG</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <translation>Drukuj</translation>
     </message>
     <message>
         <source>Units</source>

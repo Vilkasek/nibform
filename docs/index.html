@@ -296,7 +296,7 @@ footer .brand img { width: 24px; height: 24px; }
         <p class="sub" lang="en">Or build from source:</p>
         <p class="sub" lang="pl">Albo zbuduj ze źródeł:</p>
 <pre><span class="c"># dependencies (Arch)</span>
-sudo pacman -S --needed qt6-base qt6-tools opencascade eigen cmake ninja
+sudo pacman -S --needed qt6-base qt6-svg qt6-tools opencascade eigen cmake ninja
 
 <span class="c"># build, test, install</span>
 git clone https://github.com/Vilkasek/nibform.git
@@ -305,8 +305,8 @@ cmake -S . -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build build
 ctest --test-dir build
 sudo cmake --install build</pre>
-        <p class="note" lang="en">Other distributions work too: you need Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen and CMake. A Flatpak manifest is in <code>packaging/flatpak</code>. On Wayland the app runs through XWayland, as OpenCASCADE is built for GLX.</p>
-        <p class="note" lang="pl">Inne dystrybucje też zadziałają: potrzebne są Qt&nbsp;6 (Widgets, OpenGL, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen i CMake. Manifest Flatpaka jest w <code>packaging/flatpak</code>. Na Waylandzie aplikacja działa przez XWayland, bo OpenCASCADE jest zbudowany pod GLX.</p>
+        <p class="note" lang="en">Other distributions work too: you need Qt&nbsp;6 (Widgets, OpenGL, Svg, PrintSupport, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen and CMake. A Flatpak manifest is in <code>packaging/flatpak</code>. On Wayland the app runs through XWayland, as OpenCASCADE is built for GLX.</p>
+        <p class="note" lang="pl">Inne dystrybucje też zadziałają: potrzebne są Qt&nbsp;6 (Widgets, OpenGL, Svg, PrintSupport, LinguistTools), OpenCASCADE&nbsp;7.9, Eigen i CMake. Manifest Flatpaka jest w <code>packaging/flatpak</code>. Na Waylandzie aplikacja działa przez XWayland, bo OpenCASCADE jest zbudowany pod GLX.</p>
       </div>
       <div>
         <h2 lang="en">Status</h2><h2 lang="pl">Stan prac</h2>
@@ -327,10 +327,11 @@ sudo cmake --install build</pre>
           <li><b>M10</b> <span lang="en">revolve, sweep, loft, holes, construction planes</span><span lang="pl">obrót, przeciąganie po ścieżce, wyciągnięcie przez profile, otwory, płaszczyzny</span></li>
           <li><b>M11</b> <span lang="en">move gizmo, measuring, section view, body list, inches</span><span lang="pl">uchwyt przesuwania, pomiary, przekrój, lista brył, cale</span></li>
           <li><b>M12</b> <span lang="en">STEP / IGES / STL import, DXF / SVG sketches, 3MF export, copy and paste</span><span lang="pl">import STEP / IGES / STL, szkice DXF / SVG, eksport 3MF, kopiuj i wklej</span></li>
+          <li><b>M13</b> <span lang="en">technical drawings: views, sections, dimensions, PDF / SVG, printing</span><span lang="pl">rysunki techniczne: rzuty, przekroje, wymiary, PDF / SVG, druk</span></li>
         </ul>
         <p class="note next-title"><span lang="en">Next:</span><span lang="pl">Dalej:</span></p>
         <ul class="check next">
-          <li><b>M13–M14</b> <span lang="en">drawings, speed</span><span lang="pl">rysunki, wydajność</span></li>
+          <li><b>M14</b> <span lang="en">speed and robustness on big models</span><span lang="pl">wydajność i niezawodność przy dużych modelach</span></li>
         </ul>
         <p class="note"><a href="https://github.com/Vilkasek/nibform/blob/main/ROADMAP.md"><span lang="en">The whole roadmap</span><span lang="pl">Cały plan</span> →</a></p>
       </div>

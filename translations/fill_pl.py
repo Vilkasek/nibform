@@ -6,6 +6,18 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "Make a body first: a drawing shows the bodies": "Najpierw utwórz bryłę: rysunek pokazuje bryły",
+  "Export Drawing": "Eksportuj rysunek", "Drawing": "Rysunek",
+  "A technical drawing of the bodies: views, sections, dimensions; PDF, SVG or printed":
+      "Rysunek techniczny brył: rzuty, przekroje, wymiary; PDF, SVG albo wydruk",
+  "DRAWING": "RYSUNEK", "Back to Model": "Wróć do modelu",
+  "Drag views, dimensions and notes; double-tap one for its options": "Przeciągaj rzuty, wymiary i notatki; dwuklik otwiera ich opcje",
+  "Tap two corners or centers of a view, or a hole's rim for its diameter":
+      "Dotknij dwóch narożników albo środków w rzucie, albo krawędzi otworu, by podać jego średnicę",
+  "Note": "Notatka", "Tap where a note goes": "Dotknij miejsca na notatkę", "Section…": "Przekrój…", "Add View": "Dodaj rzut",
+  "A4 Landscape": "A4 poziomo", "A4 Portrait": "A4 pionowo", "A3 Landscape": "A3 poziomo", "A3 Portrait": "A3 pionowo",
+  "A2 Landscape": "A2 poziomo", "Title…": "Tytuł…", "Sheet": "Arkusz", "PDF": "PDF", "Export the sheet as PDF": "Eksportuj arkusz do PDF",
+  "SVG": "SVG", "Export the sheet as SVG": "Eksportuj arkusz do SVG", "Print": "Drukuj",
   "Import…": "Importuj…", "A STEP, IGES or STL file: as bodies to build on, or as a reference":
       "Plik STEP, IGES albo STL: jako bryły do dalszej pracy albo jako odniesienie",
   "Export": "Eksportuj", "STEP…": "STEP…", "IGES…": "IGES…", "STL…": "STL…", "3MF (3D printing)…": "3MF (druk 3D)…",
@@ -246,6 +258,26 @@ PL = {
   "The drawing has no shapes this app reads (paths, lines, rectangles, circles, ellipses, polylines)":
       "Rysunek nie zawiera kształtów, które aplikacja czyta (ścieżki, linie, prostokąty, okręgi, elipsy, polilinie)",
   "Could not write %1": "Nie udało się zapisać %1", "Could not open %1": "Nie udało się otworzyć %1",
+ },
+ "DrawingSheet": {
+  "Scale": "Skala", "Units": "Jednostki", "Sheet": "Arkusz", "Date": "Data", "Untitled": "Bez tytułu",
+ },
+ "DrawingWidget": {
+  "Part": "Część", "Front": "Przód", "Top": "Góra", "Left": "Lewo", "Right": "Prawo", "Section View": "Przekrój",
+  "Cut and seen like the view:": "Cięty i widziany jak rzut:", "Drag the new view to its place": "Przeciągnij nowy rzut na miejsce",
+  "Drawing Title": "Tytuł rysunku", "Title:": "Tytuł:",
+  "Drawing: drag views, dimensions and notes  ·  double-tap one for its options  ·  right drag pans, the wheel zooms":
+      "Rysunek: przeciągaj rzuty, wymiary i notatki  ·  dwuklik otwiera ich opcje  ·  prawy przycisk przesuwa, kółko przybliża",
+  "Dimension: tap the second corner or center in the same view": "Wymiar: dotknij drugiego narożnika albo środka w tym samym rzucie",
+  "Dimension: tap two corners or centers of a view, or the rim of a hole for its size":
+      "Wymiar: dotknij dwóch narożników albo środków w rzucie, albo krawędzi otworu, by podać jego średnicę",
+  "Note: tap where the text goes": "Notatka: dotknij miejsca, gdzie ma być tekst",
+  "Scale": "Skala", "Hidden Edges": "Krawędzie niewidoczne", "Cut Position…": "Położenie cięcia…", "Section": "Przekrój",
+  "Cut, from the middle of the part [%1]:": "Cięcie, od środka części [%1]:", "Delete View": "Usuń rzut",
+  "Radius": "Promień", "Diameter": "Średnica", "Aligned": "Równoległy", "Horizontal": "Poziomy", "Vertical": "Pionowy",
+  "Delete Dimension": "Usuń wymiar", "Edit Text…": "Edytuj tekst…", "Note": "Notatka", "Text:": "Tekst:",
+  "Text Size": "Wielkość tekstu", "Delete Note": "Usuń notatkę", "Title…": "Tytuł…", "Fit the Sheet": "Dopasuj arkusz",
+  "Could not write %1": "Nie udało się zapisać %1",
  },
  "SketchEditor": {
   "Reference": "Odniesienie", "Import": "Import", "Imported %1 as a reference": "Zaimportowano %1 jako odniesienie",

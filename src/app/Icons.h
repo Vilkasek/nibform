@@ -13,7 +13,7 @@ enum class Icon
     Undo, Redo, Delete, Cancel, Done,
     Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
     Project, Image, HorizontalDimension, VerticalDimension, Freehand,
-    Revolve, Sweep, Loft, Hole, Plane, Axis, BodyMirror, Move, Measure, Section, Import,
+    Revolve, Sweep, Loft, Hole, Plane, Axis, BodyMirror, Move, Measure, Section, Import, Drawing, Note,
 };
 
 // Toolbar icons drawn in code, so they follow the theme: lines in `ink`, the part that

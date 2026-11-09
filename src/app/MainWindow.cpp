@@ -2,6 +2,7 @@
 
 #include "app/Icons.h"
 #include "app/Language.h"
+#include "app/DrawingWidget.h"
 #include "app/RadialMenu.h"
 #include "viewer/UnitText.h"
 #include "model/Export.h"
@@ -14,6 +15,7 @@
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QStackedWidget>
 #include <QDockWidget>
 #include <QHeaderView>
 #include <QTreeWidget>
@@ -42,11 +44,22 @@ MainWindow::MainWindow(QWidget* parent)
 {
     setWindowTitle(QStringLiteral("Nibform"));
 
-    m_viewer = new OcctViewerWidget(this);
-    setCentralWidget(m_viewer);
+    // The 3D view, or a drawing sheet in its place.
+    m_stack = new QStackedWidget(this);
+    m_viewer = new OcctViewerWidget(m_stack);
+    m_stack->addWidget(m_viewer);
+    setCentralWidget(m_stack);
 
     m_editor = new SketchEditor(m_viewer, this);
     m_viewer->setInteraction(m_editor);
+    m_drawingWidget = new DrawingWidget(m_editor, m_stack);
+    m_stack->addWidget(m_drawingWidget);
+    connect(m_drawingWidget, &DrawingWidget::hintChanged, this, [this](const QString& hint) {
+        m_hint = hint;
+        if (!m_messageTimer.isActive())
+            m_hintLabel->setText(hint);
+    });
+    connect(m_drawingWidget, &DrawingWidget::selectionChanged, this, [this] { updateEditActions(); });
     // Remembered length unit, and the Bodies panel (the View menu shows it).
     setLengthUnit(QSettings().value(QStringLiteral("units")).toString() == QLatin1String("in") ? LengthUnit::Inch
                                                                                                 : LengthUnit::Millimetre);
@@ -73,6 +86,8 @@ MainWindow::MainWindow(QWidget* parent)
     // Messages take the hint's place for a moment (a status bar message would be
     // painted over the hint, not instead of it).
     connect(m_editor, &SketchEditor::hintChanged, this, [this](const QString& hint) {
+        if (m_drawingMode)
+            return; // the sheet has its own hints
         m_hint = hint;
         if (!m_messageTimer.isActive())
             m_hintLabel->setText(hint);
@@ -189,6 +204,53 @@ void MainWindow::showRadialMenu(const QPointF& pos)
     const double scale = m_tabletAction && m_tabletAction->isChecked() ? 1.3 : 1.0;
     const RadialMenu::Colors colors{themePalette(dark).color(QPalette::Window), style.ink, style.accent};
     m_radialMenu = new RadialMenu(std::move(items), m_viewer->mapTo(this, pos), scale, colors, this);
+}
+
+void MainWindow::enterDrawing()
+{
+    if (m_editor->bodyCount() == 0) {
+        showMessage(tr("Make a body first: a drawing shows the bodies"));
+        return;
+    }
+    if (m_editor->mode() == EditorMode::Sketch)
+        m_editor->closeSketch();
+    m_editor->setTool(ToolKind::Select);
+    m_drawingMode = true;
+    m_stack->setCurrentWidget(m_drawingWidget);
+    m_drawingWidget->open(0);
+    updateMode(m_editor->mode());
+    m_drawingWidget->setFocus();
+}
+
+void MainWindow::leaveDrawing()
+{
+    if (!m_drawingMode)
+        return;
+    m_drawingMode = false;
+    m_stack->setCurrentWidget(m_viewer);
+    updateMode(m_editor->mode());
+    m_editor->retranslate(); // its hint again
+    m_viewer->setFocus();
+}
+
+void MainWindow::exportDrawing(bool pdf)
+{
+    const QString suffix = pdf ? QStringLiteral(".pdf") : QStringLiteral(".svg");
+    const QString suggested = m_path.isEmpty() ? lastDirectory() + QStringLiteral("/drawing") + suffix
+                                               : QFileInfo(m_path).absolutePath() + QLatin1Char('/')
+                                                     + QFileInfo(m_path).completeBaseName() + suffix;
+    QString path = QFileDialog::getSaveFileName(this, tr("Export Drawing"), suggested,
+                                                pdf ? QStringLiteral("PDF (*.pdf)") : QStringLiteral("SVG (*.svg)"));
+    if (path.isEmpty())
+        return;
+    if (QFileInfo(path).suffix().isEmpty())
+        path += suffix;
+    rememberDirectory(path);
+    const QString error = pdf ? m_drawingWidget->exportPdf(path) : m_drawingWidget->exportSvg(path);
+    if (!error.isEmpty())
+        QMessageBox::warning(this, tr("Export Failed"), error);
+    else
+        showMessage(tr("Exported %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::setUnits(LengthUnit unit)
@@ -331,11 +393,11 @@ void MainWindow::rebuildUi()
     delete m_contextBar;
     m_contextBar = nullptr;
     m_contextButtons.clear();
-    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_constraintBar, m_timelineBar, m_quickBar}) {
+    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_constraintBar, m_timelineBar, m_quickBar, m_drawingBar}) {
         removeToolBar(bar);
         delete bar;
     }
-    m_modelBar = m_sketchBar = m_viewBar = m_constraintBar = m_timelineBar = m_quickBar = nullptr;
+    m_modelBar = m_sketchBar = m_viewBar = m_constraintBar = m_timelineBar = m_quickBar = m_drawingBar = nullptr;
     delete m_uiRoot;
     setMenuBar(new QMenuBar(this)); // deletes the old one, its menus and their actions
     m_toolActions.clear();
@@ -398,11 +460,21 @@ void MainWindow::buildActions()
     m_copyAction->setToolTip(tr("Copies the selected curves (in a sketch) or bodies, to paste here or in another project"));
     QAction* paste = edit->addAction(tr("Paste"), m_editor, &SketchEditor::paste);
     paste->setShortcut(QKeySequence::Paste);
-    m_deleteAction = edit->addAction(tr("Delete Selected"), m_editor, &SketchEditor::deleteSelection);
+    m_deleteAction = edit->addAction(tr("Delete Selected"), this, [this] {
+        if (m_drawingMode)
+            m_drawingWidget->deleteSelected();
+        else
+            m_editor->deleteSelection();
+    });
     m_deleteAction->setShortcuts({QKeySequence::Delete, QKeySequence(Qt::Key_Backspace)});
     m_clearSketchAction = edit->addAction(tr("Clear Sketch"), m_editor, &SketchEditor::clearActiveSketch);
     edit->addSeparator();
-    m_cancelAction = edit->addAction(tr("Cancel / Deselect"), m_editor, &SketchEditor::cancel);
+    m_cancelAction = edit->addAction(tr("Cancel / Deselect"), this, [this] {
+        if (m_drawingMode)
+            m_drawingWidget->cancel();
+        else
+            m_editor->cancel();
+    });
     m_cancelAction->setShortcut(QKeySequence(Qt::Key_Escape));
     m_confirmAction = edit->addAction(tr("Finish / Edit Dimension"), m_editor, &SketchEditor::confirm);
     m_confirmAction->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
@@ -480,6 +552,11 @@ void MainWindow::buildActions()
     newSketch->setFocusPolicy(Qt::NoFocus);
     newSketch->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     m_modelBar->addWidget(newSketch);
+    m_drawingAction = new QAction(tr("Drawing"), m_uiRoot);
+    iconize(m_drawingAction, Icon::Drawing);
+    m_drawingAction->setToolTip(tr("A technical drawing of the bodies: views, sections, dimensions; "
+                                   "PDF, SVG or printed"));
+    connect(m_drawingAction, &QAction::triggered, this, &MainWindow::enterDrawing);
     m_editSketchAction = m_modelBar->addAction(tr("Edit Sketch"), m_editor, &SketchEditor::editSketch);
     m_editSketchAction->setToolTip(tr("Opens the sketch whose region is selected"));
     iconize(m_editSketchAction, Icon::EditSketch);
@@ -701,6 +778,73 @@ void MainWindow::buildActions()
     }
     m_sketchBar->addSeparator();
     m_closeSketchAction = m_sketchBar->addAction(tr("Finish Sketch"), m_editor, &SketchEditor::closeSketch);
+    m_modelBar->addSeparator();
+    m_modelBar->addAction(m_drawingAction);
+
+    // Drawing: the sheet's own bar.
+    m_drawingBar = makeBar(tr("Drawing"));
+    badge(m_drawingBar, tr("DRAWING"), "drawing");
+    {
+        QAction* back = m_drawingBar->addAction(tr("Back to Model"), this, &MainWindow::leaveDrawing);
+        iconize(back, Icon::CloseSketch);
+        back->setObjectName(QStringLiteral("drawingBack")); // drawn on the orange button
+        if (QWidget* button = m_drawingBar->widgetForAction(back))
+            button->setObjectName(QStringLiteral("closeSketch"));
+        m_drawingBar->addSeparator();
+        auto* group = new QActionGroup(m_drawingBar);
+        auto drawingTool = [&](DrawingWidget::Tool tool, const QString& name, Icon icon, const QString& tip) {
+            QAction* a = m_drawingBar->addAction(name, this, [this, tool] { m_drawingWidget->setTool(tool); });
+            iconize(a, icon);
+            a->setCheckable(true);
+            a->setChecked(m_drawingWidget->tool() == tool);
+            a->setToolTip(tip);
+            group->addAction(a);
+        };
+        drawingTool(DrawingWidget::Tool::Select, tr("Select"), Icon::Select,
+                    tr("Drag views, dimensions and notes; double-tap one for its options"));
+        drawingTool(DrawingWidget::Tool::Dimension, tr("Dimension"), Icon::Dimension,
+                    tr("Tap two corners or centers of a view, or a hole's rim for its diameter"));
+        drawingTool(DrawingWidget::Tool::Note, tr("Note"), Icon::Note, tr("Tap where a note goes"));
+        m_drawingBar->addSeparator();
+        auto menuButton = [&](const QString& name, Icon icon, QMenu* menu) {
+            auto* button = new QToolButton(m_drawingBar);
+            auto* action = new QAction(name, button);
+            iconize(action, icon);
+            action->setMenu(menu);
+            button->setDefaultAction(action);
+            button->setPopupMode(QToolButton::InstantPopup);
+            button->setFocusPolicy(Qt::NoFocus);
+            button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+            m_drawingBar->addWidget(button);
+            m_groupButtons.push_back(button);
+        };
+        auto* views = new QMenu(m_drawingBar);
+        for (const auto& [kind, name] : {std::pair(ViewKind::Front, tr("Front")), std::pair(ViewKind::Back, tr("Back")),
+                                         std::pair(ViewKind::Top, tr("Top")), std::pair(ViewKind::Bottom, tr("Bottom")),
+                                         std::pair(ViewKind::Left, tr("Left")), std::pair(ViewKind::Right, tr("Right")),
+                                         std::pair(ViewKind::Iso, tr("Isometric")),
+                                         std::pair(ViewKind::Section, tr("Section…"))})
+            views->addAction(name, this, [this, kind] { m_drawingWidget->addView(kind); });
+        menuButton(tr("Add View"), Icon::Iso, views);
+        auto* sheet = new QMenu(m_drawingBar);
+        for (const auto& [name, w, h] : {std::tuple(tr("A4 Landscape"), 297.0, 210.0), std::tuple(tr("A4 Portrait"), 210.0, 297.0),
+                                         std::tuple(tr("A3 Landscape"), 420.0, 297.0), std::tuple(tr("A3 Portrait"), 297.0, 420.0),
+                                         std::tuple(tr("A2 Landscape"), 594.0, 420.0)})
+            sheet->addAction(name, this, [this, w = w, h = h] { m_drawingWidget->setSheet(w, h); });
+        sheet->addSeparator();
+        sheet->addAction(tr("Title…"), m_drawingWidget, &DrawingWidget::editTitle);
+        menuButton(tr("Sheet"), Icon::Drawing, sheet);
+        m_drawingBar->addSeparator();
+        QAction* pdf = m_drawingBar->addAction(tr("PDF"), this, [this] { exportDrawing(true); });
+        pdf->setToolTip(tr("Export the sheet as PDF"));
+        iconize(pdf, Icon::Import);
+        QAction* svg = m_drawingBar->addAction(tr("SVG"), this, [this] { exportDrawing(false); });
+        svg->setToolTip(tr("Export the sheet as SVG"));
+        iconize(svg, Icon::Import);
+        QAction* printing = m_drawingBar->addAction(tr("Print"), m_drawingWidget, &DrawingWidget::print);
+        printing->setShortcut(QKeySequence::Print);
+        iconize(printing, Icon::Drawing);
+    }
     m_closeSketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
     m_closeSketchAction->setToolTip(tr("Back to the model (Ctrl+Enter)"));
     iconize(m_closeSketchAction, Icon::CloseSketch);
@@ -708,7 +852,12 @@ void MainWindow::buildActions()
         button->setObjectName(QStringLiteral("closeSketch")); // the accent button of the sketch bar
 
     bar->addSeparator();
-    QAction* fit = bar->addAction(tr("Fit"), m_viewer, &OcctViewerWidget::fitAll);
+    QAction* fit = bar->addAction(tr("Fit"), this, [this] {
+        if (m_drawingMode)
+            m_drawingWidget->fitSheet();
+        else
+            m_viewer->fitAll();
+    });
     m_fitAction = fit;
     fit->setShortcut(QKeySequence(Qt::Key_F));
     fit->setToolTip(tr("Fit the view (F)"));
@@ -969,7 +1118,7 @@ void MainWindow::applyStyle(bool dark)
     const QColor& accent = style.accent;
     m_accent = accent.name();
     for (const auto& [action, make] : m_icons) {
-        const bool onAccent = action == m_closeSketchAction; // drawn on the orange button
+        const bool onAccent = action == m_closeSketchAction || action->objectName() == QLatin1String("drawingBack");
         action->setIcon(onAccent ? make(Qt::white, Qt::white) : make(ink, accent));
     }
     for (const auto& [button, icon] : m_contextButtons)
@@ -1156,7 +1305,7 @@ void MainWindow::updateLayout()
     const bool compact = width() < 1100;
     const bool tablet = m_tabletAction && m_tabletAction->isChecked();
     const int icon = tablet ? 32 : 24;
-    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar}) {
+    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_drawingBar}) {
         bar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
         bar->setIconSize(QSize(icon, icon));
     }
@@ -1575,19 +1724,22 @@ void MainWindow::updateContextBar()
 
 void MainWindow::updateMode(EditorMode mode)
 {
-    const bool sketch = mode == EditorMode::Sketch;
-    m_modelBar->setVisible(!sketch);
+    const bool sketch = mode == EditorMode::Sketch && !m_drawingMode;
+    m_modelBar->setVisible(!sketch && !m_drawingMode);
     m_sketchBar->setVisible(sketch);
     m_constraintBar->setVisible(sketch);
+    m_drawingBar->setVisible(m_drawingMode);
+    m_viewBar->setVisible(!m_drawingMode); // turns the 3D view; the sheet has Fit (F) and its own bar
     m_constraintMenu->setEnabled(sketch);
     m_sketchMenu->setEnabled(sketch);
-    m_bodiesMenu->setEnabled(!sketch);
+    m_bodiesMenu->setEnabled(!sketch && !m_drawingMode);
     // Hidden actions must not fire through their shortcuts either.
     for (const auto& [kind, action] : m_toolActions)
-        action->setEnabled(kind == ToolKind::Select || isSketchTool(kind) == sketch);
+        action->setEnabled(!m_drawingMode && (kind == ToolKind::Select || isSketchTool(kind) == sketch));
     for (const auto& [command, action] : m_constraintActions)
         action->setEnabled(sketch);
-    m_newSketchAction->setEnabled(!sketch);
+    m_newSketchAction->setEnabled(!sketch && !m_drawingMode);
+    m_drawingAction->setEnabled(!sketch && !m_drawingMode);
     m_closeSketchAction->setEnabled(sketch);
     m_clearSketchAction->setEnabled(sketch);
     updateEditActions();
@@ -1597,7 +1749,8 @@ void MainWindow::updateEditActions()
 {
     m_undoAction->setEnabled(m_editor->canUndo());
     m_redoAction->setEnabled(m_editor->canRedo());
-    m_deleteAction->setEnabled(!m_editor->selection().empty() || !m_editor->selectedBodies().empty());
+    m_deleteAction->setEnabled(m_drawingMode ? m_drawingWidget->hasSelection()
+                                             : !m_editor->selection().empty() || !m_editor->selectedBodies().empty());
     m_copyAction->setEnabled(m_editor->canCopy());
     for (QAction* action : m_bodyActions)
         action->setEnabled(m_editor->selectedBodies().size() >= 2);

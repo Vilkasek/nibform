@@ -20,7 +20,7 @@ icon, and `.nibform` projects open from the file manager (MIME type
 ## Building
 
 ```sh
-sudo pacman -S --needed qt6-base qt6-tools opencascade eigen cmake ninja
+sudo pacman -S --needed qt6-base qt6-svg qt6-tools opencascade eigen cmake ninja
 cmake -S . -B build -G Ninja
 cmake --build build
 ./build/nibform
@@ -36,7 +36,7 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
-Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`, `./build/test_inspect`, `./build/test_interop`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`, `./build/test_inspect`, `./build/test_interop`, `./build/test_drawing`).
 
 ## Language
 
@@ -257,6 +257,31 @@ never over the project itself). If Nibform is killed or crashes, the next start 
 restore it; saving, or closing and discarding the changes, removes it. Saving writes a
 temporary file and renames it into place, so a failed save never damages a project.
 
+## Drawings
+
+**Drawing** (on the model bar) turns the window into a technical drawing of the shown bodies (the
+"DRAWING" badge; *Back to Model* returns). A new drawing gets the front view, the top view below
+it, the left view to its right (first-angle projection, as in ISO / Europe) and an isometric view,
+at a standard scale that fits an A4 sheet (A3 for big parts), with a frame and a title block
+(title, scale, units, sheet size, date).
+
+- Views show visible edges thick and hidden ones dashed (a view's double-tap menu turns them off),
+  holes and round edges seen face on get center lines. *Add View* adds any of the six standard
+  views, an isometric one, or a **section**: cut across the part's middle and seen like the front,
+  top, left or right view, the cut faces hatched, labelled A–A, with the cutting line and arrows
+  drawn on the views that see the plane edge on; *Cut Position…* moves the cut.
+- **Dimension**: tap two corners or centers in a view – level or upright pairs give horizontal /
+  vertical dimensions, others aligned ones (switchable from the double-tap menu); tap the rim of a
+  hole for its diameter (an arc gives a radius). Dimensions are placed outside the view; drag them
+  (or their leaders) where they read best. They are attached to the model: change the history and
+  they follow the corners and holes they measure (one that loses its geometry shows a red "?").
+- **Note**: tap where a text goes (multi-line; sizes 2.5–10 mm).
+- *Select*: drag views, dimensions and notes; a double tap opens the options (scale, hidden edges,
+  kind, text, delete); `Delete` removes the selected one. Right drag pans, the wheel or a pinch zooms,
+  `F` fits the sheet. *Sheet*: A4 / A3 portrait or landscape, A2; the title.
+- *PDF*, *SVG* and *Print* (`Ctrl+P`) give the sheet at its real size. Drawings are saved in the
+  project and undone with the rest.
+
 ## View controls
 
 | Input | Action |
@@ -323,7 +348,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M10** – solid features: revolve, sweep, loft, mirror, patterns, holes, construction planes
 - [x] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
 - [x] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export, copy and paste
-- [ ] **M13** – drawings: views, dimensions, PDF / SVG export
+- [x] **M13** – drawings: views, sections, dimensions, notes, PDF / SVG export, printing
 - [ ] **M14** – speed and robustness: background and incremental rebuild, large models
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).

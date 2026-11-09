@@ -11,6 +11,7 @@ pkgbase = nibform
 	makedepends = eigen
 	makedepends = qt6-tools
 	depends = qt6-base
+	depends = qt6-svg
 	depends = opencascade
 	depends = hicolor-icon-theme
 	depends = gcc-libs

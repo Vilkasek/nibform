@@ -26,6 +26,8 @@ class QToolButton;
 class QLabel;
 class QMenu;
 class QToolBar;
+class QStackedWidget;
+class DrawingWidget;
 class QDockWidget;
 class QTreeWidget;
 class RadialMenu;
@@ -61,6 +63,10 @@ private:
     void buildBodyList();
     void updateBodyList();
     void setUnits(LengthUnit unit);
+    // The drawing sheet instead of the 3D view, and back.
+    void enterDrawing();
+    void leaveDrawing();
+    void exportDrawing(bool pdf);
     void updateEditActions();
     void updateMode(EditorMode mode);
     void loadDemo();
@@ -164,6 +170,11 @@ private:
     QTreeWidget* m_bodyList = nullptr;
     bool m_fillingBodyList = false;
     QAction* m_sectionAction = nullptr;
+    QStackedWidget* m_stack = nullptr;
+    DrawingWidget* m_drawingWidget = nullptr;
+    QToolBar* m_drawingBar = nullptr;
+    QAction* m_drawingAction = nullptr;
+    bool m_drawingMode = false;
     std::map<LengthUnit, QAction*> m_unitActions;
 
     QLabel* m_hintLabel = nullptr;

@@ -89,6 +89,7 @@ SketchEditor::Snapshot SketchEditor::snapshot() const
     for (const Slot& slot : m_slots)
         s.sketches.push_back({slot.id, slot.sketch});
     s.features = m_features;
+    s.drawings = m_drawings;
     return s;
 }
 
@@ -115,6 +116,8 @@ void SketchEditor::restore(Snapshot snapshot)
     }
     m_regionSelection.clear();
     m_features = std::move(snapshot.features);
+    m_drawings = std::move(snapshot.drawings);
+    emit drawingsChanged();
     rebuildModel();
     refreshSketches();
     showRegions();
@@ -1376,6 +1379,7 @@ ProjectData SketchEditor::project() const
         data.sketches.push_back({slot.id, slot.sketch});
     data.features = m_features;
     data.bodyStyles = m_bodyStyles;
+    data.drawings = m_drawings;
     return data;
 }
 
@@ -1394,7 +1398,7 @@ void SketchEditor::loadProject(ProjectData project)
     m_slots.clear();
     m_nextSketchId = 1;
     m_bodyStyles = std::move(project.bodyStyles);
-    Snapshot loaded{std::move(project.sketches), std::move(project.features)};
+    Snapshot loaded{std::move(project.sketches), std::move(project.features), std::move(project.drawings)};
     restore(std::move(loaded));
     m_undo.clear();
     m_redo.clear();

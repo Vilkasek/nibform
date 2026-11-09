@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/Drawing.h"
 #include "model/Features.h"
 #include "sketch/Sketch.h"
 
@@ -21,6 +22,7 @@ struct ProjectData
     std::vector<SketchEntry> sketches;
     std::vector<Feature> features;
     std::vector<BodyStyle> bodyStyles; // names, visibility, colors of bodies
+    std::vector<Drawing> drawings;
 };
 
 QByteArray projectToJson(const ProjectData& project);

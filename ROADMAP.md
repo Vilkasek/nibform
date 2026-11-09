@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M12 and i18n are done (see the README). Next: drawings, then make big models fast.
+M0–M13 and i18n are done (see the README). Next: make big models fast.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -87,7 +87,7 @@ Getting models in and out.
 
 **Done when:** a STEP from another CAD can be opened, modified and exported back.
 
-## M13 – Drawings
+## M13 – Drawings ✓
 
 2D technical drawings from the model.
 

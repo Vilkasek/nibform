@@ -272,6 +272,44 @@ void testMovesAndBodyStylesRoundTrip()
     CHECK(!loaded->bodyStyles[1].color && !loaded->bodyStyles[1].hidden);
 }
 
+void testDrawingsRoundTrip()
+{
+    ProjectData project;
+    Drawing d;
+    d.title = "Wspornik";
+    d.width = 420.0;
+    d.height = 297.0;
+    SheetView section;
+    section.kind = ViewKind::Section;
+    section.base = ViewKind::Top;
+    section.at = gp_Pnt2d(120, 80);
+    section.scale = 0.5;
+    section.offset = -4.0;
+    section.label = "A";
+    section.hidden = false;
+    d.views = {section};
+    SheetDimension size;
+    size.kind = SheetDimension::Kind::Diameter;
+    size.a = size.b = gp_Pnt(1, 2, 3);
+    size.radius = 4.5;
+    size.angle = 30.0;
+    d.dimensions = {size};
+    d.notes = {{gp_Pnt2d(30, 40), "Ostre krawędzie stępić\nR0.5", 5.0}};
+    project.drawings = {d};
+    QString error;
+    const auto loaded = projectFromJson(projectToJson(project), &error);
+    CHECK(loaded && loaded->drawings.size() == 1);
+    if (!loaded || loaded->drawings.empty())
+        return;
+    const Drawing& e = loaded->drawings[0];
+    CHECK(e.title == "Wspornik" && e.width == 420.0 && e.height == 297.0);
+    CHECK(e.views.size() == 1 && e.views[0].kind == ViewKind::Section && e.views[0].base == ViewKind::Top);
+    CHECK(e.views[0].scale == 0.5 && e.views[0].offset == -4.0 && e.views[0].label == "A" && !e.views[0].hidden);
+    CHECK(e.dimensions.size() == 1 && e.dimensions[0].kind == SheetDimension::Kind::Diameter);
+    CHECK(e.dimensions[0].radius == 4.5 && e.dimensions[0].angle == 30.0 && near(e.dimensions[0].a.Z(), 3.0));
+    CHECK(e.notes.size() == 1 && e.notes[0].text == "Ostre krawędzie stępić\nR0.5" && e.notes[0].height == 5.0);
+}
+
 void testSavedProjectRebuildsTheSameModel()
 {
     QTemporaryDir dir;
@@ -376,6 +414,7 @@ int main()
         {"toolkit geometry round trip", testToolkitGeometryRoundTrip},
         {"solid features round trip", testSolidFeaturesRoundTrip},
         {"moves and body styles round trip", testMovesAndBodyStylesRoundTrip},
+        {"drawings round trip", testDrawingsRoundTrip},
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
         {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},

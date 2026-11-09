@@ -13,7 +13,7 @@ endif()
 option(NIBFORM_BUILD_TESTS "Build the tests" ON)
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Svg PrintSupport LinguistTools)
 if(NIBFORM_BUILD_TESTS)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 endif()
@@ -28,6 +28,8 @@ add_library(nibform_core STATIC
   src/input/PalmRejection.h
   src/input/TapGesture.cpp
   src/input/TapGesture.h
+  src/model/Drawing.cpp
+  src/model/Drawing.h
   src/model/Export.cpp
   src/model/Export.h
   src/model/Features.cpp
@@ -66,7 +68,7 @@ target_include_directories(nibform_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
 target_compile_options(nibform_core PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_core PUBLIC
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet TKOffset
-  TKMesh TKXSBase TKDESTEP TKDESTL TKDEIGES
+  TKMesh TKXSBase TKDESTEP TKDESTL TKDEIGES TKHLR
   Eigen3::Eigen)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
@@ -83,6 +85,10 @@ add_executable(nibform
   src/app/Language.cpp
   src/app/Language.h
   src/app/MainWindow.h
+  src/app/DrawingSheet.cpp
+  src/app/DrawingSheet.h
+  src/app/DrawingWidget.cpp
+  src/app/DrawingWidget.h
   src/app/RadialMenu.cpp
   src/app/RadialMenu.h
   src/app/Theme.cpp
@@ -114,6 +120,8 @@ target_link_libraries(nibform PRIVATE
   nibform_io
   Qt6::Widgets
   Qt6::OpenGLWidgets
+  Qt6::Svg
+  Qt6::PrintSupport
   TKG3d TKBRep TKGeomBase TKTopAlgo TKPrim TKBO TKFillet
   TKService TKV3d TKOpenGl
 )
@@ -149,7 +157,7 @@ if(NOT NIBFORM_BUILD_TESTS)
 endif()
 
 enable_testing()
-foreach(name sketch solver trim offset model features input toolkit freehand solid_features inspect)
+foreach(name sketch solver trim offset model features input toolkit freehand solid_features inspect drawing)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
   target_link_libraries(test_${name} PRIVATE nibform_core)
