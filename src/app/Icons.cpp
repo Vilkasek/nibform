@@ -399,6 +399,64 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.restore();
         break;
     }
+    case Icon::Revolve: {
+        // A profile beside its axis, and the turn it makes.
+        p.drawRect(QRectF(11, 8, 7, 11));
+        p.setPen(QPen(accent, 1.6, Qt::DashLine));
+        p.drawLine(QPointF(6, 3), QPointF(6, 21));
+        p.setPen(pen(accent, 1.8));
+        QPainterPath turn;
+        turn.arcMoveTo(QRectF(1, 2, 18, 6), 200);
+        turn.arcTo(QRectF(1, 2, 18, 6), 200, 250);
+        p.drawPath(turn);
+        arrowHead(p, {17, 3.4}, {13, 2.2}, accent);
+        break;
+    }
+    case Icon::Sweep: {
+        p.setPen(pen(accent, 1.8));
+        QPainterPath path;
+        path.moveTo(5, 19);
+        path.cubicTo(5, 8, 12, 6, 19, 6);
+        p.drawPath(path);
+        p.setPen(pen(ink, 1.6));
+        p.drawEllipse(QPointF(5, 19), 2.6, 2.6);
+        p.drawEllipse(QPointF(19, 6), 2.6, 2.6);
+        break;
+    }
+    case Icon::Loft:
+        p.drawRect(QRectF(4, 15, 16, 5));
+        p.drawEllipse(QRectF(8, 3, 8, 4));
+        p.setPen(pen(accent, 1.6));
+        p.drawLine(QPointF(4, 15), QPointF(8, 5));
+        p.drawLine(QPointF(20, 15), QPointF(16, 5));
+        break;
+    case Icon::Hole:
+        p.drawPolygon(QPolygonF({{3, 10}, {14, 6}, {21, 10}, {10, 15}}));
+        p.drawLine(QPointF(3, 10), QPointF(3, 15));
+        p.drawLine(QPointF(10, 15), QPointF(10, 20));
+        p.drawLine(QPointF(21, 10), QPointF(21, 15));
+        p.drawLine(QPointF(3, 15), QPointF(10, 20));
+        p.drawLine(QPointF(10, 20), QPointF(21, 15));
+        p.setPen(pen(accent, 1.8));
+        p.drawEllipse(QPointF(12, 10.4), 3.4, 1.8);
+        break;
+    case Icon::Plane:
+        p.drawPolygon(QPolygonF({{3, 15}, {12, 19}, {21, 9}, {12, 5}}));
+        dot(p, {12, 12}, accent, 2.2);
+        break;
+    case Icon::Axis:
+        p.drawPolygon(QPolygonF({{3, 17}, {11, 20}, {17, 14}, {9, 11}}));
+        p.setPen(QPen(accent, 1.8, Qt::DashLine));
+        p.drawLine(QPointF(10, 22), QPointF(14, 2));
+        break;
+    case Icon::BodyMirror: {
+        p.drawRect(QRectF(3, 8, 6, 10));
+        p.setPen(QPen(ink, 1.4, Qt::DashLine));
+        p.drawLine(QPointF(12, 3), QPointF(12, 21));
+        p.setPen(pen(accent, 1.8));
+        p.drawRect(QRectF(15, 8, 6, 10));
+        break;
+    }
     case Icon::Freehand: {
         // A rough loop drawn by a pen nib.
         QPainterPath loop;

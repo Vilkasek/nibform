@@ -165,6 +165,10 @@ public:
     void activateTimelineItem(int index);
     // Removes the feature (or the sketch, with its entry); later features are rebuilt.
     void removeTimelineItem(int index);
+    // Whether the entry made a solid a pattern can repeat (an extrusion from a sketch, a
+    // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
+    bool canPattern(int index) const;
+    void patternFeature(int index, bool circular);
     ProjectData project() const;
     void loadProject(ProjectData project); // replaces everything; undo starts empty
     void newProject();
@@ -218,7 +222,7 @@ private:
     // Model mode: Region (`region`), Face / Edge of body `id` (picked through AIS).
     struct Hit
     {
-        enum class Kind { None, Point, Entity, Constraint, Region, Face, Edge };
+        enum class Kind { None, Point, Entity, Constraint, Region, Face, Edge, Vertex, Datum, SketchCurve };
         Kind kind = Kind::None;
         int id = kNoId;
         RegionRef region = {};
@@ -311,6 +315,69 @@ private:
     void updateHint();
     void updateStatus();
     void updateGrid();
+
+    // Solid features and construction geometry (SketchEditorSolids.cpp). What the
+    // current solid tool has been given so far.
+    struct SolidPicks
+    {
+        std::vector<RegionRef> regions; // in pick order (a loft goes through them so)
+        std::optional<AxisRef> axis;
+        std::optional<PlaneRef> plane;
+        int pathSketch = -1; // sketch id and curve of a sweep's path
+        int pathEntity = -1;
+        std::vector<int> bodies; // indices
+        int source = 0;          // a pattern of this feature (id) instead of bodies
+        std::optional<FacePick> face; // a hole's face
+        std::vector<gp_Pnt> points;   // hole positions, or a plane's / axis' points
+        std::vector<SketchPointRef> holeAt;
+        bool reference = false; // mirror: the bodies are picked, now the plane
+        std::vector<TopoDS_Shape> marks; // shown in the accent color (axis, path, points)
+    };
+    // One value asked about a feature being made or changed, with a live preview.
+    struct FeaturePrompt
+    {
+        std::function<QString()> label;
+        double min = -1e5, max = 1e5;
+        std::function<double(const Feature&)> get;
+        std::function<void(Feature&, double)> set;
+        std::function<bool(const Feature&)> applies; // skipped when false (empty: always)
+        std::function<QStringList()> choices;         // a row of choices under the field
+        std::function<int(const Feature&)> choice;
+        std::function<void(Feature&, int)> choose;
+    };
+    // Asks the prompts in turn about `draft`, calling `preview` as it changes; `done` gets
+    // the finished feature, `cancelled` runs when it is dropped.
+    void configure(std::shared_ptr<Feature> draft, std::vector<FeaturePrompt> prompts, std::size_t index,
+                   std::function<void(const Feature&)> preview, std::function<void(const Feature&)> done,
+                   std::function<void()> cancelled);
+    std::vector<FeaturePrompt> promptsFor(const Feature& feature) const;
+    void solidTap(const Hit& hit);
+    bool solidConfirm(); // Enter: loft, or on to the mirror plane
+    bool solidCancel();  // Esc: drops the picks (false when there were none)
+    void resetSolid();
+    void refreshSolidMarks();
+    void solidReady(); // the picks are complete: ask the values, or apply
+    std::optional<Feature> solidFeature() const;
+    void previewNewFeature(const Feature& feature);
+    void editFeature(int index);
+    int nextFeatureId() const;
+    std::optional<AxisRef> axisOf(const Hit& hit) const;
+    std::optional<PlaneRef> planeOf(const Hit& hit) const;
+    // Where a tap on a flat face puts a hole: on a sketch point or a round edge's center
+    // nearby, else right there.
+    void placeHole(const Hit& face, const QPointF& tap);
+    QString solidHint() const;
+    // Datums (construction planes and axes) on screen; base ones while a tool takes them.
+    void showDatums();
+    bool wantsBaseDatums() const;
+    std::optional<Datum> datumById(int id) const;
+    SolidPicks m_solid;
+    std::vector<std::pair<Handle(AIS_Shape), int>> m_datumPrs;
+    Handle(AIS_Shape) m_solidMarksPrs;
+    int m_selectedDatum = 0; // picked in Select (a sketch can start on it)
+    ModelContext m_context;  // datums and feature tools, from the last rebuild
+    QPointF m_tapPos;        // where the last model press was, for hole placement
+    std::string m_solidError; // why the feature being set up doesn't apply
 
     // Model mode (SketchEditorBodies.cpp)
     Hit modelHitAt(const PointerEvent& e) const;

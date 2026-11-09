@@ -76,13 +76,22 @@ enum class ToolKind
     Select, Line, Rectangle, Circle, Arc, Trim, Offset, Dimension, PushPull, Fillet, Chamfer, Shell,
     Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
     Project, Image, Freehand,
+    // Model: solid features and construction geometry (SketchEditorSolids.cpp)
+    Revolve, Sweep, Loft, Hole, BodyMirror, BodyLinearPattern, BodyCircularPattern,
+    OffsetPlane, AnglePlane, ThreePointPlane, Axis,
 };
+
+// The model tools that build a solid feature or construction geometry from several picks.
+inline bool isSolidTool(ToolKind kind)
+{
+    return kind >= ToolKind::Revolve;
+}
 
 // Whether the tool belongs to sketch mode (Select works in both).
 inline bool isSketchTool(ToolKind kind)
 {
     return kind != ToolKind::Select && kind != ToolKind::PushPull && kind != ToolKind::Fillet
-        && kind != ToolKind::Chamfer && kind != ToolKind::Shell;
+        && kind != ToolKind::Chamfer && kind != ToolKind::Shell && !isSolidTool(kind);
 }
 
 std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host);

@@ -144,31 +144,37 @@ void SketchEditor::rebuildModel()
     RebuildResult result =
         rebuild(sketchLookup(), std::vector<Feature>(m_features.begin(), m_features.begin() + static_cast<long>(count)));
     m_bodies = std::move(result.bodies);
+    m_context = std::move(result.context);
     // Features past the rollback point keep what they reported last time.
     m_featureErrors.resize(m_features.size());
     std::copy(result.errors.begin(), result.errors.end(), m_featureErrors.begin());
     refreshBodies();
     showRegions(); // what is extruded now hides, what failed shows
+    showDatums();
     updateStatus();
     m_viewer->update();
 }
 
-bool SketchEditor::commitFeature(const Feature& feature)
+bool SketchEditor::commitFeature(const Feature& made)
 {
+    Feature feature = made;
+    feature.id = nextFeatureId();
     // Applied on top of the current bodies: the same as a full rebuild, without replaying.
-    ModelResult result = applyFeature(sketchLookup(), m_bodies, feature);
+    FeatureResult result = applyFeature(sketchLookup(), m_bodies, feature, m_context);
     if (!result.ok()) {
         emit message(modelText(result.error));
         return false;
     }
     m_valueEditor->cancel();
     pushUndo();
+    remember(m_context, feature, result);
     m_features.push_back(feature);
     m_featureErrors.emplace_back();
     m_bodies = std::move(result.bodies);
     refreshBodies();
     clearModelSelection();
     showRegions(); // the extruded regions hide
+    showDatums();
     updateStatus();
     emit historyChanged();
     m_viewer->update();
@@ -253,8 +259,15 @@ void SketchEditor::updateSelectionModes()
             else if (!on && is)
                 ctx->Deactivate(prs, selectionMode);
         };
+        // Tools that take corners, and those that don't want edges in the way.
+        const bool corners = m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Axis;
+        const bool noEdges = m_toolKind == ToolKind::PushPull || m_toolKind == ToolKind::Shell
+                          || m_toolKind == ToolKind::Hole || m_toolKind == ToolKind::Loft
+                          || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::OffsetPlane
+                          || m_toolKind == ToolKind::ThreePointPlane;
         set(faces, model);
-        set(edges, model && m_toolKind != ToolKind::PushPull && m_toolKind != ToolKind::Shell);
+        set(edges, model && !noEdges);
+        set(AIS_Shape::SelectionMode(TopAbs_VERTEX), model && corners);
     }
     rehighlightPicks();
 }
@@ -332,7 +345,9 @@ std::set<RegionRef> SketchEditor::usedRegions() const
     for (std::size_t f = 0; f < count && f < m_features.size(); ++f) {
         const Feature& feature = m_features[f];
         // One that failed keeps its region in sight, to see what went wrong.
-        if (feature.kind != Feature::Kind::Extrude || (f < m_featureErrors.size() && !m_featureErrors[f].empty()))
+        const bool fromRegions = feature.kind == Feature::Kind::Extrude || feature.kind == Feature::Kind::Revolve
+                              || feature.kind == Feature::Kind::Sweep || feature.kind == Feature::Kind::Loft;
+        if (!fromRegions || (f < m_featureErrors.size() && !m_featureErrors[f].empty()))
             continue;
         for (const RegionPick& pick : feature.regions) {
             for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
@@ -452,13 +467,41 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     const Handle(Graphic3d_Camera)& camera = view->Camera();
     // Distance in front of the eye, to keep whichever pick is nearer.
     auto depth = [&](const gp_Pnt& p) { return gp_Vec(camera->Eye(), p).Dot(gp_Vec(camera->Direction())); };
-    // Regions only where they can be pulled; the rounding and shell tools want bodies.
-    const bool edgeTool = m_toolKind == ToolKind::Fillet || m_toolKind == ToolKind::Chamfer
-                       || m_toolKind == ToolKind::Shell || m_toolKind == ToolKind::Project;
+    // Regions only where they can be used: pulled, turned, swept, lofted.
+    const bool regionTool = m_toolKind == ToolKind::Select || m_toolKind == ToolKind::PushPull
+                         || m_toolKind == ToolKind::Revolve || m_toolKind == ToolKind::Sweep
+                         || m_toolKind == ToolKind::Loft;
+
+    // Sketch curves (an axis to turn about, a path to sweep along) lie on top of the rest.
+    const bool lineTool = m_toolKind == ToolKind::Revolve || m_toolKind == ToolKind::BodyLinearPattern
+                       || m_toolKind == ToolKind::BodyCircularPattern || m_toolKind == ToolKind::AnglePlane;
+    if (lineTool || m_toolKind == ToolKind::Sweep) {
+        Hit curve;
+        double nearest = 10.0 * m_touchScale;
+        for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
+            const Sketch& sketch = m_slots[s].sketch;
+            for (const SketchEntity& entity : sketch.entities()) {
+                if (lineTool && entity.kind != EntityKind::Line)
+                    continue;
+                const std::vector<gp_Pnt2d> pts = sketch.polyline(entity);
+                for (std::size_t i = 1; i < pts.size(); ++i) {
+                    const double d = segmentDistance(m_viewer->project(sketch.to3d(pts[i - 1])),
+                                                     m_viewer->project(sketch.to3d(pts[i])), e.pos);
+                    if (d < nearest) {
+                        nearest = d;
+                        curve = {Hit::Kind::SketchCurve, entity.id};
+                        curve.region = {s, -1};
+                    }
+                }
+            }
+        }
+        if (curve.kind != Hit::Kind::None)
+            return curve;
+    }
 
     Hit best;
     double bestDepth = std::numeric_limits<double>::max();
-    if (!edgeTool) {
+    if (regionTool) {
         double x = 0, y = 0, z = 0, dx = 0, dy = 0, dz = 0;
         view->ConvertWithProj(e.pixel.x(), e.pixel.y(), x, y, z, dx, dy, dz);
         for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
@@ -479,30 +522,55 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     ctx->MoveTo(e.pixel.x(), e.pixel.y(), view, false);
     if (!ctx->HasDetected())
         return best;
-    const Handle(SelectMgr_EntityOwner) owner = ctx->DetectedOwner();
-    const auto brep = Handle(StdSelect_BRepOwner)::DownCast(owner);
-    const auto it = std::find(m_bodyPrs.begin(), m_bodyPrs.end(), owner->Selectable());
-    if (brep.IsNull() || it == m_bodyPrs.end())
-        return best;
-    const TopAbs_ShapeEnum wanted = brep->Shape().ShapeType();
-    if (wanted != TopAbs_FACE && wanted != TopAbs_EDGE)
-        return best;
-    const int body = static_cast<int>(it - m_bodyPrs.begin());
+    // Nearest first. A datum plane (a big see-through square) gives way to anything else
+    // under the pointer; a datum axis is picked like an edge.
+    const Handle(StdSelect_ViewerSelector3d)& selector = ctx->MainSelector();
+    Hit plane;
+    for (int i = 1; i <= selector->NbPicked(); ++i) {
+        const Handle(SelectMgr_EntityOwner) owner = selector->Picked(i);
+        if (owner.IsNull())
+            continue;
+        const auto datum = std::find_if(m_datumPrs.begin(), m_datumPrs.end(),
+                                        [&](const auto& d) { return d.first == owner->Selectable(); });
+        if (datum != m_datumPrs.end()) {
+            const auto d = datumById(datum->second);
+            Hit hit{Hit::Kind::Datum, datum->second};
+            hit.owner = owner;
+            if (d && !d->plane) {
+                if (depth(selector->PickedPoint(i)) < bestDepth - 1e-6)
+                    best = hit;
+                return best;
+            }
+            if (plane.kind == Hit::Kind::None)
+                plane = hit;
+            continue;
+        }
+        const auto brep = Handle(StdSelect_BRepOwner)::DownCast(owner);
+        const auto it = std::find(m_bodyPrs.begin(), m_bodyPrs.end(), owner->Selectable());
+        if (brep.IsNull() || it == m_bodyPrs.end())
+            continue;
+        const TopAbs_ShapeEnum wanted = brep->Shape().ShapeType();
+        if (wanted != TopAbs_FACE && wanted != TopAbs_EDGE && wanted != TopAbs_VERTEX)
+            continue;
+        const int body = static_cast<int>(it - m_bodyPrs.begin());
 
-    // The face / edge as it sits in the body, so a face's orientation gives its outward normal.
-    TopoDS_Shape shape;
-    for (TopExp_Explorer f(m_bodies[body], wanted); f.More(); f.Next()) {
-        if (f.Current().IsSame(brep->Shape()))
-            shape = f.Current();
-    }
-    if (shape.IsNull())
+        // The face / edge as it sits in the body, so a face's orientation gives its outward normal.
+        TopoDS_Shape shape;
+        for (TopExp_Explorer f(m_bodies[body], wanted); f.More(); f.Next()) {
+            if (f.Current().IsSame(brep->Shape()))
+                shape = f.Current();
+        }
+        if (shape.IsNull())
+            continue;
+        if (depth(selector->PickedPoint(i)) < bestDepth - 1e-6) {
+            best = {wanted == TopAbs_EDGE ? Hit::Kind::Edge : wanted == TopAbs_VERTEX ? Hit::Kind::Vertex : Hit::Kind::Face,
+                    body};
+            best.owner = owner;
+            best.shape = std::move(shape);
+        }
         return best;
-    if (depth(ctx->MainSelector()->PickedPoint(1)) < bestDepth - 1e-6) {
-        best = {wanted == TopAbs_EDGE ? Hit::Kind::Edge : Hit::Kind::Face, body};
-        best.owner = owner;
-        best.shape = std::move(shape);
     }
-    return best;
+    return best.kind == Hit::Kind::None ? plane : best;
 }
 
 bool SketchEditor::isPicked(const Hit& hit) const
@@ -534,6 +602,10 @@ void SketchEditor::togglePick(const Hit& hit)
 
 void SketchEditor::clearModelSelection()
 {
+    if (m_selectedDatum != 0) {
+        m_selectedDatum = 0;
+        showDatums();
+    }
     const bool had = !m_regionSelection.empty() || !m_bodySelection.empty();
     m_regionSelection.clear();
     m_bodySelection.clear();
@@ -584,6 +656,8 @@ std::vector<EdgeRef> SketchEditor::selectedEdges() const
 
 bool SketchEditor::canSketchOnFace() const
 {
+    if (mode() == EditorMode::Model && m_selectedDatum != 0)
+        return true;
     return mode() == EditorMode::Model && m_bodySelection.size() == 1
         && m_bodySelection[0].shape.ShapeType() == TopAbs_FACE
         && planarNormal(TopoDS::Face(m_bodySelection[0].shape)).has_value();
@@ -593,6 +667,13 @@ void SketchEditor::createSketchOnFace()
 {
     if (!canSketchOnFace())
         return;
+    if (m_selectedDatum != 0) {
+        const auto d = datumById(m_selectedDatum);
+        m_selectedDatum = 0;
+        if (d && d->plane)
+            createSketch(d->frame);
+        return;
+    }
     const TopoDS_Face face = TopoDS::Face(m_bodySelection[0].shape);
     // Centered on the face, facing out of the body, with the face's outline as fixed
     // reference geometry to snap and dimension to.
@@ -617,6 +698,7 @@ std::optional<RegionRef> SketchEditor::regionAt(int sketch, const gp_Pnt2d& p) c
 bool SketchEditor::modelPress(const PointerEvent& e)
 {
     m_modelPress = {};
+    m_tapPos = e.pos;
     // The arrow takes the press first: dragging it sets the distance / radius.
     if (hitsArrow(e.pos)) {
         m_session.dragging = true;
@@ -663,6 +745,19 @@ bool SketchEditor::modelRelease(const PointerEvent&)
     }
     const Hit hit = m_modelPress;
     m_modelPress = {};
+    if (isSolidTool(m_toolKind)) {
+        solidTap(hit);
+        return true;
+    }
+    if (hit.kind == Hit::Kind::Datum) {
+        // Select: a plane picked here is where New Sketch starts.
+        const auto d = datumById(hit.id);
+        m_selectedDatum = d && d->plane && m_selectedDatum != hit.id ? hit.id : 0;
+        showDatums();
+        emit selectionChanged();
+        m_viewer->update();
+        return true;
+    }
     if (hit.kind == Hit::Kind::None) {
         endValueSession(true); // a tap on empty space drops everything
         clearModelSelection();
@@ -1048,6 +1143,40 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             base = tr("Shell");
             item.detail = mm(f.value) + QStringLiteral(" mm");
             break;
+        case Feature::Kind::Revolve:
+            base = tr("Revolve");
+            item.detail = mm(f.value) + QStringLiteral("°");
+            break;
+        case Feature::Kind::Sweep:
+            base = tr("Sweep");
+            break;
+        case Feature::Kind::Loft:
+            base = tr("Loft");
+            break;
+        case Feature::Kind::Mirror:
+            base = tr("Mirror");
+            break;
+        case Feature::Kind::Pattern:
+            base = f.pattern == Feature::PatternKind::Circular ? tr("Circular Pattern") : tr("Linear Pattern");
+            item.detail = f.pattern == Feature::PatternKind::Circular
+                            ? QStringLiteral("%1 × %2°").arg(f.count).arg(mm(f.value))
+                            : QStringLiteral("%1 × %2 mm").arg(f.count).arg(mm(f.value));
+            break;
+        case Feature::Kind::Hole:
+            base = tr("Hole");
+            item.detail = QStringLiteral("⌀ %1 mm").arg(mm(f.hole.diameter));
+            break;
+        case Feature::Kind::Datum:
+            if (f.datum == Feature::DatumKind::Axis || f.datum == Feature::DatumKind::TwoPointAxis) {
+                base = tr("Axis");
+            } else {
+                base = tr("Plane");
+                if (f.datum == Feature::DatumKind::OffsetPlane)
+                    item.detail = mm(f.value) + QStringLiteral(" mm");
+                else if (f.datum == Feature::DatumKind::AnglePlane)
+                    item.detail = mm(f.value) + QStringLiteral("°");
+            }
+            break;
         }
         item.name = QStringLiteral("%1 %2").arg(base).arg(++counts[base]);
         if (i < m_featureErrors.size())
@@ -1072,6 +1201,11 @@ void SketchEditor::activateTimelineItem(int index)
                 return;
             }
         }
+        return;
+    }
+    if (feature.kind == Feature::Kind::Revolve || feature.kind == Feature::Kind::Pattern
+        || feature.kind == Feature::Kind::Hole || feature.kind == Feature::Kind::Datum) {
+        editFeature(index);
         return;
     }
     const bool extrusion = feature.kind == Feature::Kind::Extrude;

@@ -320,12 +320,88 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Lustro</translation>
     </message>
     <message>
+        <source>Revolve</source>
+        <translation>Obrót</translation>
+    </message>
+    <message>
+        <source>Sweep</source>
+        <translation>Przeciągnij</translation>
+    </message>
+    <message>
+        <source>Loft</source>
+        <translation>Wyciągnij przez profile</translation>
+    </message>
+    <message>
+        <source>Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)</source>
+        <translation>Obrót (R): dotknij obszarów szkicu, potem osi (linii szkicu, krawędzi albo osi)</translation>
+    </message>
+    <message>
+        <source>Sweep (Shift+W): tap the profile region, then a curve of the path sketch</source>
+        <translation>Przeciągnij (Shift+W): dotknij obszaru profilu, potem krzywej szkicu ścieżki</translation>
+    </message>
+    <message>
+        <source>Loft (Shift+F): tap profile regions on different planes in order, then Enter</source>
+        <translation>Wyciągnij przez profile (Shift+F): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter</translation>
+    </message>
+    <message>
+        <source>Hole</source>
+        <translation>Otwór</translation>
+    </message>
+    <message>
+        <source>Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored or countersunk</source>
+        <translation>Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym</translation>
+    </message>
+    <message>
         <source>Linear Pattern</source>
         <translation>Szyk liniowy</translation>
     </message>
     <message>
         <source>Circular Pattern</source>
         <translation>Szyk kołowy</translation>
+    </message>
+    <message>
+        <source>Mirror (M): tap bodies, Enter, then the mirror plane (a flat face or a plane)</source>
+        <translation>Lustro (M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)</translation>
+    </message>
+    <message>
+        <source>Linear Pattern (Shift+L): tap bodies, then the direction (an edge, axis or sketch line). To repeat a feature (a hole, a boss), use Pattern in its history menu</source>
+        <translation>Szyk liniowy (Shift+L): dotknij brył, potem kierunku (krawędzi, osi albo linii szkicu). Żeby powtórzyć operację (otwór, występ), użyj Szyku w jej menu w historii</translation>
+    </message>
+    <message>
+        <source>Circular Pattern (Shift+O): tap bodies, then the axis (a round or straight edge, an axis). To repeat a feature, use Pattern in its history menu</source>
+        <translation>Szyk kołowy (Shift+O): dotknij brył, potem osi (okrągłej albo prostej krawędzi, osi). Żeby powtórzyć operację, użyj Szyku w jej menu w historii</translation>
+    </message>
+    <message>
+        <source>Offset Plane</source>
+        <translation>Płaszczyzna odsunięta</translation>
+    </message>
+    <message>
+        <source>Plane at Angle</source>
+        <translation>Płaszczyzna pod kątem</translation>
+    </message>
+    <message>
+        <source>Plane Through 3 Points</source>
+        <translation>Płaszczyzna przez 3 punkty</translation>
+    </message>
+    <message>
+        <source>Axis</source>
+        <translation>Oś</translation>
+    </message>
+    <message>
+        <source>Offset Plane: a construction plane parallel to a flat face or a plane; select it to start a sketch on it, or mirror about it</source>
+        <translation>Płaszczyzna odsunięta: płaszczyzna konstrukcyjna równoległa do płaskiej ściany albo płaszczyzny; zaznacz ją, by zacząć na niej szkic albo odbić względem niej</translation>
+    </message>
+    <message>
+        <source>Plane at Angle: a plane turned about an edge or axis</source>
+        <translation>Płaszczyzna pod kątem: obrócona wokół krawędzi albo osi</translation>
+    </message>
+    <message>
+        <source>Plane Through 3 Points: through three corners of bodies</source>
+        <translation>Płaszczyzna przez 3 punkty: przez trzy narożniki brył</translation>
+    </message>
+    <message>
+        <source>Axis: along a straight edge, through a round one's center, or through two corners</source>
+        <translation>Oś: wzdłuż prostej krawędzi, przez środek okrągłej albo przez dwa narożniki</translation>
     </message>
     <message>
         <source>Mirror (Shift+M): select curves, then tap the line to mirror them about; the copy stays symmetric</source>
@@ -676,6 +752,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Edytuj</translation>
     </message>
     <message>
+        <source>Linear Pattern…</source>
+        <translation>Szyk liniowy…</translation>
+    </message>
+    <message>
+        <source>Circular Pattern…</source>
+        <translation>Szyk kołowy…</translation>
+    </message>
+    <message>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
@@ -859,6 +943,82 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Nie ma już bryły, której to dotyczyło</translation>
     </message>
     <message>
+        <source>The sketch region it was made from is gone</source>
+        <translation>Obszar szkicu, z którego powstała, zniknął</translation>
+    </message>
+    <message>
+        <source>The axis is gone</source>
+        <translation>Oś zniknęła</translation>
+    </message>
+    <message>
+        <source>The path is gone</source>
+        <translation>Ścieżka zniknęła</translation>
+    </message>
+    <message>
+        <source>The mirror plane is gone</source>
+        <translation>Płaszczyzna odbicia zniknęła</translation>
+    </message>
+    <message>
+        <source>Pick the bodies to mirror</source>
+        <translation>Wybierz bryły do odbicia</translation>
+    </message>
+    <message>
+        <source>The pattern's direction is gone</source>
+        <translation>Kierunek szyku zniknął</translation>
+    </message>
+    <message>
+        <source>A pattern needs two instances or more</source>
+        <translation>Szyk potrzebuje co najmniej dwóch wystąpień</translation>
+    </message>
+    <message>
+        <source>The patterned feature didn't apply</source>
+        <translation>Powtarzana operacja się nie udała</translation>
+    </message>
+    <message>
+        <source>Pick the bodies to pattern</source>
+        <translation>Wybierz bryły do szyku</translation>
+    </message>
+    <message>
+        <source>Pick a flat face for the hole</source>
+        <translation>Wybierz płaską ścianę na otwór</translation>
+    </message>
+    <message>
+        <source>The face the hole was on is gone</source>
+        <translation>Ściana, na której był otwór, zniknęła</translation>
+    </message>
+    <message>
+        <source>The sketch point the hole was on is gone</source>
+        <translation>Punkt szkicu, na którym był otwór, zniknął</translation>
+    </message>
+    <message>
+        <source>Pick where the hole goes</source>
+        <translation>Wskaż, gdzie ma być otwór</translation>
+    </message>
+    <message>
+        <source>The hole doesn't reach any body</source>
+        <translation>Otwór nie sięga żadnej bryły</translation>
+    </message>
+    <message>
+        <source>The plane it was made from is gone</source>
+        <translation>Płaszczyzna, z której powstała, zniknęła</translation>
+    </message>
+    <message>
+        <source>Pick three points</source>
+        <translation>Wskaż trzy punkty</translation>
+    </message>
+    <message>
+        <source>The three points are in a line</source>
+        <translation>Trzy punkty leżą na jednej prostej</translation>
+    </message>
+    <message>
+        <source>The edge it was made from is gone</source>
+        <translation>Krawędź, z której powstała, zniknęła</translation>
+    </message>
+    <message>
+        <source>Pick two different points</source>
+        <translation>Wskaż dwa różne punkty</translation>
+    </message>
+    <message>
         <source>Pick edges of a body</source>
         <translation>Zaznacz krawędzie bryły</translation>
     </message>
@@ -913,6 +1073,30 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>The bodies don't intersect</source>
         <translation>Bryły nie mają części wspólnej</translation>
+    </message>
+    <message>
+        <source>Nothing to revolve</source>
+        <translation>Nie ma czego obracać</translation>
+    </message>
+    <message>
+        <source>Can't revolve: the axis must not run through the profile</source>
+        <translation>Nie można obrócić: oś nie może przechodzić przez profil</translation>
+    </message>
+    <message>
+        <source>Pick the profile and the path</source>
+        <translation>Wybierz profil i ścieżkę</translation>
+    </message>
+    <message>
+        <source>Can't sweep: the path may be too tight for the profile</source>
+        <translation>Nie można przeciągnąć: ścieżka może być za ciasna dla profilu</translation>
+    </message>
+    <message>
+        <source>A loft needs two profiles or more</source>
+        <translation>Potrzeba co najmniej dwóch profili</translation>
+    </message>
+    <message>
+        <source>Can't loft through these profiles</source>
+        <translation>Nie można wyciągnąć przez te profile</translation>
     </message>
 </context>
 <context>
@@ -1216,6 +1400,42 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Skorupa</translation>
     </message>
     <message>
+        <source>Revolve</source>
+        <translation>Obrót</translation>
+    </message>
+    <message>
+        <source>Sweep</source>
+        <translation>Przeciągnięcie</translation>
+    </message>
+    <message>
+        <source>Loft</source>
+        <translation>Wyciągnięcie przez profile</translation>
+    </message>
+    <message>
+        <source>Mirror</source>
+        <translation>Lustro</translation>
+    </message>
+    <message>
+        <source>Circular Pattern</source>
+        <translation>Szyk kołowy</translation>
+    </message>
+    <message>
+        <source>Linear Pattern</source>
+        <translation>Szyk liniowy</translation>
+    </message>
+    <message>
+        <source>Hole</source>
+        <translation>Otwór</translation>
+    </message>
+    <message>
+        <source>Axis</source>
+        <translation>Oś</translation>
+    </message>
+    <message>
+        <source>Plane</source>
+        <translation>Płaszczyzna</translation>
+    </message>
+    <message>
         <source>Tap an edge or a face of a body</source>
         <translation>Dotknij krawędzi albo ściany bryły</translation>
     </message>
@@ -1226,6 +1446,174 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Can't read the picture %1</source>
         <translation>Nie można odczytać obrazu %1</translation>
+    </message>
+    <message>
+        <source>Hole: pick a flat face</source>
+        <translation>Otwór: wybierz płaską ścianę</translation>
+    </message>
+    <message>
+        <source>Count (with the original)</source>
+        <translation>Liczba (z oryginałem)</translation>
+    </message>
+    <message>
+        <source>Over [°] (360: a full turn)</source>
+        <translation>Na kącie [°] (360: pełny obrót)</translation>
+    </message>
+    <message>
+        <source>Spacing [mm]</source>
+        <translation>Odstęp [mm]</translation>
+    </message>
+    <message>
+        <source>Hole diameter [mm]</source>
+        <translation>Średnica otworu [mm]</translation>
+    </message>
+    <message>
+        <source>Through</source>
+        <translation>Przelotowy</translation>
+    </message>
+    <message>
+        <source>Blind</source>
+        <translation>Nieprzelotowy</translation>
+    </message>
+    <message>
+        <source>Counterbore</source>
+        <translation>Pogłębienie walcowe</translation>
+    </message>
+    <message>
+        <source>Countersink</source>
+        <translation>Pogłębienie stożkowe</translation>
+    </message>
+    <message>
+        <source>Depth [mm]</source>
+        <translation>Głębokość [mm]</translation>
+    </message>
+    <message>
+        <source>Head diameter [mm]</source>
+        <translation>Średnica pogłębienia [mm]</translation>
+    </message>
+    <message>
+        <source>Counterbore depth [mm]</source>
+        <translation>Głębokość pogłębienia [mm]</translation>
+    </message>
+    <message>
+        <source>Offset [mm]</source>
+        <translation>Odsunięcie [mm]</translation>
+    </message>
+    <message>
+        <source>type the angle  ·  Enter accepts</source>
+        <translation>wpisz kąt  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Revolve: tap the sketch regions to turn</source>
+        <translation>Obrót: dotknij obszarów szkicu do obrócenia</translation>
+    </message>
+    <message>
+        <source>Revolve: tap the axis: a sketch line, a straight or round edge, or an axis</source>
+        <translation>Obrót: dotknij osi: linii szkicu, prostej albo okrągłej krawędzi albo osi</translation>
+    </message>
+    <message>
+        <source>Sweep: tap the profile (a sketch region)</source>
+        <translation>Przeciągnięcie: dotknij profilu (obszaru szkicu)</translation>
+    </message>
+    <message>
+        <source>Sweep: tap the path: a curve of another sketch (its connected curves follow)</source>
+        <translation>Przeciągnięcie: dotknij ścieżki: krzywej innego szkicu (połączone z nią krzywe też należą do ścieżki)</translation>
+    </message>
+    <message>
+        <source>Loft: tap the profiles in order (regions of sketches on different planes)</source>
+        <translation>Wyciągnięcie przez profile: dotknij profili po kolei (obszarów szkiców na różnych płaszczyznach)</translation>
+    </message>
+    <message>
+        <source>Loft: %1 profiles  ·  tap more, or Enter to loft</source>
+        <translation>Wyciągnięcie przez profile: %1 profili  ·  dotknij kolejnych albo Enter</translation>
+    </message>
+    <message>
+        <source>type the size, pick the kind  ·  Enter accepts  ·  tap the face for more holes</source>
+        <translation>wpisz rozmiar, wybierz rodzaj  ·  Enter zatwierdza  ·  dotknij ściany, by dodać otwory</translation>
+    </message>
+    <message>
+        <source>Hole: tap a flat face where it goes (snaps to sketch points and round edges' centers)</source>
+        <translation>Otwór: dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych krawędzi)</translation>
+    </message>
+    <message>
+        <source>Mirror: tap the bodies to mirror, then Enter (or tap a plane)</source>
+        <translation>Lustro: dotknij brył do odbicia, potem Enter (albo dotknij płaszczyzny)</translation>
+    </message>
+    <message>
+        <source>Mirror: %1 bodies  ·  Enter, then tap the mirror plane</source>
+        <translation>Lustro: %1 brył  ·  Enter, potem dotknij płaszczyzny odbicia</translation>
+    </message>
+    <message>
+        <source>Mirror: tap the mirror plane: a flat face or a plane</source>
+        <translation>Lustro: dotknij płaszczyzny odbicia: płaskiej ściany albo płaszczyzny</translation>
+    </message>
+    <message>
+        <source>Circular pattern</source>
+        <translation>Szyk kołowy</translation>
+    </message>
+    <message>
+        <source>Linear pattern</source>
+        <translation>Szyk liniowy</translation>
+    </message>
+    <message>
+        <source>type the count, then the %1  ·  Enter accepts</source>
+        <translation>wpisz liczbę, potem %1  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>angle</source>
+        <translation>kąt</translation>
+    </message>
+    <message>
+        <source>spacing</source>
+        <translation>odstęp</translation>
+    </message>
+    <message>
+        <source>%1: tap the bodies to repeat (or pick a feature in the history: Pattern…)</source>
+        <translation>%1: dotknij brył do powtórzenia (albo wybierz operację w historii: Szyk…)</translation>
+    </message>
+    <message>
+        <source>%1: tap the axis: a round or straight edge, an axis or a sketch line</source>
+        <translation>%1: dotknij osi: okrągłej albo prostej krawędzi, osi albo linii szkicu</translation>
+    </message>
+    <message>
+        <source>%1: tap the direction: a straight edge, an axis or a sketch line</source>
+        <translation>%1: dotknij kierunku: prostej krawędzi, osi albo linii szkicu</translation>
+    </message>
+    <message>
+        <source>Offset plane</source>
+        <translation>Płaszczyzna odsunięta</translation>
+    </message>
+    <message>
+        <source>type the distance  ·  Enter accepts</source>
+        <translation>wpisz odległość  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Offset plane: tap a flat face or a plane</source>
+        <translation>Płaszczyzna odsunięta: dotknij płaskiej ściany albo płaszczyzny</translation>
+    </message>
+    <message>
+        <source>Plane at angle</source>
+        <translation>Płaszczyzna pod kątem</translation>
+    </message>
+    <message>
+        <source>Plane at angle: tap the plane (a flat face or a plane) and the axis to turn it about</source>
+        <translation>Płaszczyzna pod kątem: dotknij płaszczyzny (płaskiej ściany albo płaszczyzny) i osi obrotu</translation>
+    </message>
+    <message>
+        <source>Plane at angle: tap the axis to turn it about (an edge, an axis or a sketch line)</source>
+        <translation>Płaszczyzna pod kątem: dotknij osi obrotu (krawędzi, osi albo linii szkicu)</translation>
+    </message>
+    <message>
+        <source>Plane through 3 points: tap corners of a body (%1 of 3)</source>
+        <translation>Płaszczyzna przez 3 punkty: dotknij narożników bryły (%1 z 3)</translation>
+    </message>
+    <message>
+        <source>Axis: tap a straight or round edge, or two corners</source>
+        <translation>Oś: dotknij prostej albo okrągłej krawędzi albo dwóch narożników</translation>
+    </message>
+    <message>
+        <source>Axis: tap the second corner</source>
+        <translation>Oś: dotknij drugiego narożnika</translation>
     </message>
 </context>
 <context>

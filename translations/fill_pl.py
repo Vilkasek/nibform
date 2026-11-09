@@ -6,6 +6,34 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "Revolve": "Obrót", "Sweep": "Przeciągnij", "Loft": "Wyciągnij przez profile", "Hole": "Otwór",
+  "Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)":
+      "Obrót (R): dotknij obszarów szkicu, potem osi (linii szkicu, krawędzi albo osi)",
+  "Sweep (Shift+W): tap the profile region, then a curve of the path sketch":
+      "Przeciągnij (Shift+W): dotknij obszaru profilu, potem krzywej szkicu ścieżki",
+  "Loft (Shift+F): tap profile regions on different planes in order, then Enter":
+      "Wyciągnij przez profile (Shift+F): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter",
+  "Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored or countersunk":
+      "Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych "
+      "krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym",
+  "Mirror (M): tap bodies, Enter, then the mirror plane (a flat face or a plane)":
+      "Lustro (M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)",
+  "Linear Pattern (Shift+L): tap bodies, then the direction (an edge, axis or sketch line). To repeat a feature (a hole, a boss), use Pattern in its history menu":
+      "Szyk liniowy (Shift+L): dotknij brył, potem kierunku (krawędzi, osi albo linii szkicu). Żeby powtórzyć "
+      "operację (otwór, występ), użyj Szyku w jej menu w historii",
+  "Circular Pattern (Shift+O): tap bodies, then the axis (a round or straight edge, an axis). To repeat a feature, use Pattern in its history menu":
+      "Szyk kołowy (Shift+O): dotknij brył, potem osi (okrągłej albo prostej krawędzi, osi). Żeby powtórzyć "
+      "operację, użyj Szyku w jej menu w historii",
+  "Offset Plane": "Płaszczyzna odsunięta", "Plane at Angle": "Płaszczyzna pod kątem",
+  "Plane Through 3 Points": "Płaszczyzna przez 3 punkty", "Axis": "Oś",
+  "Offset Plane: a construction plane parallel to a flat face or a plane; select it to start a sketch on it, or mirror about it":
+      "Płaszczyzna odsunięta: płaszczyzna konstrukcyjna równoległa do płaskiej ściany albo płaszczyzny; "
+      "zaznacz ją, by zacząć na niej szkic albo odbić względem niej",
+  "Plane at Angle: a plane turned about an edge or axis": "Płaszczyzna pod kątem: obrócona wokół krawędzi albo osi",
+  "Plane Through 3 Points: through three corners of bodies": "Płaszczyzna przez 3 punkty: przez trzy narożniki brył",
+  "Axis: along a straight edge, through a round one's center, or through two corners":
+      "Oś: wzdłuż prostej krawędzi, przez środek okrągłej albo przez dwa narożniki",
+  "Linear Pattern…": "Szyk liniowy…", "Circular Pattern…": "Szyk kołowy…",
   "Freehand": "Odręcznie",
   "Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it":
       "Odręcznie (P): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); "
@@ -114,6 +142,25 @@ PL = {
       "2 punkty i linia: punkty są swoimi odbiciami względem linii",
  },
  "Model": {
+  "The sketch region it was made from is gone": "Obszar szkicu, z którego powstała, zniknął",
+  "The axis is gone": "Oś zniknęła", "The path is gone": "Ścieżka zniknęła",
+  "The mirror plane is gone": "Płaszczyzna odbicia zniknęła", "Pick the bodies to mirror": "Wybierz bryły do odbicia",
+  "The pattern's direction is gone": "Kierunek szyku zniknął",
+  "A pattern needs two instances or more": "Szyk potrzebuje co najmniej dwóch wystąpień",
+  "The patterned feature didn't apply": "Powtarzana operacja się nie udała",
+  "Pick the bodies to pattern": "Wybierz bryły do szyku", "Pick a flat face for the hole": "Wybierz płaską ścianę na otwór",
+  "The face the hole was on is gone": "Ściana, na której był otwór, zniknęła",
+  "The sketch point the hole was on is gone": "Punkt szkicu, na którym był otwór, zniknął",
+  "Pick where the hole goes": "Wskaż, gdzie ma być otwór", "The hole doesn't reach any body": "Otwór nie sięga żadnej bryły",
+  "The plane it was made from is gone": "Płaszczyzna, z której powstała, zniknęła", "Pick three points": "Wskaż trzy punkty",
+  "The three points are in a line": "Trzy punkty leżą na jednej prostej",
+  "The edge it was made from is gone": "Krawędź, z której powstała, zniknęła",
+  "Pick two different points": "Wskaż dwa różne punkty", "Nothing to revolve": "Nie ma czego obracać",
+  "Can't revolve: the axis must not run through the profile": "Nie można obrócić: oś nie może przechodzić przez profil",
+  "Pick the profile and the path": "Wybierz profil i ścieżkę",
+  "Can't sweep: the path may be too tight for the profile": "Nie można przeciągnąć: ścieżka może być za ciasna dla profilu",
+  "A loft needs two profiles or more": "Potrzeba co najmniej dwóch profili",
+  "Can't loft through these profiles": "Nie można wyciągnąć przez te profile",
   "No bodies to export": "Brak brył do eksportu",
   "Could not prepare a body for STEP": "Nie udało się przygotować bryły do zapisu STEP",
   "Could not write the STEP file": "Nie udało się zapisać pliku STEP",
@@ -152,6 +199,50 @@ PL = {
   "Can't save %1: %2": "Nie można zapisać %1: %2", "Can't open %1: %2": "Nie można otworzyć %1: %2",
  },
  "SketchEditor": {
+  "Revolve": "Obrót", "Sweep": "Przeciągnięcie", "Loft": "Wyciągnięcie przez profile", "Mirror": "Lustro",
+  "Circular Pattern": "Szyk kołowy", "Linear Pattern": "Szyk liniowy", "Hole": "Otwór", "Axis": "Oś",
+  "Plane": "Płaszczyzna", "Hole: pick a flat face": "Otwór: wybierz płaską ścianę",
+  "Count (with the original)": "Liczba (z oryginałem)", "Over [°] (360: a full turn)": "Na kącie [°] (360: pełny obrót)",
+  "Spacing [mm]": "Odstęp [mm]", "Hole diameter [mm]": "Średnica otworu [mm]", "Through": "Przelotowy",
+  "Blind": "Nieprzelotowy", "Counterbore": "Pogłębienie walcowe", "Countersink": "Pogłębienie stożkowe",
+  "Depth [mm]": "Głębokość [mm]", "Head diameter [mm]": "Średnica pogłębienia [mm]",
+  "Counterbore depth [mm]": "Głębokość pogłębienia [mm]", "Offset [mm]": "Odsunięcie [mm]",
+  "type the angle  ·  Enter accepts": "wpisz kąt  ·  Enter zatwierdza",
+  "Revolve: tap the sketch regions to turn": "Obrót: dotknij obszarów szkicu do obrócenia",
+  "Revolve: tap the axis: a sketch line, a straight or round edge, or an axis":
+      "Obrót: dotknij osi: linii szkicu, prostej albo okrągłej krawędzi albo osi",
+  "Sweep: tap the profile (a sketch region)": "Przeciągnięcie: dotknij profilu (obszaru szkicu)",
+  "Sweep: tap the path: a curve of another sketch (its connected curves follow)":
+      "Przeciągnięcie: dotknij ścieżki: krzywej innego szkicu (połączone z nią krzywe też należą do ścieżki)",
+  "Loft: tap the profiles in order (regions of sketches on different planes)":
+      "Wyciągnięcie przez profile: dotknij profili po kolei (obszarów szkiców na różnych płaszczyznach)",
+  "Loft: %1 profiles  ·  tap more, or Enter to loft": "Wyciągnięcie przez profile: %1 profili  ·  dotknij kolejnych albo Enter",
+  "type the size, pick the kind  ·  Enter accepts  ·  tap the face for more holes":
+      "wpisz rozmiar, wybierz rodzaj  ·  Enter zatwierdza  ·  dotknij ściany, by dodać otwory",
+  "Hole: tap a flat face where it goes (snaps to sketch points and round edges' centers)":
+      "Otwór: dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych krawędzi)",
+  "Mirror: tap the bodies to mirror, then Enter (or tap a plane)": "Lustro: dotknij brył do odbicia, potem Enter (albo dotknij płaszczyzny)",
+  "Mirror: %1 bodies  ·  Enter, then tap the mirror plane": "Lustro: %1 brył  ·  Enter, potem dotknij płaszczyzny odbicia",
+  "Mirror: tap the mirror plane: a flat face or a plane": "Lustro: dotknij płaszczyzny odbicia: płaskiej ściany albo płaszczyzny",
+  "Circular pattern": "Szyk kołowy", "Linear pattern": "Szyk liniowy",
+  "type the count, then the %1  ·  Enter accepts": "wpisz liczbę, potem %1  ·  Enter zatwierdza",
+  "angle": "kąt", "spacing": "odstęp",
+  "%1: tap the bodies to repeat (or pick a feature in the history: Pattern…)":
+      "%1: dotknij brył do powtórzenia (albo wybierz operację w historii: Szyk…)",
+  "%1: tap the axis: a round or straight edge, an axis or a sketch line":
+      "%1: dotknij osi: okrągłej albo prostej krawędzi, osi albo linii szkicu",
+  "%1: tap the direction: a straight edge, an axis or a sketch line":
+      "%1: dotknij kierunku: prostej krawędzi, osi albo linii szkicu",
+  "Offset plane": "Płaszczyzna odsunięta", "type the distance  ·  Enter accepts": "wpisz odległość  ·  Enter zatwierdza",
+  "Offset plane: tap a flat face or a plane": "Płaszczyzna odsunięta: dotknij płaskiej ściany albo płaszczyzny",
+  "Plane at angle": "Płaszczyzna pod kątem",
+  "Plane at angle: tap the plane (a flat face or a plane) and the axis to turn it about":
+      "Płaszczyzna pod kątem: dotknij płaszczyzny (płaskiej ściany albo płaszczyzny) i osi obrotu",
+  "Plane at angle: tap the axis to turn it about (an edge, an axis or a sketch line)":
+      "Płaszczyzna pod kątem: dotknij osi obrotu (krawędzi, osi albo linii szkicu)",
+  "Plane through 3 points: tap corners of a body (%1 of 3)": "Płaszczyzna przez 3 punkty: dotknij narożników bryły (%1 z 3)",
+  "Axis: tap a straight or round edge, or two corners": "Oś: dotknij prostej albo okrągłej krawędzi albo dwóch narożników",
+  "Axis: tap the second corner": "Oś: dotknij drugiego narożnika",
   "Dimension: type the value, or tap another point or line to measure to it  ·  Enter accepts, Esc cancels":
       "Wymiar: wpisz wartość albo dotknij innego punktu lub linii, by mierzyć do niego  ·  Enter zatwierdza, Esc anuluje",
   "Dimension: tap a second point, or a line": "Wymiar: dotknij drugiego punktu albo linii",

@@ -1479,6 +1479,8 @@ std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host)
     case ToolKind::Chamfer:
     case ToolKind::Shell:
         break;
+    default:
+        break; // solid tools: the editor's
     }
     return nullptr;
 }

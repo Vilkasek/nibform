@@ -73,6 +73,7 @@ ProjectData sample()
     hollow.faces = {{gp_Pnt(5, 3, 5), gp::DZ()}};
     hollow.value = 0.8;
     project.features = {sketchMark, pull, round, cut, hollow};
+    numberFeatures(project.features); // as the editor keeps them
     return project;
 }
 
@@ -167,6 +168,73 @@ void testToolkitGeometryRoundTrip()
         CHECK(near(l.image()->width, 160.0) && near(l.image()->height(), 120.0));
         CHECK(near(l.image()->opacity, 0.75));
     }
+}
+
+void testSolidFeaturesRoundTrip()
+{
+    // The fields of revolve, sweep, pattern, hole and datum features survive a save / load.
+    ProjectData project;
+    Feature revolve;
+    revolve.kind = Feature::Kind::Revolve;
+    revolve.id = 4;
+    revolve.value = 270.0;
+    revolve.axis.kind = AxisRef::Kind::SketchLine;
+    revolve.axis.sketch = 2;
+    revolve.axis.entity = 9;
+    Feature sweep;
+    sweep.kind = Feature::Kind::Sweep;
+    sweep.id = 5;
+    sweep.pathSketch = 3;
+    sweep.pathEntity = 11;
+    Feature pattern;
+    pattern.kind = Feature::Kind::Pattern;
+    pattern.id = 6;
+    pattern.pattern = Feature::PatternKind::Circular;
+    pattern.count = 8;
+    pattern.source = 4;
+    pattern.axis.kind = AxisRef::Kind::Edge;
+    pattern.axis.edge = {gp_Pnt(1, 2, 3), gp::DY()};
+    Feature hole;
+    hole.kind = Feature::Kind::Hole;
+    hole.id = 7;
+    hole.hole = {HoleKind::Countersink, 4.5, 6.0, 9.0, 1.5};
+    hole.holeAt = {{3, 21}};
+    hole.points = {gp_Pnt(4, 5, 6)};
+    Feature datum;
+    datum.kind = Feature::Kind::Datum;
+    datum.id = 8;
+    datum.datum = Feature::DatumKind::AnglePlane;
+    datum.plane.kind = PlaneRef::Kind::Face;
+    datum.plane.face = {gp_Pnt(0, 0, 10), gp::DZ()};
+    datum.axis.kind = AxisRef::Kind::Datum;
+    datum.axis.datum = kBaseX;
+    datum.value = 30.0;
+    project.features = {revolve, sweep, pattern, hole, datum};
+
+    QString error;
+    const auto loaded = projectFromJson(projectToJson(project), &error);
+    CHECK(loaded.has_value());
+    if (!loaded)
+        return;
+    const auto& f = loaded->features;
+    CHECK(f.size() == 5);
+    CHECK(f[0].kind == Feature::Kind::Revolve && f[0].id == 4 && f[0].value == 270.0);
+    CHECK(f[0].axis.kind == AxisRef::Kind::SketchLine && f[0].axis.sketch == 2 && f[0].axis.entity == 9);
+    CHECK(f[1].kind == Feature::Kind::Sweep && f[1].pathSketch == 3 && f[1].pathEntity == 11);
+    CHECK(f[2].pattern == Feature::PatternKind::Circular && f[2].count == 8 && f[2].source == 4);
+    CHECK(f[2].axis.kind == AxisRef::Kind::Edge && near(f[2].axis.edge.middle.Y(), 2.0));
+    CHECK(f[3].hole.kind == HoleKind::Countersink && f[3].hole.diameter == 4.5 && f[3].hole.depth == 6.0);
+    CHECK(f[3].hole.headDiameter == 9.0 && f[3].hole.headDepth == 1.5);
+    CHECK(f[3].holeAt.size() == 1 && f[3].holeAt[0].sketch == 3 && f[3].holeAt[0].point == 21);
+    CHECK(f[3].points.size() == 1 && near(f[3].points[0].Z(), 6.0));
+    CHECK(f[4].datum == Feature::DatumKind::AnglePlane && f[4].plane.kind == PlaneRef::Kind::Face);
+    CHECK(f[4].axis.datum == kBaseX && f[4].value == 30.0);
+
+    // A feature saved before ids existed gets one on loading.
+    QByteArray old = projectToJson(project);
+    old.replace("\"id\": 4", "\"id\": 0");
+    const auto renumbered = projectFromJson(old, &error);
+    CHECK(renumbered && renumbered->features[0].id == 9);
 }
 
 void testSavedProjectRebuildsTheSameModel()
@@ -271,6 +339,7 @@ int main()
     return runTests({
         {"round trip", testRoundTrip},
         {"toolkit geometry round trip", testToolkitGeometryRoundTrip},
+        {"solid features round trip", testSolidFeaturesRoundTrip},
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
         {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},

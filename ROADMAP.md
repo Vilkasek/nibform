@@ -1,7 +1,7 @@
 # Roadmap
 
-M0–M9 and i18n are done (see the README). Next, roughly in order: widen what can be
-modelled, then make big models fast.
+M0–M10 and i18n are done (see the README). Next, roughly in order: transform and inspect,
+interop, drawings, then make big models fast.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -49,7 +49,7 @@ The sketch tools a real part needs.
 
 **Done when:** a typical laser-cut or 3D-print outline can be drawn without workarounds.
 
-## M10 – Solid features
+## M10 – Solid features ✓
 
 Beyond extrude.
 

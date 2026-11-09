@@ -84,6 +84,7 @@ add_executable(nibform
   src/app/Theme.h
   src/sketch/SketchEditor.cpp
   src/sketch/SketchEditorBodies.cpp
+  src/sketch/SketchEditorSolids.cpp
   src/sketch/SketchEditor.h
   src/sketch/SketchTools.cpp
   src/sketch/SketchTools.h
@@ -140,7 +141,7 @@ if(NOT NIBFORM_BUILD_TESTS)
 endif()
 
 enable_testing()
-foreach(name sketch solver trim offset model features input toolkit freehand)
+foreach(name sketch solver trim offset model features input toolkit freehand solid_features)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
   target_link_libraries(test_${name} PRIVATE nibform_core)

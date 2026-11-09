@@ -166,16 +166,33 @@ void SketchEditor::setTool(ToolKind kind)
 
     if (mode() == EditorMode::Model) {
         // Picks carry over where they make sense: edges picked in Select into the rounding
-        // tools, regions and faces into push / pull; Select keeps everything.
+        // tools, regions and faces into push / pull; Select keeps everything. Solid tools
+        // take the regions (revolve, sweep, loft) or the bodies (mirror, patterns) picked.
+        hideSessionPreview();
+        const std::set<RegionRef> regions = m_regionSelection;
+        const std::vector<int> bodies = selectedBodies();
+        m_solid = {};
+        m_solidError.clear();
         if (kind == ToolKind::Fillet || kind == ToolKind::Chamfer)
             keepPicks(true, false, false);
         else if (kind == ToolKind::PushPull)
             keepPicks(false, true, true);
         else if (kind == ToolKind::Shell)
             keepPicks(false, true, false);
+        else if (isSolidTool(kind))
+            clearModelSelection();
+        if (kind == ToolKind::Revolve || kind == ToolKind::Sweep || kind == ToolKind::Loft) {
+            m_solid.regions.assign(regions.begin(), regions.end());
+            m_regionSelection = regions;
+            showRegions();
+        } else if (kind == ToolKind::BodyMirror || kind == ToolKind::BodyLinearPattern
+                   || kind == ToolKind::BodyCircularPattern) {
+            m_solid.bodies = bodies;
+        }
         updateSelectionModes();
         syncValueSession();
     }
+    refreshSolidMarks(); // and the datums the tool can pick
 
     refreshSketches();
     refreshOverlay();
@@ -1206,7 +1223,9 @@ void SketchEditor::cancel()
     }
     if (mode() == EditorMode::Model) {
         // First drop what is picked, then leave the tool.
-        if (!m_regionSelection.empty() || !m_bodySelection.empty()) {
+        if (solidCancel()) {
+            // the solid tool's picks went
+        } else if (!m_regionSelection.empty() || !m_bodySelection.empty() || m_selectedDatum != 0) {
             endValueSession(true);
             clearModelSelection();
         } else if (m_toolKind != ToolKind::Select) {
@@ -1230,6 +1249,8 @@ void SketchEditor::confirm()
         m_valueEditor->accept();
         return;
     }
+    if (solidConfirm())
+        return;
     if (m_tool && m_tool->confirm()) {
         refreshOverlay();
         updateHint();
@@ -1347,6 +1368,10 @@ void SketchEditor::retranslate()
 
 void SketchEditor::updateHint()
 {
+    if (mode() == EditorMode::Model && isSolidTool(m_toolKind)) {
+        emit hintChanged(solidHint());
+        return;
+    }
     if (mode() == EditorMode::Model) {
         const bool open = m_session.kind != ValueSession::Kind::None;
         const QString error = modelText(m_session.error);

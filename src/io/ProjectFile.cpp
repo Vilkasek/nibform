@@ -39,8 +39,15 @@ constexpr std::array<const char*, 19> kConstraintKinds{
     "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
     "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
     "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
-constexpr std::array<const char*, 7> kFeatureKinds{"sketch",  "extrude", "fillet", "chamfer",
-                                                   "combine", "delete",  "shell"};
+constexpr std::array<const char*, 14> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine",
+                                                    "delete", "shell",   "revolve", "sweep",  "loft",
+                                                    "mirror", "pattern", "hole",    "datum"};
+constexpr std::array<const char*, 4> kAxisKinds{"none", "edge", "sketchLine", "datum"};
+constexpr std::array<const char*, 3> kPlaneKinds{"none", "face", "datum"};
+constexpr std::array<const char*, 2> kPatternKinds{"linear", "circular"};
+constexpr std::array<const char*, 3> kHoleKinds{"simple", "counterbore", "countersink"};
+constexpr std::array<const char*, 5> kDatumKinds{"offsetPlane", "anglePlane", "threePointPlane", "axis",
+                                                 "twoPointAxis"};
 constexpr std::array<const char*, 4> kOperations{"auto", "new", "join", "cut"};
 constexpr std::array<const char*, 3> kBooleans{"union", "subtract", "intersect"};
 
@@ -203,8 +210,37 @@ QJsonObject featureToJson(const Feature& f)
         edges.append(QJsonObject{{"middle", xyz(p.middle.XYZ())}, {"direction", xyz(p.direction.XYZ())}});
     for (const gp_Pnt& p : f.bodies)
         bodies.append(xyz(p.XYZ()));
+    QJsonArray holeAt, points;
+    for (const SketchPointRef& r : f.holeAt)
+        holeAt.append(QJsonObject{{"sketch", r.sketch}, {"point", r.point}});
+    for (const gp_Pnt& p : f.points)
+        points.append(xyz(p.XYZ()));
     return QJsonObject{
         {"kind", nameOf(f.kind, kFeatureKinds)},
+        {"id", f.id},
+        {"axis", QJsonObject{{"kind", nameOf(f.axis.kind, kAxisKinds)},
+                             {"middle", xyz(f.axis.edge.middle.XYZ())},
+                             {"direction", xyz(f.axis.edge.direction.XYZ())},
+                             {"sketch", f.axis.sketch},
+                             {"entity", f.axis.entity},
+                             {"datum", f.axis.datum}}},
+        {"plane", QJsonObject{{"kind", nameOf(f.plane.kind, kPlaneKinds)},
+                              {"middle", xyz(f.plane.face.middle.XYZ())},
+                              {"normal", xyz(f.plane.face.normal.XYZ())},
+                              {"datum", f.plane.datum}}},
+        {"pathSketch", f.pathSketch},
+        {"pathEntity", f.pathEntity},
+        {"pattern", nameOf(f.pattern, kPatternKinds)},
+        {"count", f.count},
+        {"source", f.source},
+        {"hole", QJsonObject{{"kind", nameOf(f.hole.kind, kHoleKinds)},
+                             {"diameter", f.hole.diameter},
+                             {"depth", f.hole.depth},
+                             {"headDiameter", f.hole.headDiameter},
+                             {"headDepth", f.hole.headDepth}}},
+        {"holeAt", holeAt},
+        {"points", points},
+        {"datum", nameOf(f.datum, kDatumKinds)},
         {"sketch", f.sketch},
         {"value", f.value},
         {"operation", nameOf(f.operation, kOperations)},
@@ -242,6 +278,46 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
     }
     for (const auto& v : o.value("bodies").toArray())
         f.bodies.push_back(gp_Pnt(toXYZ(v)));
+    // Added with solid features (M10); older files have none of these.
+    f.id = o.value("id").toInt(0);
+    auto direction = [](const QJsonValue& v, const gp_Dir& fallback) {
+        const gp_XYZ d = toXYZ(v);
+        return d.Modulus() > 1e-12 ? gp_Dir(d) : fallback;
+    };
+    if (o.contains("axis")) {
+        const QJsonObject a = o.value("axis").toObject();
+        f.axis.kind = fromName<AxisRef::Kind>(a.value("kind").toString(), kAxisKinds).value_or(AxisRef::Kind::None);
+        f.axis.edge = {gp_Pnt(toXYZ(a.value("middle"))), direction(a.value("direction"), gp::DX())};
+        f.axis.sketch = a.value("sketch").toInt(-1);
+        f.axis.entity = a.value("entity").toInt(-1);
+        f.axis.datum = a.value("datum").toInt(0);
+    }
+    if (o.contains("plane")) {
+        const QJsonObject p = o.value("plane").toObject();
+        f.plane.kind = fromName<PlaneRef::Kind>(p.value("kind").toString(), kPlaneKinds).value_or(PlaneRef::Kind::None);
+        f.plane.face = {gp_Pnt(toXYZ(p.value("middle"))), direction(p.value("normal"), gp::DZ())};
+        f.plane.datum = p.value("datum").toInt(0);
+    }
+    f.pathSketch = o.value("pathSketch").toInt(-1);
+    f.pathEntity = o.value("pathEntity").toInt(-1);
+    f.pattern = fromName<Feature::PatternKind>(o.value("pattern").toString(), kPatternKinds)
+                    .value_or(Feature::PatternKind::Linear);
+    f.count = o.value("count").toInt(2);
+    f.source = o.value("source").toInt(0);
+    if (o.contains("hole")) {
+        const QJsonObject h = o.value("hole").toObject();
+        f.hole.kind = fromName<HoleKind>(h.value("kind").toString(), kHoleKinds).value_or(HoleKind::Simple);
+        f.hole.diameter = h.value("diameter").toDouble(f.hole.diameter);
+        f.hole.depth = h.value("depth").toDouble(0.0);
+        f.hole.headDiameter = h.value("headDiameter").toDouble(f.hole.headDiameter);
+        f.hole.headDepth = h.value("headDepth").toDouble(f.hole.headDepth);
+    }
+    for (const auto& v : o.value("holeAt").toArray())
+        f.holeAt.push_back({v.toObject().value("sketch").toInt(-1), v.toObject().value("point").toInt(-1)});
+    for (const auto& v : o.value("points").toArray())
+        f.points.push_back(gp_Pnt(toXYZ(v)));
+    f.datum = fromName<Feature::DatumKind>(o.value("datum").toString(), kDatumKinds)
+                  .value_or(Feature::DatumKind::OffsetPlane);
     return f;
 }
 
@@ -287,6 +363,7 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
             return std::nullopt;
         project.features.push_back(std::move(*feature));
     }
+    numberFeatures(project.features); // older files: ids in history order
     return project;
 }
 

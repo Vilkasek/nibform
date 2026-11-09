@@ -154,9 +154,10 @@ void MainWindow::showRadialMenu(const QPointF& pos)
                    toolAction(ToolKind::Rectangle), toolAction(ToolKind::Circle), toolAction(ToolKind::Arc),
                    toolAction(ToolKind::Trim), toolAction(ToolKind::Dimension), m_undoAction, m_closeSketchAction};
     } else {
-        actions = {toolAction(ToolKind::Select), m_newSketchAction, m_editSketchAction, toolAction(ToolKind::PushPull),
-                   toolAction(ToolKind::Fillet), toolAction(ToolKind::Chamfer), toolAction(ToolKind::Shell),
-                   m_undoAction, m_fitAction};
+        actions = {toolAction(ToolKind::Select),  m_newSketchAction,          m_editSketchAction,
+                   toolAction(ToolKind::PushPull), toolAction(ToolKind::Revolve), toolAction(ToolKind::Hole),
+                   toolAction(ToolKind::Fillet),   toolAction(ToolKind::Shell),   m_undoAction,
+                   m_fitAction};
     }
     // Icons as the bars draw them, except the one made for the orange Finish button.
     const bool dark = resolvesToDark(m_theme);
@@ -378,14 +379,62 @@ void MainWindow::buildActions()
     m_editSketchAction->setToolTip(tr("Opens the sketch whose region is selected"));
     iconize(m_editSketchAction, Icon::EditSketch);
     m_modelBar->addSeparator();
+    // Related model tools share a button too (the arrow lists the others).
+    auto modelGroup = [&](const std::vector<QAction*>& actions) {
+        auto* menu = new QMenu(m_modelBar);
+        for (QAction* action : actions)
+            menu->addAction(action);
+        auto* button = new QToolButton(m_modelBar);
+        button->setDefaultAction(actions.front());
+        button->setMenu(menu);
+        button->setPopupMode(QToolButton::MenuButtonPopup);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        for (QAction* action : actions)
+            connect(action, &QAction::triggered, button, [button, action] { button->setDefaultAction(action); });
+        m_modelBar->addWidget(button);
+        m_groupButtons.push_back(button);
+    };
+    auto tip = [this](ToolKind kind, const QString& text) { m_toolActions[kind]->setToolTip(text); };
     m_modelBar->addAction(
         makeTool(ToolKind::PushPull, tr("Extrude"), QKeySequence(Qt::Key_W), Icon::Extrude));
+    modelGroup({makeTool(ToolKind::Revolve, tr("Revolve"), QKeySequence(Qt::Key_R), Icon::Revolve),
+                makeTool(ToolKind::Sweep, tr("Sweep"), QKeySequence(Qt::SHIFT | Qt::Key_W), Icon::Sweep),
+                makeTool(ToolKind::Loft, tr("Loft"), QKeySequence(Qt::SHIFT | Qt::Key_F), Icon::Loft)});
+    tip(ToolKind::Revolve, tr("Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)"));
+    tip(ToolKind::Sweep, tr("Sweep (Shift+W): tap the profile region, then a curve of the path sketch"));
+    tip(ToolKind::Loft, tr("Loft (Shift+F): tap profile regions on different planes in order, then Enter"));
+    m_modelBar->addAction(makeTool(ToolKind::Hole, tr("Hole"), QKeySequence(Qt::Key_H), Icon::Hole));
+    tip(ToolKind::Hole, tr("Hole (H): tap a flat face where it goes (sketch points and round edges' centers "
+                           "snap); through, blind, counterbored or countersunk"));
     m_modelBar->addAction(
         makeTool(ToolKind::Fillet, tr("Fillet"), QKeySequence(Qt::Key_G), Icon::Fillet));
     m_modelBar->addAction(
         makeTool(ToolKind::Chamfer, tr("Chamfer"), QKeySequence(Qt::Key_B), Icon::Chamfer));
     m_modelBar->addAction(
         makeTool(ToolKind::Shell, tr("Shell"), QKeySequence(Qt::Key_J), Icon::Shell));
+    m_modelBar->addSeparator();
+    modelGroup({makeTool(ToolKind::BodyMirror, tr("Mirror"), QKeySequence(Qt::Key_M), Icon::BodyMirror),
+                makeTool(ToolKind::BodyLinearPattern, tr("Linear Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_L),
+                         Icon::LinearPattern),
+                makeTool(ToolKind::BodyCircularPattern, tr("Circular Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_O),
+                         Icon::CircularPattern)});
+    tip(ToolKind::BodyMirror, tr("Mirror (M): tap bodies, Enter, then the mirror plane (a flat face or a plane)"));
+    tip(ToolKind::BodyLinearPattern,
+        tr("Linear Pattern (Shift+L): tap bodies, then the direction (an edge, axis or sketch line). "
+           "To repeat a feature (a hole, a boss), use Pattern in its history menu"));
+    tip(ToolKind::BodyCircularPattern,
+        tr("Circular Pattern (Shift+O): tap bodies, then the axis (a round or straight edge, an axis). "
+           "To repeat a feature, use Pattern in its history menu"));
+    modelGroup({makeTool(ToolKind::OffsetPlane, tr("Offset Plane"), QKeySequence(), Icon::Plane),
+                makeTool(ToolKind::AnglePlane, tr("Plane at Angle"), QKeySequence(), Icon::Plane),
+                makeTool(ToolKind::ThreePointPlane, tr("Plane Through 3 Points"), QKeySequence(), Icon::Plane),
+                makeTool(ToolKind::Axis, tr("Axis"), QKeySequence(), Icon::Axis)});
+    tip(ToolKind::OffsetPlane, tr("Offset Plane: a construction plane parallel to a flat face or a plane; "
+                                  "select it to start a sketch on it, or mirror about it"));
+    tip(ToolKind::AnglePlane, tr("Plane at Angle: a plane turned about an edge or axis"));
+    tip(ToolKind::ThreePointPlane, tr("Plane Through 3 Points: through three corners of bodies"));
+    tip(ToolKind::Axis, tr("Axis: along a straight edge, through a round one's center, or through two corners"));
 
     // What extruding does to the bodies it meets.
     m_modelBar->addSeparator();
@@ -661,6 +710,11 @@ void MainWindow::buildActions()
                tr("Subtracts the other selected bodies from the first"));
     addBoolean(BooleanKind::Intersect, tr("Intersect"),
                tr("Keeps only what the selected bodies share"));
+    bodies->addSeparator();
+    for (ToolKind kind : {ToolKind::Revolve, ToolKind::Sweep, ToolKind::Loft, ToolKind::Hole, ToolKind::BodyMirror,
+                          ToolKind::BodyLinearPattern, ToolKind::BodyCircularPattern, ToolKind::OffsetPlane,
+                          ToolKind::AnglePlane, ToolKind::ThreePointPlane, ToolKind::Axis})
+        bodies->addAction(m_toolActions[kind]);
     bodies->setToolTipsVisible(true);
 
     QMenu* constraintMenu = menuBar()->addMenu(tr("&Constraints"));
@@ -851,6 +905,13 @@ void MainWindow::updateTimeline()
                         : item.kind == Feature::Kind::Chamfer ? Icon::Chamfer
                         : item.kind == Feature::Kind::Shell   ? Icon::Shell
                         : item.kind == Feature::Kind::Delete  ? Icon::Delete
+                        : item.kind == Feature::Kind::Revolve ? Icon::Revolve
+                        : item.kind == Feature::Kind::Sweep   ? Icon::Sweep
+                        : item.kind == Feature::Kind::Loft    ? Icon::Loft
+                        : item.kind == Feature::Kind::Hole    ? Icon::Hole
+                        : item.kind == Feature::Kind::Mirror  ? Icon::BodyMirror
+                        : item.kind == Feature::Kind::Pattern ? Icon::CircularPattern
+                        : item.kind == Feature::Kind::Datum   ? Icon::Plane
                                                               : Icon::Coincident;
         chip->setIcon(makeIcon(icon, palette().color(QPalette::WindowText), QColor(m_accent)));
         connect(chip, &QToolButton::clicked, this, [this, i] {
@@ -861,6 +922,10 @@ void MainWindow::updateTimeline()
         auto* menu = new QMenu(chip);
         menu->addAction(tr("Edit"), this, [this, i] { m_editor->activateTimelineItem(i); })
             ->setEnabled(editable);
+        if (m_editor->canPattern(i)) {
+            menu->addAction(tr("Linear Pattern…"), this, [this, i] { m_editor->patternFeature(i, false); });
+            menu->addAction(tr("Circular Pattern…"), this, [this, i] { m_editor->patternFeature(i, true); });
+        }
         menu->addAction(tr("Delete"), this, [this, i] {
             m_timelinePick = -1;
             m_editor->removeTimelineItem(i);

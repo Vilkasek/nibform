@@ -19,6 +19,17 @@
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeCone.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakeRevol.hxx>
+#include <BRepOffsetAPI_MakePipe.hxx>
+#include <BRepOffsetAPI_ThruSections.hxx>
+#include <BRepTools.hxx>
+#include <BRepBndLib.hxx>
+#include <BRepClass_FaceClassifier.hxx>
+#include <Bnd_Box.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <GProp_GProps.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <TopExp_Explorer.hxx>
@@ -280,6 +291,8 @@ ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<P
         }
         if (touched.empty() && op != BodyOperation::Cut)
             op = BodyOperation::NewBody;
+        if (owner < 0 && prisms.size() == 1)
+            result.tool = FeatureTool{tool, op}; // from a sketch: a pattern can repeat it
 
         switch (op) {
         case BodyOperation::NewBody:
@@ -467,4 +480,208 @@ ModelResult combine(const std::vector<TopoDS_Shape>& bodies, const std::vector<i
     if (result.bodies.size() == before && kind == BooleanKind::Intersect)
         result.error = QT_TRANSLATE_NOOP("Model", "The bodies don't intersect");
     return result;
+}
+
+// --- Tool solids --------------------------------------------------------------------
+
+ModelResult applyTool(const std::vector<TopoDS_Shape>& bodies, const TopoDS_Shape& tool, BodyOperation operation)
+{
+    ModelResult result;
+    std::vector<int> touched;
+    double inside = 0.0;
+    if (operation != BodyOperation::NewBody) {
+        for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
+            const double v = overlap(bodies[i], tool);
+            if (v > kMinVolume || touches(bodies[i], tool)) {
+                touched.push_back(i);
+                inside += v;
+            }
+        }
+    }
+    BodyOperation op = operation;
+    if (op == BodyOperation::Auto) {
+        if (touched.empty())
+            op = BodyOperation::NewBody;
+        else if (inside >= 0.99 * volumeOf(tool))
+            op = BodyOperation::Cut;
+        else
+            op = BodyOperation::Join;
+    }
+    if (touched.empty() && op == BodyOperation::Join)
+        op = BodyOperation::NewBody;
+    if (touched.empty() && op == BodyOperation::Cut) {
+        result.bodies = bodies;
+        result.error = QT_TRANSLATE_NOOP("Model", "The cut doesn't reach any body");
+        return result;
+    }
+
+    std::vector<TopoDS_Shape> added;
+    std::set<int> consumed;
+    switch (op) {
+    case BodyOperation::NewBody:
+    case BodyOperation::Auto:
+        appendSolids(added, tool);
+        break;
+    case BodyOperation::Join: {
+        TopTools_ListOfShape others;
+        for (std::size_t k = 1; k < touched.size(); ++k)
+            others.Append(bodies[touched[k]]);
+        others.Append(tool);
+        const auto fused = boolean(BooleanKind::Union, bodies[touched[0]], others);
+        if (!fused) {
+            result.bodies = bodies;
+            result.error = QT_TRANSLATE_NOOP("Model", "Could not join with the body");
+            return result;
+        }
+        consumed.insert(touched.begin(), touched.end());
+        appendSolids(added, *fused);
+        break;
+    }
+    case BodyOperation::Cut:
+        for (int i : touched) {
+            const auto cut = boolean(BooleanKind::Subtract, bodies[i], tool);
+            if (!cut) {
+                result.bodies = bodies;
+                result.error = QT_TRANSLATE_NOOP("Model", "Could not cut from the body");
+                return result;
+            }
+            consumed.insert(i);
+            appendSolids(added, *cut);
+        }
+        break;
+    }
+    for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
+        if (!consumed.count(i))
+            result.bodies.push_back(bodies[i]);
+    }
+    result.bodies.insert(result.bodies.end(), added.begin(), added.end());
+    result.tool = FeatureTool{tool, op};
+    return result;
+}
+
+namespace {
+
+// One solid out of several (each profile's own), or the only one.
+std::optional<TopoDS_Shape> fuseAll(const std::vector<TopoDS_Shape>& solids)
+{
+    if (solids.empty())
+        return std::nullopt;
+    if (solids.size() == 1)
+        return solids.front();
+    TopTools_ListOfShape rest;
+    for (std::size_t i = 1; i < solids.size(); ++i)
+        rest.Append(solids[i]);
+    return boolean(BooleanKind::Union, solids.front(), rest);
+}
+
+bool usableSolid(const TopoDS_Shape& shape)
+{
+    return !shape.IsNull() && BRepCheck_Analyzer(shape).IsValid() && volumeOf(shape) > kMinVolume;
+}
+
+} // namespace
+
+std::optional<TopoDS_Shape> revolveProfiles(const std::vector<TopoDS_Face>& profiles, const gp_Ax1& axis,
+                                            double degrees, std::string& error)
+{
+    if (profiles.empty() || std::abs(degrees) < 1e-6) {
+        error = QT_TRANSLATE_NOOP("Model", "Nothing to revolve");
+        return std::nullopt;
+    }
+    const double angle = std::clamp(degrees, -360.0, 360.0) * M_PI / 180.0;
+    std::vector<TopoDS_Shape> solids;
+    for (const TopoDS_Face& face : profiles) {
+        // An axis through the profile's inside would make a self-intersecting solid.
+        Bnd_Box box;
+        BRepBndLib::Add(face, box);
+        const double reach = std::sqrt(box.SquareExtent());
+        const gp_Pnt middle = box.IsVoid() ? axis.Location() : gp_Pnt((box.CornerMin().XYZ() + box.CornerMax().XYZ()) / 2.0);
+        const double t0 = gp_Vec(axis.Location(), middle).Dot(gp_Vec(axis.Direction()));
+        for (int k = -50; k <= 50; ++k) {
+            const gp_Pnt p = axis.Location().Translated(gp_Vec(axis.Direction()) * (t0 + reach * k / 50.0));
+            if (BRepClass_FaceClassifier(face, p, 1e-6).State() == TopAbs_IN) {
+                error = QT_TRANSLATE_NOOP("Model", "Can't revolve: the axis must not run through the profile");
+                return std::nullopt;
+            }
+        }
+        BRepPrimAPI_MakeRevol revol(face, axis, std::abs(angle) >= 2.0 * M_PI - 1e-9 ? 2.0 * M_PI : angle, true);
+        if (!revol.IsDone() || !usableSolid(revol.Shape())) {
+            error = QT_TRANSLATE_NOOP("Model", "Can't revolve: the axis must not run through the profile");
+            return std::nullopt;
+        }
+        solids.push_back(revol.Shape());
+    }
+    auto fused = fuseAll(solids);
+    if (!fused)
+        error = QT_TRANSLATE_NOOP("Model", "Could not merge the profiles");
+    return fused;
+}
+
+std::optional<TopoDS_Shape> sweepProfiles(const std::vector<TopoDS_Face>& profiles, const TopoDS_Wire& path,
+                                          std::string& error)
+{
+    if (profiles.empty() || path.IsNull()) {
+        error = QT_TRANSLATE_NOOP("Model", "Pick the profile and the path");
+        return std::nullopt;
+    }
+    std::vector<TopoDS_Shape> solids;
+    for (const TopoDS_Face& face : profiles) {
+        try {
+            BRepOffsetAPI_MakePipe pipe(path, face);
+            pipe.Build();
+            if (pipe.IsDone() && usableSolid(pipe.Shape())) {
+                solids.push_back(pipe.Shape());
+                continue;
+            }
+        } catch (const Standard_Failure&) {
+        }
+        error = QT_TRANSLATE_NOOP("Model", "Can't sweep: the path may be too tight for the profile");
+        return std::nullopt;
+    }
+    auto fused = fuseAll(solids);
+    if (!fused)
+        error = QT_TRANSLATE_NOOP("Model", "Could not merge the profiles");
+    return fused;
+}
+
+std::optional<TopoDS_Shape> loftProfiles(const std::vector<TopoDS_Face>& profiles, std::string& error)
+{
+    if (profiles.size() < 2) {
+        error = QT_TRANSLATE_NOOP("Model", "A loft needs two profiles or more");
+        return std::nullopt;
+    }
+    try {
+        BRepOffsetAPI_ThruSections loft(true, false);
+        for (const TopoDS_Face& face : profiles)
+            loft.AddWire(BRepTools::OuterWire(face));
+        loft.Build();
+        if (loft.IsDone() && usableSolid(loft.Shape()))
+            return loft.Shape();
+    } catch (const Standard_Failure&) {
+    }
+    error = QT_TRANSLATE_NOOP("Model", "Can't loft through these profiles");
+    return std::nullopt;
+}
+
+TopoDS_Shape holeCutter(const gp_Pnt& at, const gp_Dir& into, const HoleSpec& spec, double through)
+{
+    // Starts a little above the surface, so the cut opens cleanly.
+    constexpr double lead = 0.05;
+    const gp_Pnt start = at.Translated(gp_Vec(into) * -lead);
+    const double depth = (spec.depth > 0.0 ? spec.depth : through) + lead;
+    const gp_Ax2 axis(start, into);
+    const double r = spec.diameter / 2.0;
+    TopoDS_Shape cutter = BRepPrimAPI_MakeCylinder(axis, r, depth).Shape();
+    const double head = spec.headDiameter / 2.0;
+    if (spec.kind == HoleKind::Counterbore && head > r && spec.headDepth > 0.0) {
+        const TopoDS_Shape bore = BRepPrimAPI_MakeCylinder(axis, head, spec.headDepth + lead).Shape();
+        if (const auto fused = boolean(BooleanKind::Union, cutter, bore))
+            cutter = *fused;
+    } else if (spec.kind == HoleKind::Countersink && head > r) {
+        // 90°: the cone narrows by as much as it goes down.
+        const TopoDS_Shape sink = BRepPrimAPI_MakeCone(axis, head + lead, r, head - r + lead).Shape();
+        if (const auto fused = boolean(BooleanKind::Union, cutter, sink))
+            cutter = *fused;
+    }
+    return cutter;
 }

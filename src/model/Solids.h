@@ -3,6 +3,8 @@
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Wire.hxx>
+#include <gp_Ax1.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
 
@@ -25,6 +27,20 @@ enum class BodyOperation
 
 enum class BooleanKind { Union, Subtract, Intersect };
 
+enum class HoleKind { Simple, Counterbore, Countersink };
+
+// A hole's shape: a cylinder `diameter` wide, `depth` deep (through everything when 0),
+// under a wider counterbore (`headDiameter`, `headDepth` deep) or a 90° countersink
+// (`headDiameter` across at the surface).
+struct HoleSpec
+{
+    HoleKind kind = HoleKind::Simple;
+    double diameter = 5.0;
+    double depth = 0.0;
+    double headDiameter = 9.0;
+    double headDepth = 3.0;
+};
+
 // A planar face to push or pull: a sketch region, or a face of an existing body.
 struct Profile
 {
@@ -40,10 +56,18 @@ struct EdgeRef
     TopoDS_Edge edge;
 };
 
+// The solid a feature added or took away, and how: patterns repeat it.
+struct FeatureTool
+{
+    TopoDS_Shape shape;
+    BodyOperation operation = BodyOperation::NewBody; // never Auto
+};
+
 struct ModelResult
 {
     std::vector<TopoDS_Shape> bodies;
     std::string error; // empty on success; nothing changes otherwise
+    std::optional<FeatureTool> tool; // set by features that combine one solid with the bodies
 
     bool ok() const { return error.empty(); }
 };
@@ -75,6 +99,25 @@ ModelResult chamferEdges(const std::vector<TopoDS_Shape>& bodies, const std::vec
 // faces (of each body, at least one) are removed to open the shell there.
 ModelResult shellBodies(const std::vector<TopoDS_Shape>& bodies, const std::vector<std::pair<int, TopoDS_Face>>& open,
                         double thickness);
+
+// Combines `tool` with the bodies: joined to those it touches, cut from them, or a new
+// body. Auto: a new body when it touches nothing, a cut when it lies (almost) wholly in
+// material, a join otherwise. The result's `tool` says what was done.
+ModelResult applyTool(const std::vector<TopoDS_Shape>& bodies, const TopoDS_Shape& tool, BodyOperation operation);
+
+// The solids the profiles sweep out (one solid, fused, or empty with `error` set).
+// Revolve: around `axis` by `degrees` (a full turn at 360).
+std::optional<TopoDS_Shape> revolveProfiles(const std::vector<TopoDS_Face>& profiles, const gp_Ax1& axis,
+                                            double degrees, std::string& error);
+// Sweep: along the connected `path`, the profiles carried with it.
+std::optional<TopoDS_Shape> sweepProfiles(const std::vector<TopoDS_Face>& profiles, const TopoDS_Wire& path,
+                                          std::string& error);
+// Loft: through the outlines of the profiles, in order (2 or more).
+std::optional<TopoDS_Shape> loftProfiles(const std::vector<TopoDS_Face>& profiles, std::string& error);
+
+// What drills a hole at `at`, going `into` the material; `through` is how far a hole
+// through everything reaches.
+TopoDS_Shape holeCutter(const gp_Pnt& at, const gp_Dir& into, const HoleSpec& spec, double through);
 
 // Combines the `selected` bodies (by index) into one: union, intersection, or the first
 // minus the others.

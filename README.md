@@ -36,7 +36,7 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
-Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`).
 
 ## Language
 
@@ -153,6 +153,24 @@ regions/faces. `Enter` or ✓ extrudes, `Esc` or ✕ cancels.
 | Fillet | `G` | tap body edges (tapping a face takes all its edges), drag the handle into the material or type the radius – previewed right away; `Enter` accepts |
 | Chamfer | `B` | as above, with the chamfer distance |
 | Shell | `J` | tap the planar faces to open, drag the handle inwards or type the wall thickness – the body is hollowed out (the walls grow inwards) |
+| Revolve | `R` | tap sketch regions, then the axis: a sketch line, a straight edge, a round edge (its center axis) or an axis; type the angle (360 = a full turn) and pick the operation |
+| Sweep | `Shift+W` | tap the profile region, then a curve of the path sketch: the profile follows it and every curve connected to it (draw the profile on a plane across the path's start) |
+| Loft | `Shift+F` | tap the profile regions in order (sketches on different planes), `Enter` lofts through their outlines |
+| Hole | `H` | tap a flat face where the hole goes – it snaps to sketch points on that face (then it follows the point when the sketch changes) and to round edges' centers; more taps add holes. Type the diameter and pick *Through*, *Blind* (then the depth), *Counterbore* (head diameter and depth) or *Countersink* (90°, head diameter) |
+| Mirror | `M` | tap bodies, `Enter`, then the mirror plane (a flat face or a plane; tapping a plane right away works too). A mirrored half that touches the original joins it |
+| Linear / Circular Pattern | `Shift+L` / `Shift+O` | tap bodies, then the direction / axis (an edge, an axis or a sketch line; for a circular one a round edge gives its center axis); type the count (with the original) and the spacing or the angle covered (360 = evenly around) |
+| Offset Plane, Plane at Angle, Plane Through 3 Points, Axis | | construction geometry: a plane parallel to a face or plane at a distance, turned about an edge / axis, through three body corners; an axis along an edge, through a round edge's center or two corners |
+
+**Patterns of features**: the arrow of an extrusion (from a sketch), revolve, sweep, loft or hole on
+the *History* bar offers *Linear Pattern…* / *Circular Pattern…*: tap the direction and the copies
+repeat that operation (each hole is drilled again, each boss joined), following later changes of the
+original – a bolt circle is one hole and a circular pattern of it.
+
+**Construction planes and axes** show as see-through squares and lines. The base planes (XY, XZ, YZ)
+and axes (X, Y, Z) through the origin appear while a tool can use them (revolve, mirror, patterns,
+planes). A plane picked in Select is where **New Sketch** starts; planes and axes are also mirror
+planes, revolve and pattern axes. Like everything else they live in the history: a plane made from a
+face follows that face.
 
 In Select, body faces and edges can be picked anywhere (the edge wins when the pen is close
 to it). With edges selected, a bar with *Fillet* / *Chamfer* appears next to them; with one planar
@@ -182,7 +200,8 @@ handy with `NIBFORM_SCREENSHOT`.
 ## History, projects, export
 
 The model is parametric: bodies aren't saved but rebuilt from the history of operations
-(sketch, extrude, fillet, chamfer, body operations, delete). The **History** bar at the bottom
+(sketch, extrude, fillet, chamfer, shell, revolve, sweep, loft, hole, mirror, pattern, construction
+planes and axes, body operations, delete). The **History** bar at the bottom
 shows them in order. A tap selects an entry, a **double-click** (double tap) edits it, and the
 arrow next to it offers *Edit* / *Delete*:
 
@@ -190,7 +209,7 @@ arrow next to it offers *Edit* / *Delete*:
   it was made – the bodies built from it (and everything later, dimmed on the bar) disappear
   until the sketch is finished, then rebuild by themselves;
 - an operation with a value opens the value field with a live preview of the whole model (`Esc`
-  restores it); the camera frames the model and, when it looks exactly along or across the
+  restores it; a hole or a pattern asks its values in turn); the camera frames the model and, when it looks exactly along or across the
   operation's direction, switches to an isometric view. An operation whose input is gone (e.g. a
   region after a sketch change) is shown in red with an explanation in the hint, and is skipped.
 
@@ -244,7 +263,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - **Radial menu**: a long press of the pen (half a second without moving), a click of its
   barrel button or a right click opens the tools of the current mode in a ring around the
   pointer (in a sketch: Select, Freehand, Line, Rectangle, Circle, Arc, Trim, Dimension, Undo,
-  Finish; in the model: Select, New / Edit Sketch, Extrude, Fillet, Chamfer, Shell, Undo, Fit).
+  Finish; in the model: Select, New / Edit Sketch, Extrude, Revolve, Hole, Fillet, Shell, Undo, Fit).
   Tap an item, or after a long press slide onto one and lift; a tap elsewhere or `Esc` closes it.
 - **Scribble to delete**: in Select (from empty space) and Freehand, scribbling back and forth
   over curves, dimensions or relation glyphs deletes them (one undo step).
@@ -272,7 +291,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M7** – release basics: CI, AUR / Flatpak packages, file association, autosave and recovery
 - [x] **M8** – pen first: freehand shape recognition, radial menu, touch gestures, scribble to delete, hover preview
 - [x] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns, projection, reference images
-- [ ] **M10** – solid features: revolve, sweep, loft, patterns, holes, construction planes
+- [x] **M10** – solid features: revolve, sweep, loft, mirror, patterns, holes, construction planes
 - [ ] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
 - [ ] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export
 - [ ] **M13** – drawings: views, dimensions, PDF / SVG export
