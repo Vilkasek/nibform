@@ -339,10 +339,11 @@ void MainWindow::setScrollZooms(bool zooms)
         action->setChecked(true);
 }
 
-void MainWindow::bindable(QAction* action, const QString& id, const QString& group)
+void MainWindow::bindable(QAction* action, const QString& id, const QString& group, const char* context)
 {
     action->setObjectName(QStringLiteral("key:") + id);
     action->setProperty("shortcutGroup", group);
+    action->setProperty("shortcutContext", QString::fromLatin1(context));
 }
 
 void MainWindow::applyShortcuts()
@@ -391,6 +392,7 @@ void MainWindow::editShortcuts()
         text.remove(QLatin1Char('&'));
         const QList<QKeySequence> defaults = m_defaultShortcuts.count(id) ? m_defaultShortcuts[id] : QList<QKeySequence>{};
         entries.push_back({id, text, action->property("shortcutGroup").toString(),
+                           action->property("shortcutContext").toString(),
                            defaults.isEmpty() ? QKeySequence() : defaults.front(), action->shortcut()});
     }
     std::stable_sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.group < b.group; });
@@ -688,7 +690,8 @@ void MainWindow::buildActions()
         connect(action, &QAction::triggered, this, [this, kind] { m_editor->setTool(kind); });
         m_toolActions[kind] = action;
         bindable(action, QStringLiteral("tool.") + toolId(kind),
-                 kind == ToolKind::Select ? tr("Edit") : isSketchTool(kind) ? tr("Sketch") : tr("Model"));
+                 kind == ToolKind::Select ? tr("Edit") : isSketchTool(kind) ? tr("Sketch") : tr("Model"),
+                 kind == ToolKind::Select ? "global" : isSketchTool(kind) ? "sketch" : "model");
         return action;
     };
     QAction* select = makeTool(ToolKind::Select, tr("Select"), QKeySequence(Qt::Key_S), Icon::Select);
@@ -698,7 +701,7 @@ void MainWindow::buildActions()
     m_modelBar->addSeparator();
     m_newSketchAction = new QAction(tr("New Sketch"), m_uiRoot);
     m_newSketchAction->setShortcut(QKeySequence(Qt::Key_K));
-    bindable(m_newSketchAction, QStringLiteral("model.newSketch"), tr("Model"));
+    bindable(m_newSketchAction, QStringLiteral("model.newSketch"), tr("Model"), "model");
     iconize(m_newSketchAction, Icon::NewSketch);
     m_newSketchAction->setToolTip(tr("New Sketch (K): on the selected flat face, otherwise on the ground; "
                                      "the arrow next to it picks the plane"));
@@ -849,9 +852,9 @@ void MainWindow::buildActions()
     m_sketchBar->addAction(select);
     m_sketchBar->addSeparator();
     m_sketchBar->addAction(tool(ToolKind::Line, tr("Line"), QKeySequence(Qt::Key_L), Icon::Line));
-    m_sketchBar->addAction(tool(ToolKind::Freehand, tr("Freehand"), QKeySequence(Qt::Key_P), Icon::Freehand));
+    m_sketchBar->addAction(tool(ToolKind::Freehand, tr("Freehand"), QKeySequence(Qt::Key_W), Icon::Freehand));
     m_toolActions[ToolKind::Freehand]->setToolTip(
-        tr("Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); "
+        tr("Freehand (W): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); "
            "scribble over something to delete it"));
     group({tool(ToolKind::Rectangle, tr("Rectangle"), QKeySequence(Qt::Key_R), Icon::Rectangle),
            tool(ToolKind::Polygon, tr("Polygon"), QKeySequence(Qt::SHIFT | Qt::Key_P), Icon::Polygon),
@@ -883,7 +886,7 @@ void MainWindow::buildActions()
                                                   &SketchEditor::toggleConstruction);
     sketchMenu->addAction(m_constructionAction);
     m_constructionAction->setShortcut(QKeySequence(Qt::Key_Q));
-    bindable(m_constructionAction, QStringLiteral("sketch.construction"), tr("Sketch"));
+    bindable(m_constructionAction, QStringLiteral("sketch.construction"), tr("Sketch"), "sketch");
     m_constructionAction->setToolTip(tr("Construction (Q): the selected curves become reference geometry "
                                         "(dashed, never bounding a region), or back to regular"));
     iconize(m_constructionAction, Icon::Construction);
@@ -1016,11 +1019,11 @@ void MainWindow::buildActions()
         iconize(svg, Icon::Import);
         QAction* printing = m_drawingBar->addAction(tr("Print"), m_drawingWidget, &DrawingWidget::print);
         printing->setShortcut(QKeySequence::Print);
-        bindable(printing, QStringLiteral("drawing.print"), tr("Drawing"));
+        bindable(printing, QStringLiteral("drawing.print"), tr("Drawing"), "drawing");
         iconize(printing, Icon::Drawing);
     }
     m_closeSketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
-    bindable(m_closeSketchAction, QStringLiteral("sketch.finish"), tr("Sketch"));
+    bindable(m_closeSketchAction, QStringLiteral("sketch.finish"), tr("Sketch"), "sketch");
     m_closeSketchAction->setToolTip(tr("Back to the model (Ctrl+Enter)"));
     iconize(m_closeSketchAction, Icon::CloseSketch);
     if (QWidget* button = m_sketchBar->widgetForAction(m_closeSketchAction))
@@ -1239,7 +1242,7 @@ void MainWindow::buildActions()
         action->setToolTip(QStringLiteral("%1 (%2)\n%3").arg(name, key.toString(QKeySequence::NativeText), help));
         connect(action, &QAction::triggered, this, [this, command] { m_editor->applyConstraint(command); });
         m_constraintActions[command] = action;
-        bindable(action, QStringLiteral("constraint.") + constraintId(command), tr("Constraints"));
+        bindable(action, QStringLiteral("constraint.") + constraintId(command), tr("Constraints"), "sketch");
         iconize(action, command);
     };
     addConstraint(ConstraintCommand::Dimension, tr("Dimension"), Qt::Key_D,

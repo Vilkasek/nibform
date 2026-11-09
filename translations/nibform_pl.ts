@@ -450,10 +450,6 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Odręcznie</translation>
     </message>
     <message>
-        <source>Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it</source>
-        <translation>Odręcznie (P): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); zamaż coś, by to usunąć</translation>
-    </message>
-    <message>
         <source>Polygon</source>
         <translation>Wielokąt</translation>
     </message>
@@ -664,6 +660,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Axis: along a straight edge, through a round one's center, or through two corners</source>
         <translation>Oś: wzdłuż prostej krawędzi, przez środek okrągłej albo przez dwa narożniki</translation>
+    </message>
+    <message>
+        <source>Freehand (W): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it</source>
+        <translation>Odręcznie (W): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); zamaż coś, by to usunąć</translation>
     </message>
     <message>
         <source>Mirror (Shift+M): select curves, then tap the line to mirror them about; the copy stays symmetric</source>
@@ -1646,8 +1646,8 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Przywróć wszystkie</translation>
     </message>
     <message>
-        <source>These keys are used twice here</source>
-        <translation>Te klawisze są tu użyte dwa razy</translation>
+        <source>Also the keys of: %1</source>
+        <translation>To też klawisze akcji: %1</translation>
     </message>
 </context>
 <context>

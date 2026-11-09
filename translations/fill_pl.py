@@ -79,8 +79,8 @@ PL = {
       "Oś: wzdłuż prostej krawędzi, przez środek okrągłej albo przez dwa narożniki",
   "Linear Pattern…": "Szyk liniowy…", "Circular Pattern…": "Szyk kołowy…",
   "Freehand": "Odręcznie",
-  "Freehand (P): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it":
-      "Odręcznie (P): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); "
+  "Freehand (W): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it":
+      "Odręcznie (W): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); "
       "zamaż coś, by to usunąć",
   "Nothing to undo": "Nie ma czego cofnąć", "Nothing to redo": "Nie ma czego ponowić",
   "Undone (two-finger tap)": "Cofnięto (stuknięcie dwoma palcami)",
@@ -285,7 +285,7 @@ PL = {
  "ShortcutsDialog": {
   "Keyboard Shortcuts": "Skróty klawiszowe", "Search actions or keys…": "Szukaj akcji albo klawiszy…",
   "Action": "Akcja", "Shortcut": "Skrót", "Default": "Domyślny", "Back to %1": "Przywróć %1", "none": "brak",
-  "Reset All": "Przywróć wszystkie", "These keys are used twice here": "Te klawisze są tu użyte dwa razy",
+  "Reset All": "Przywróć wszystkie", "Also the keys of: %1": "To też klawisze akcji: %1",
  },
  "SketchEditor": {
   "Reference": "Odniesienie", "Import": "Import", "Imported %1 as a reference": "Zaimportowano %1 jako odniesienie",

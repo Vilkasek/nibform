@@ -102,17 +102,21 @@ void ShortcutsDialog::filter(const QString& text)
 
 void ShortcutsDialog::markConflicts()
 {
-    // The same keys twice in one group can't both work.
-    std::map<std::pair<QString, QString>, int> uses;
+    // Keys that two actions would answer at the same time: then neither does. Actions of
+    // different modes (a sketch tool, a model tool) may share keys.
+    auto together = [](const QString& a, const QString& b) {
+        return a == b || a == QLatin1String("global") || b == QLatin1String("global");
+    };
     for (std::size_t i = 0; i < m_entries.size(); ++i) {
         const QKeySequence keys = m_edits[i]->keySequence();
-        if (!keys.isEmpty())
-            ++uses[{m_entries[i].group, keys.toString(QKeySequence::PortableText)}];
-    }
-    for (std::size_t i = 0; i < m_entries.size(); ++i) {
-        const QKeySequence keys = m_edits[i]->keySequence();
-        const bool clash = !keys.isEmpty() && uses[{m_entries[i].group, keys.toString(QKeySequence::PortableText)}] > 1;
-        m_items[i]->setForeground(0, clash ? QBrush(QColor(220, 38, 38)) : QBrush());
-        m_items[i]->setToolTip(0, clash ? tr("These keys are used twice here") : QString());
+        QString other;
+        for (std::size_t j = 0; j < m_entries.size() && !keys.isEmpty(); ++j) {
+            if (j != i && m_edits[j]->keySequence() == keys && together(m_entries[i].context, m_entries[j].context)) {
+                other = m_entries[j].name;
+                break;
+            }
+        }
+        m_items[i]->setForeground(0, other.isEmpty() ? QBrush() : QBrush(QColor(220, 38, 38)));
+        m_items[i]->setToolTip(0, other.isEmpty() ? QString() : tr("Also the keys of: %1").arg(other));
     }
 }

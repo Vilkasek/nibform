@@ -65,7 +65,8 @@ private:
     void setUnits(LengthUnit unit);
     // Keyboard shortcuts the user can change: actions get a stable id (and a group for the
     // shortcuts window); saved changes are put on after every UI build.
-    void bindable(QAction* action, const QString& id, const QString& group);
+    // `context`: "global", or the mode it works in ("sketch", "model", "drawing").
+    void bindable(QAction* action, const QString& id, const QString& group, const char* context = "global");
     void applyShortcuts();
     void editShortcuts();
     void setScrollZooms(bool zooms);

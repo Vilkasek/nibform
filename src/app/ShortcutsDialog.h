@@ -15,8 +15,8 @@ class QKeySequenceEdit;
 
 // Keyboard shortcuts, grouped, with a search box: click a field and press the new keys,
 // clear it to have none, or put one (or all) back to the default. Shortcuts of different
-// modes may share keys (a sketch tool and a model tool); the same keys twice in one group
-// are marked.
+// modes may share keys (a sketch tool and a model tool); keys that would work twice at
+// the same time are marked.
 class ShortcutsDialog : public QDialog
 {
     Q_OBJECT
@@ -27,6 +27,7 @@ public:
         QString id;
         QString name;
         QString group;
+        QString context; // "global", or the mode it works in: the same keys may serve two modes
         QKeySequence defaultKeys;
         QKeySequence keys;
     };
