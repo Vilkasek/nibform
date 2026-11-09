@@ -1,8 +1,8 @@
 # Roadmap
 
-M0–M7 and i18n are done (see the README). Next, roughly in order: first make Nibform
-something others can install and trust with their work, then lean into what a pen does
-best, then widen what can be modelled.
+M0–M7, M9 and i18n are done (see the README). Next, roughly in order: widen what can be
+modelled, then make big models fast, then lean into what a pen does best. The numbers
+are names, not the order: M8 (pen first) is parked until after M14.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -22,22 +22,7 @@ Make it installable and safe to use for real work.
 **Done when:** a fresh Arch install can `yay -S nibform`, open a `.nibform` from the file
 manager, and get the work back after `kill -9`.
 
-## M8 – Pen first
-
-What makes a pen faster than a mouse.
-
-- Shape recognition: draw a rough line, circle, arc or rectangle freehand and get the
-  clean, constrained version (a *Freehand* tool, and optionally in Line)
-- A radial menu on long press or the pen's barrel button: the tools of the current mode
-  in reach without the toolbar
-- Touch gestures: two-finger tap undoes, three-finger tap redoes
-- Scribble over geometry to delete it
-- Pen hover shows what a tap would pick, before touching
-
-**Done when:** a simple bracket can be sketched, dimensioned and extruded without
-touching the toolbar.
-
-## M9 – Sketch toolkit
+## M9 – Sketch toolkit ✓
 
 The sketch tools a real part needs.
 
@@ -109,6 +94,21 @@ Staying smooth as models grow.
 - Fuzz tests for the project loader, more tests for features and picking
 
 **Done when:** a model with 100+ features stays interactive while editing an early one.
+
+## M8 – Pen first
+
+What makes a pen faster than a mouse.
+
+- Shape recognition: draw a rough line, circle, arc or rectangle freehand and get the
+  clean, constrained version (a *Freehand* tool, and optionally in Line)
+- A radial menu on long press or the pen's barrel button: the tools of the current mode
+  in reach without the toolbar
+- Touch gestures: two-finger tap undoes, three-finger tap redoes
+- Scribble over geometry to delete it
+- Pen hover shows what a tap would pick, before touching
+
+**Done when:** a simple bracket can be sketched, dimensioned and extruded without
+touching the toolbar.
 
 ## Later
 

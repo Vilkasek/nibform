@@ -126,6 +126,11 @@ private:
     QToolButton* m_ctxPull = nullptr;
     QToolButton* m_ctxShell = nullptr;
     QAction* m_constructionAction = nullptr;
+    QMenu* m_sketchMenu = nullptr;
+    QMenu* m_imageMenu = nullptr;
+    QAction* m_removeImageAction = nullptr;
+    std::vector<QAction*> m_imageItems; // need an image to work on
+    std::vector<QToolButton*> m_groupButtons; // sketch bar buttons with a menu of tools
     ThemeMode m_theme = ThemeMode::System;
     bool m_applyingTheme = false;
     QAction* m_undoAction = nullptr;

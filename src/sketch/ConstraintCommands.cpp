@@ -54,15 +54,20 @@ CommandResult applyCommand(ConstraintCommand command, Sketch& sketch, const Sket
 {
     std::vector<const SketchEntity*> lines;
     std::vector<const SketchEntity*> rounds;
+    std::vector<const SketchEntity*> others; // ellipses and splines: only Fix takes them
     for (EntityId id : selection.entities) {
         const SketchEntity* e = sketch.entity(id);
         if (isLine(e))
             lines.push_back(e);
         else if (isRound(e))
             rounds.push_back(e);
+        else if (e)
+            others.push_back(e);
     }
     const std::vector<PointId> points(selection.points.begin(), selection.points.end());
     const std::size_t entityCount = lines.size() + rounds.size();
+    if (!others.empty() && command != ConstraintCommand::Fix)
+        return {};
 
     std::vector<SketchConstraint> add;
     auto relation = [](ConstraintKind kind, EntityId e1, EntityId e2 = kNoId) {
@@ -168,12 +173,10 @@ CommandResult applyCommand(ConstraintCommand command, Sketch& sketch, const Sket
         break;
     case ConstraintCommand::Fix: {
         std::set<PointId> pins(points.begin(), points.end());
-        for (const auto* group : {&lines, &rounds}) {
+        for (const auto* group : {&lines, &rounds, &others}) {
             for (const SketchEntity* e : *group) {
-                for (PointId p : {e->a, e->b, e->c}) {
-                    if (p != kNoId)
-                        pins.insert(p);
-                }
+                for (PointId p : e->pointIds())
+                    pins.insert(p);
             }
         }
         for (PointId p : pins) {
@@ -184,6 +187,40 @@ CommandResult applyCommand(ConstraintCommand command, Sketch& sketch, const Sket
         }
         break;
     }
+    case ConstraintCommand::HorizontalDimension:
+    case ConstraintCommand::VerticalDimension: {
+        const ConstraintKind kind = command == ConstraintCommand::HorizontalDimension
+                                      ? ConstraintKind::HorizontalDistance
+                                      : ConstraintKind::VerticalDistance;
+        SketchConstraint c;
+        if (lines.size() == 1 && rounds.empty() && points.empty()) {
+            c = relation(kind, lines[0]->id);
+            c.p1 = lines[0]->a;
+            c.p2 = lines[0]->b;
+        } else if (entityCount == 0 && points.size() == 2) {
+            c = relation(kind, kNoId);
+            c.p1 = points[0];
+            c.p2 = points[1];
+        } else {
+            break;
+        }
+        // The label goes beyond both points, on the side away from the rest of the sketch.
+        c.offset = labelOffset;
+        c.value = measure(sketch, c);
+        add.push_back(c);
+        break;
+    }
+    case ConstraintCommand::Symmetric:
+        if (lines.size() == 1 && rounds.empty() && points.size() == 2) {
+            const SketchEntity& axis = *lines[0];
+            if (axis.usesPoint(points[0]) || axis.usesPoint(points[1]))
+                break;
+            SketchConstraint c = relation(ConstraintKind::Symmetric, axis.id);
+            c.p1 = points[0];
+            c.p2 = points[1];
+            add.push_back(c);
+        }
+        break;
     case ConstraintCommand::Dimension: {
         SketchConstraint c;
         if (lines.size() == 1 && rounds.empty() && points.empty()) {

@@ -116,7 +116,8 @@ void SketchEditor::updatePreviewStyle()
     // Trim and offset highlight the curves they act on thickly (trim in red, as it deletes),
     // so the highlight shows around the sketch lines it sits on. The rest preview in blue.
     const bool trim = m_toolKind == ToolKind::Trim;
-    const bool thick = trim || m_toolKind == ToolKind::Offset;
+    const bool thick = trim || m_toolKind == ToolKind::Offset || m_toolKind == ToolKind::Mirror
+                    || m_toolKind == ToolKind::LinearPattern || m_toolKind == ToolKind::CircularPattern;
     m_previewPrs->setStyle({m_colors.preview, trim ? m_colors.trim : m_colors.preview,
                             (thick ? 4.0 : 2.0) * m_viewer->devicePixelRatioF(), Aspect_TOL_SOLID, 0.0});
 }
@@ -145,13 +146,18 @@ void SketchEditor::setTool(ToolKind kind)
     m_valueEditor->cancel(); // may call back into the old tool, so before it goes
     if (m_tool)
         m_tool->cancel();
+    const SketchSelection picked = m_selection; // mirror and patterns start from it
     m_toolKind = kind;
     m_tool = makeTool(kind, *this);
+    if (m_tool)
+        m_tool->begin(picked);
     updatePreviewStyle();
     m_snap.reset();
     m_hover = {};
     if (kind != ToolKind::Select)
         setSelection({});
+    if (mode() == EditorMode::Sketch)
+        updateSelectionModes(); // Project picks body edges
 
     if (mode() == EditorMode::Model) {
         // Picks carry over where they make sense: edges picked in Select into the rounding
@@ -391,14 +397,27 @@ void SketchEditor::deleteSelection()
         return;
     const SketchSelection doomed = m_selection;
     std::set<EntityId> entities = doomed.entities;
-    for (PointId p : doomed.points) {
-        for (EntityId e : sketch().entitiesAt(p))
-            entities.insert(e);
+    // A spline loses just the picked points it passes through, while it keeps enough.
+    std::vector<std::pair<EntityId, PointId>> thinned;
+    {
+        Sketch probe = sketch();
+        for (PointId p : doomed.points) {
+            for (EntityId e : probe.entitiesAt(p)) {
+                const SketchEntity* ent = probe.entity(e);
+                const bool inner = ent->kind == EntityKind::Spline && ent->a != p && ent->b != p;
+                if (inner && !entities.count(e) && probe.entitiesAt(p).size() == 1 && probe.removeThroughPoint(e, p))
+                    thinned.emplace_back(e, p);
+                else
+                    entities.insert(e);
+            }
+        }
     }
     setSelection({});
     m_hover = {};
     commit([&](Sketch& s) {
         s.removeConstraints(doomed.constraints);
+        for (const auto& [spline, point] : thinned)
+            s.removeThroughPoint(spline, point);
         s.removeEntities(entities);
     });
     m_viewer->update();
@@ -621,6 +640,8 @@ void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anc
     case ConstraintKind::Distance:
     case ConstraintKind::PointLineDistance:
     case ConstraintKind::LineDistance:
+    case ConstraintKind::HorizontalDistance:
+    case ConstraintKind::VerticalDistance:
     case ConstraintKind::Radius:
     case ConstraintKind::Diameter:
         break;
@@ -642,6 +663,10 @@ void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anc
             return tr("Diameter [mm]");
         case ConstraintKind::Angle:
             return tr("Angle [°]");
+        case ConstraintKind::HorizontalDistance:
+            return tr("Horizontal distance [mm]");
+        case ConstraintKind::VerticalDistance:
+            return tr("Vertical distance [mm]");
         default:
             return tr("Distance [mm]");
         }
@@ -798,6 +823,10 @@ bool SketchEditor::press(const PointerEvent& e)
         m_valueEditor->cancel();
         return true;
     }
+    if (m_toolKind == ToolKind::Project) {
+        projectAt(e);
+        return true;
+    }
     if (!m_tool)
         return selectPress(e);
 
@@ -823,6 +852,14 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
     }
     if (mode() == EditorMode::Model)
         return modelMove(e, pressed);
+    if (m_toolKind == ToolKind::Project) {
+        const Hit hit = modelHitAt(e); // highlights the edge / face under the pointer
+        const bool changed = !(hit == m_hover);
+        m_hover = hit;
+        if (changed)
+            updateHint();
+        return true;
+    }
     if (!m_tool)
         return selectMove(e, pressed);
 
@@ -848,6 +885,8 @@ bool SketchEditor::release(const PointerEvent& e)
     }
     if (mode() == EditorMode::Model)
         return modelRelease(e);
+    if (m_toolKind == ToolKind::Project)
+        return true;
     if (!m_tool)
         return selectRelease(e);
 
@@ -911,10 +950,8 @@ bool SketchEditor::selectMove(const PointerEvent& e, bool pressed)
         if (m_pressHit.kind == Hit::Kind::Point) {
             m_dragStart[m_pressHit.id] = s.pos(m_pressHit.id);
         } else if (const SketchEntity* ent = s.entity(m_pressHit.id)) {
-            for (PointId p : {ent->a, ent->b, ent->c}) {
-                if (p != kNoId)
-                    m_dragStart[p] = s.pos(p);
-            }
+            for (PointId p : ent->pointIds())
+                m_dragStart[p] = s.pos(p);
         }
         m_valueEditor->cancel();
         m_undo.push_back(snapshot());
@@ -1033,7 +1070,7 @@ void SketchEditor::confirm()
         m_valueEditor->accept();
         return;
     }
-    if (m_tool && m_tool->cancel()) {
+    if (m_tool && m_tool->confirm()) {
         refreshOverlay();
         updateHint();
         m_viewer->update();
@@ -1107,6 +1144,7 @@ void SketchEditor::refreshSketches()
         slot.prs->setDrawList(tessellate(slot.sketch, accent, defined, accentPoints));
         ctx->Redisplay(slot.prs, false);
     }
+    refreshImage();
 }
 
 void SketchEditor::refreshOverlay()
@@ -1173,6 +1211,13 @@ void SketchEditor::updateHint()
                                        "New Sketch to draw"));
             return;
         }
+    }
+    if (m_toolKind == ToolKind::Project) {
+        emit hintChanged(m_bodies.empty() ? tr("Project: there are no bodies to project")
+                         : m_hover.kind == Hit::Kind::Edge ? tr("Project: tap to copy this edge into the sketch")
+                         : m_hover.kind == Hit::Kind::Face ? tr("Project: tap to copy this face's outline into the sketch")
+                                                           : tr("Project: tap a body edge or face"));
+        return;
     }
     if (m_tool) {
         QString hint = m_tool->hint();
@@ -1275,6 +1320,29 @@ void SketchEditor::paintOverlay(QPainter& p)
             drawArrow(p, da, db, ink);
             drawArrow(p, db, da, ink);
             badge(c.id, (da + db) / 2.0, dimensionText(c));
+            break;
+        }
+        case ConstraintKind::HorizontalDistance:
+        case ConstraintKind::VerticalDistance: {
+            // Extension lines straight out to a dimension line along X (or Y), past both points.
+            const bool horizontal = c.kind == ConstraintKind::HorizontalDistance;
+            const gp_Pnt2d a = s.pos(c.p1), b = s.pos(c.p2);
+            const gp_Vec2d out = horizontal ? gp_Vec2d(0.0, 1.0) : gp_Vec2d(1.0, 0.0);
+            const double level = horizontal ? std::max(a.Y(), b.Y()) + c.offset : std::max(a.X(), b.X()) + c.offset;
+            auto onLevel = [&](const gp_Pnt2d& p) {
+                return horizontal ? gp_Pnt2d(p.X(), level) : gp_Pnt2d(level, p.Y());
+            };
+            const gp_Pnt2d da = onLevel(a), db = onLevel(b);
+            if (da.Distance(db) < 1e-9)
+                break;
+            const QPointF sa = screen(a), sb = screen(b), sda = screen(da), sdb = screen(db);
+            const QPointF overshoot = unit(screen(da.Translated(out)) - sda) * 5.0;
+            p.drawLine(sa, sda + overshoot);
+            p.drawLine(sb, sdb + overshoot);
+            p.drawLine(sda, sdb);
+            drawArrow(p, sda, sdb, ink);
+            drawArrow(p, sdb, sda, ink);
+            badge(c.id, (sda + sdb) / 2.0, dimensionText(c));
             break;
         }
         case ConstraintKind::PointLineDistance:
@@ -1396,6 +1464,9 @@ void SketchEditor::paintOverlay(QPainter& p)
         case ConstraintKind::Vertical:
             groups[c.e1 != kNoId && s.entity(c.e1) ? std::pair(0, c.e1) : std::pair(2, c.id)].push_back(&c);
             break;
+        case ConstraintKind::Symmetric:
+            groups[{2, c.id}].push_back(&c); // between its two points, on the axis
+            break;
         case ConstraintKind::PointOnEntity:
         case ConstraintKind::Midpoint:
         case ConstraintKind::Fixed:
@@ -1426,6 +1497,19 @@ void SketchEditor::paintOverlay(QPainter& p)
         const SketchEntity* e = s.entity(key.second);
         if (!e)
             return std::nullopt;
+        if (!e->isClassic()) {
+            // Ellipses and splines: at the middle of the drawn curve.
+            const std::vector<gp_Pnt2d> pts = s.polyline(*e);
+            if (pts.size() < 2)
+                return std::nullopt;
+            const std::size_t i = pts.size() / 2;
+            const QPointF at = screen(pts[i]);
+            const QPointF t = unit(screen(pts[i]) - screen(pts[i - 1]));
+            QPointF n(-t.y(), t.x());
+            if (n.y() > 0)
+                n = -n;
+            return Anchor{at, t, n * 16.0};
+        }
         if (e->kind == EntityKind::Line) {
             const QPointF a = screen(s.pos(e->a)), b = screen(s.pos(e->b));
             const QPointF t = unit(b - a);

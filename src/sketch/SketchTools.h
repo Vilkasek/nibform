@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sketch/ConstraintCommands.h"
 #include "sketch/DrawList.h"
 #include "sketch/Sketch.h"
 #include "sketch/Snapper.h"
@@ -34,12 +35,17 @@ public:
     explicit SketchTool(SketchToolHost& host) : m_host(host) {}
     virtual ~SketchTool() = default;
 
+    // The selection made before the tool was picked (mirror and patterns work on it).
+    virtual void begin(const SketchSelection& selection) {}
     virtual void press(const SnapResult& s) = 0;
     // `dragged` is true when the pointer moved noticeably since the press.
     virtual void release(const SnapResult& s, bool dragged) = 0;
     virtual void hover(const SnapResult& s) { m_cursor = s.pos; }
     // Drops the operation in progress; returns false if there was none.
     virtual bool cancel() = 0;
+    // Enter: finishes what is in progress (a polyline, a spline) or moves to the next
+    // step; false if there was nothing to do.
+    virtual bool confirm() { return cancel(); }
     virtual void preview(DrawList& out) const = 0;
     // Points the snapper should offer horizontal/vertical alignment against.
     virtual std::vector<gp_Pnt2d> anchors() const = 0;
@@ -64,7 +70,13 @@ protected:
 // Sketch tools draw on the open sketch. PushPull, Fillet and Chamfer work on regions
 // and bodies in model mode, so the editor handles them itself, like Select and
 // Dimension (picking, like Select): makeTool() gives no SketchTool for those.
-enum class ToolKind { Select, Line, Rectangle, Circle, Arc, Trim, Offset, Dimension, PushPull, Fillet, Chamfer, Shell };
+// Project picks body edges, so the editor handles it as well.
+enum class ToolKind
+{
+    Select, Line, Rectangle, Circle, Arc, Trim, Offset, Dimension, PushPull, Fillet, Chamfer, Shell,
+    Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
+    Project, Image,
+};
 
 // Whether the tool belongs to sketch mode (Select works in both).
 inline bool isSketchTool(ToolKind kind)

@@ -28,6 +28,11 @@ enum class ConstraintKind
     Angle,    // lines e1, e2, rays leaving `p1` when they share it; signed radians
     PointLineDistance, // point p1 to the infinite line e1; signed (left of e1 is positive)
     LineDistance,      // middle of line e2 to the infinite line e1 (parallel lines); signed
+    HorizontalDistance, // p2.x - p1.x, signed (e1: the line, when it dimensions a line)
+    VerticalDistance,   // p2.y - p1.y, signed (e1 as above)
+
+    // Relations added later (stored by name, so the order here is free)
+    Symmetric, // p1 and p2 mirror each other about line e1
 };
 
 struct SketchConstraint
@@ -47,7 +52,8 @@ inline bool isDimension(ConstraintKind kind)
 {
     return kind == ConstraintKind::Distance || kind == ConstraintKind::Radius
         || kind == ConstraintKind::Diameter || kind == ConstraintKind::Angle
-        || kind == ConstraintKind::PointLineDistance || kind == ConstraintKind::LineDistance;
+        || kind == ConstraintKind::PointLineDistance || kind == ConstraintKind::LineDistance
+        || kind == ConstraintKind::HorizontalDistance || kind == ConstraintKind::VerticalDistance;
 }
 
 // Same relation between the same objects (values are ignored).

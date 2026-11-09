@@ -45,6 +45,8 @@ add_library(nibform_core STATIC
   src/sketch/Offset.h
   src/sketch/Sketch.cpp
   src/sketch/Sketch.h
+  src/sketch/SketchOps.cpp
+  src/sketch/SketchOps.h
   src/sketch/Snapper.cpp
   src/sketch/Snapper.h
   src/sketch/Solver.cpp
@@ -132,7 +134,7 @@ if(NOT NIBFORM_BUILD_TESTS)
 endif()
 
 enable_testing()
-foreach(name sketch solver trim offset model features input)
+foreach(name sketch solver trim offset model features input toolkit)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
   target_link_libraries(test_${name} PRIVATE nibform_core)

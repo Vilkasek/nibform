@@ -26,25 +26,9 @@ DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent, cons
                                     : e.construction      ? list.constructionSegments
                                     : defined.count(e.id) ? list.definedSegments
                                                           : list.segments;
-        switch (e.kind) {
-        case EntityKind::Line:
-            out.push_back({sketch.pos(e.a), sketch.pos(e.b)});
-            break;
-        case EntityKind::Circle:
-            appendArc(out, sketch.pos(e.c), e.radius, 0.0, 2.0 * M_PI);
-            break;
-        case EntityKind::Arc: {
-            const gp_Pnt2d c = sketch.pos(e.c);
-            const gp_Pnt2d s = sketch.pos(e.a);
-            const gp_Pnt2d t = sketch.pos(e.b);
-            const double a0 = std::atan2(s.Y() - c.Y(), s.X() - c.X());
-            double sweep = std::atan2(t.Y() - c.Y(), t.X() - c.X()) - a0;
-            if (sweep <= 0.0)
-                sweep += 2.0 * M_PI;
-            appendArc(out, c, e.radius, a0, sweep);
-            break;
-        }
-        }
+        const std::vector<gp_Pnt2d> pts = sketch.polyline(e);
+        for (std::size_t i = 1; i < pts.size(); ++i)
+            out.push_back({pts[i - 1], pts[i]});
     }
     for (const SketchPoint& p : sketch.points())
         (accentPoints.count(p.id) ? list.accentPoints : list.points).push_back(p.pos);

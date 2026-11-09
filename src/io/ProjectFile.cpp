@@ -34,10 +34,11 @@ std::optional<E> fromName(const QString& name, const std::array<const char*, N>&
     return std::nullopt;
 }
 
-constexpr std::array<const char*, 3> kEntityKinds{"line", "circle", "arc"};
-constexpr std::array<const char*, 16> kConstraintKinds{
-    "horizontal", "vertical", "parallel", "perpendicular", "equal",     "tangent", "concentric", "pointOn",
-    "midpoint",   "fixed",    "distance", "radius",        "diameter", "angle",   "pointLine",  "lineLine"};
+constexpr std::array<const char*, 5> kEntityKinds{"line", "circle", "arc", "ellipse", "spline"};
+constexpr std::array<const char*, 19> kConstraintKinds{
+    "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
+    "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
+    "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
 constexpr std::array<const char*, 7> kFeatureKinds{"sketch",  "extrude", "fillet", "chamfer",
                                                    "combine", "delete",  "shell"};
 constexpr std::array<const char*, 4> kOperations{"auto", "new", "join", "cut"};
@@ -73,13 +74,21 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
     for (const SketchPoint& p : c.points)
         points.append(QJsonObject{{"id", p.id}, {"x", p.pos.X()}, {"y", p.pos.Y()}});
     for (const SketchEntity& e : c.entities) {
-        entities.append(QJsonObject{{"id", e.id},
-                                    {"kind", nameOf(e.kind, kEntityKinds)},
-                                    {"a", e.a},
-                                    {"b", e.b},
-                                    {"c", e.c},
-                                    {"radius", e.radius},
-                                    {"construction", e.construction}});
+        QJsonObject o{{"id", e.id},
+                      {"kind", nameOf(e.kind, kEntityKinds)},
+                      {"a", e.a},
+                      {"b", e.b},
+                      {"c", e.c},
+                      {"radius", e.radius},
+                      {"construction", e.construction}};
+        if (e.kind == EntityKind::Spline) {
+            QJsonArray through;
+            for (PointId p : e.through)
+                through.append(p);
+            o.insert("through", through);
+            o.insert("closed", e.closed);
+        }
+        entities.append(o);
     }
     for (const SketchConstraint& k : c.constraints) {
         constraints.append(QJsonObject{{"id", k.id},
@@ -92,7 +101,7 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
                                        {"target", xy(k.target)},
                                        {"offset", k.offset}});
     }
-    return QJsonObject{
+    QJsonObject out{
         {"id", id},
         {"plane", QJsonObject{{"origin", xyz(plane.Location().XYZ())},
                               {"normal", xyz(plane.Direction().XYZ())},
@@ -102,6 +111,17 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
         {"constraints", constraints},
         {"nextId", c.nextId},
     };
+    if (c.image && c.image->data) {
+        const ReferenceImage& image = *c.image;
+        const QByteArray bytes = QByteArray::fromRawData(image.data->data(), static_cast<qsizetype>(image.data->size()));
+        out.insert("image", QJsonObject{{"data", QString::fromLatin1(bytes.toBase64())},
+                                        {"pixelWidth", image.pixelWidth},
+                                        {"pixelHeight", image.pixelHeight},
+                                        {"corner", xy(image.corner)},
+                                        {"width", image.width},
+                                        {"opacity", image.opacity}});
+    }
+    return out;
 }
 
 std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QString* error)
@@ -122,9 +142,18 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
                 *error = QCoreApplication::translate("ProjectFile", "Unknown curve kind: %1").arg(e.value("kind").toString());
             return std::nullopt;
         }
-        c.entities.push_back({e.value("id").toInt(), *kind, e.value("a").toInt(kNoId), e.value("b").toInt(kNoId),
-                              e.value("c").toInt(kNoId), e.value("radius").toDouble(),
-                              e.value("construction").toBool(false)});
+        SketchEntity entity;
+        entity.id = e.value("id").toInt();
+        entity.kind = *kind;
+        entity.a = e.value("a").toInt(kNoId);
+        entity.b = e.value("b").toInt(kNoId);
+        entity.c = e.value("c").toInt(kNoId);
+        entity.radius = e.value("radius").toDouble();
+        entity.construction = e.value("construction").toBool(false);
+        for (const auto& p : e.value("through").toArray())
+            entity.through.push_back(p.toInt(kNoId));
+        entity.closed = e.value("closed").toBool(false);
+        c.entities.push_back(std::move(entity));
     }
     for (const auto& v : o.value("constraints").toArray()) {
         const QJsonObject k = v.toObject();
@@ -147,6 +176,19 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
         c.constraints.push_back(sc);
     }
     c.nextId = o.value("nextId").toInt(1);
+    if (o.contains("image")) {
+        const QJsonObject i = o.value("image").toObject();
+        const QByteArray bytes = QByteArray::fromBase64(i.value("data").toString().toLatin1());
+        ReferenceImage image;
+        image.data = std::make_shared<const std::string>(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+        image.pixelWidth = i.value("pixelWidth").toInt();
+        image.pixelHeight = i.value("pixelHeight").toInt();
+        image.corner = toXY(i.value("corner"));
+        image.width = i.value("width").toDouble(100.0);
+        image.opacity = i.value("opacity").toDouble(0.5);
+        if (!bytes.isEmpty() && image.pixelWidth > 0 && image.pixelHeight > 0 && image.width > 0.0)
+            c.image = std::move(image);
+    }
     return ProjectData::SketchEntry{o.value("id").toInt(), Sketch(axes, std::move(c))};
 }
 

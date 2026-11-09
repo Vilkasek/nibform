@@ -1,6 +1,9 @@
 #include "sketch/Sketch.h"
 
 #include <ElSLib.hxx>
+#include "sketch/Geometry.h"
+
+#include <Geom2d_BSplineCurve.hxx>
 #include <gp_Pln.hxx>
 
 #include <algorithm>
@@ -27,7 +30,69 @@ double segmentDistance(const gp_Pnt2d& a, const gp_Pnt2d& b, const gp_Pnt2d& p)
     return p.Distance(gp_Pnt2d(a.X() + t * dx, a.Y() + t * dy));
 }
 
+double polylineDistance(const std::vector<gp_Pnt2d>& pts, const gp_Pnt2d& p)
+{
+    if (pts.size() == 1)
+        return p.Distance(pts.front());
+    double best = std::numeric_limits<double>::max();
+    for (std::size_t i = 1; i < pts.size(); ++i)
+        best = std::min(best, segmentDistance(pts[i - 1], pts[i], p));
+    return best;
+}
+
 } // namespace
+
+std::vector<PointId> SketchEntity::pointIds() const
+{
+    std::vector<PointId> out;
+    for (PointId p : {a, b, c}) {
+        if (p != kNoId)
+            out.push_back(p);
+    }
+    for (PointId p : through) {
+        if (std::find(out.begin(), out.end(), p) == out.end())
+            out.push_back(p);
+    }
+    return out;
+}
+
+bool SketchEntity::usesPoint(PointId p) const
+{
+    return p != kNoId && (a == p || b == p || c == p || std::find(through.begin(), through.end(), p) != through.end());
+}
+
+gp_Pnt2d EllipseAxes::at(double t) const
+{
+    return center.Translated(u * std::cos(t) + v * std::sin(t));
+}
+
+EllipseAxes ellipseAxes(const Sketch& sketch, const SketchEntity& e)
+{
+    const gp_Pnt2d c = sketch.pos(e.c);
+    return {c, gp_Vec2d(c, sketch.pos(e.a)), gp_Vec2d(c, sketch.pos(e.b))};
+}
+
+std::vector<gp_Pnt2d> sampleSpline(const std::vector<gp_Pnt2d>& points, bool closed, int perSpan)
+{
+    const Handle(Geom2d_BSplineCurve) curve = interpolateSpline(points, closed);
+    if (curve.IsNull())
+        return {};
+    const double t0 = curve->FirstParameter(), t1 = curve->LastParameter();
+    const int spans = curve->NbKnots() - 1;
+    const int n = curve->Degree() == 1 ? spans : std::max(8, spans * perSpan);
+    std::vector<gp_Pnt2d> out;
+    out.reserve(static_cast<std::size_t>(n) + 1);
+    if (curve->Degree() == 1) {
+        for (int i = 1; i <= curve->NbPoles(); ++i)
+            out.push_back(curve->Pole(i));
+        if (curve->IsPeriodic())
+            out.push_back(curve->Pole(1));
+        return out;
+    }
+    for (int i = 0; i <= n; ++i)
+        out.push_back(curve->Value(t0 + (t1 - t0) * i / n));
+    return out;
+}
 
 Sketch::Sketch(const gp_Ax3& plane)
     : m_plane(plane)
@@ -40,6 +105,7 @@ Sketch::Sketch(const gp_Ax3& plane, Contents contents)
     , m_entities(std::move(contents.entities))
     , m_constraints(std::move(contents.constraints))
     , m_nextId(contents.nextId)
+    , m_image(std::move(contents.image))
 {
 }
 
@@ -118,6 +184,50 @@ EntityId Sketch::addArc(PointId center, PointId start, PointId end)
     return e.id;
 }
 
+EntityId Sketch::addEllipse(PointId center, PointId axisA, PointId axisB)
+{
+    SketchEntity e;
+    e.id = m_nextId++;
+    e.kind = EntityKind::Ellipse;
+    e.c = center;
+    e.a = axisA;
+    e.b = axisB;
+    m_entities.push_back(e);
+    return e.id;
+}
+
+EntityId Sketch::addSpline(std::vector<PointId> points, bool closed)
+{
+    SketchEntity e;
+    e.id = m_nextId++;
+    e.kind = EntityKind::Spline;
+    e.closed = closed;
+    if (!closed && !points.empty()) {
+        e.a = points.front();
+        e.b = points.back();
+    }
+    e.through = std::move(points);
+    m_entities.push_back(e);
+    return e.id;
+}
+
+bool Sketch::removeThroughPoint(EntityId spline, PointId point)
+{
+    SketchEntity* e = entity(spline);
+    if (!e || e->kind != EntityKind::Spline || e->through.size() <= (e->closed ? 3u : 2u))
+        return false;
+    auto it = std::find(e->through.begin(), e->through.end(), point);
+    if (it == e->through.end())
+        return false;
+    e->through.erase(it);
+    if (!e->closed) {
+        e->a = e->through.front();
+        e->b = e->through.back();
+    }
+    removeEntities({}); // the point may be unused now
+    return true;
+}
+
 const SketchConstraint* Sketch::findDuplicate(const SketchConstraint& c) const
 {
     // Horizontal/vertical are about the two points, whether or not they came from a line.
@@ -166,10 +276,8 @@ void Sketch::removeEntities(const std::set<EntityId>& ids)
 
     std::set<PointId> used;
     for (const SketchEntity& e : m_entities) {
-        for (PointId p : {e.a, e.b, e.c}) {
-            if (p != kNoId)
-                used.insert(p);
-        }
+        for (PointId p : e.pointIds())
+            used.insert(p);
     }
     std::erase_if(m_points, [&](const SketchPoint& p) { return used.count(p.id) == 0; });
 
@@ -194,8 +302,18 @@ bool Sketch::mergePoints(PointId keep, PointId drop)
 
     for (const SketchEntity& e : m_entities) {
         const PointId a = remap(e.a), b = remap(e.b), c = remap(e.c);
-        const bool collapses = (e.kind == EntityKind::Line && a == b)
-                            || (e.kind == EntityKind::Arc && (a == b || a == c || b == c));
+        const bool threePoints = e.kind == EntityKind::Arc || e.kind == EntityKind::Ellipse;
+        bool collapses = (e.kind == EntityKind::Line && a == b) || (threePoints && (a == b || a == c || b == c));
+        if (e.kind == EntityKind::Spline) {
+            // Neighbouring through points can't become one (the ends of an open spline can).
+            const std::size_t n = e.through.size();
+            for (std::size_t i = 0; i + 1 < n; ++i) {
+                if (remap(e.through[i]) == remap(e.through[i + 1]))
+                    collapses = true;
+            }
+            if (e.closed && n > 1 && remap(e.through.front()) == remap(e.through.back()))
+                collapses = true;
+        }
         if (collapses)
             return false;
     }
@@ -204,6 +322,8 @@ bool Sketch::mergePoints(PointId keep, PointId drop)
         e.a = remap(e.a);
         e.b = remap(e.b);
         e.c = remap(e.c);
+        for (PointId& p : e.through)
+            p = remap(p);
     }
     std::erase_if(m_points, [&](const SketchPoint& p) { return p.id == drop; });
 
@@ -217,6 +337,9 @@ bool Sketch::mergePoints(PointId keep, PointId drop)
             case ConstraintKind::Horizontal:
             case ConstraintKind::Vertical:
             case ConstraintKind::Distance:
+            case ConstraintKind::HorizontalDistance:
+            case ConstraintKind::VerticalDistance:
+            case ConstraintKind::Symmetric:
                 return c.p1 == c.p2;
             case ConstraintKind::PointOnEntity:
             case ConstraintKind::PointLineDistance:
@@ -239,6 +362,7 @@ void Sketch::clear()
     m_points.clear();
     m_entities.clear();
     m_constraints.clear();
+    m_image.reset();
 }
 
 void Sketch::setPos(PointId id, const gp_Pnt2d& pos)
@@ -269,7 +393,7 @@ std::vector<EntityId> Sketch::entitiesAt(PointId point) const
 {
     std::vector<EntityId> out;
     for (const SketchEntity& e : m_entities) {
-        if (e.a == point || e.b == point || e.c == point)
+        if (e.usesPoint(point))
             out.push_back(e.id);
     }
     return out;
@@ -311,8 +435,56 @@ double Sketch::distanceTo(const SketchEntity& e, const gp_Pnt2d& p) const
             return std::abs(p.Distance(center) - e.radius);
         return std::min(p.Distance(pos(e.a)), p.Distance(pos(e.b)));
     }
+    case EntityKind::Ellipse:
+    case EntityKind::Spline:
+        return polylineDistance(polyline(e), p);
     }
     return std::numeric_limits<double>::max();
+}
+
+std::vector<gp_Pnt2d> Sketch::polyline(const SketchEntity& e) const
+{
+    // ~96 segments per full turn keeps curves smooth at any zoom we care about.
+    constexpr int kTurn = 96;
+    std::vector<gp_Pnt2d> out;
+    auto arc = [&](const gp_Pnt2d& c, double r, double a0, double sweep) {
+        const int n = std::max(4, static_cast<int>(std::ceil(std::abs(sweep) / (2.0 * M_PI) * kTurn)));
+        for (int i = 0; i <= n; ++i) {
+            const double t = a0 + sweep * i / n;
+            out.emplace_back(c.X() + r * std::cos(t), c.Y() + r * std::sin(t));
+        }
+    };
+    switch (e.kind) {
+    case EntityKind::Line:
+        out = {pos(e.a), pos(e.b)};
+        break;
+    case EntityKind::Circle:
+        arc(pos(e.c), e.radius, 0.0, 2.0 * M_PI);
+        break;
+    case EntityKind::Arc: {
+        const gp_Pnt2d c = pos(e.c);
+        const double a0 = ccwAngle(c, pos(e.a));
+        double sweep = ccwAngle(c, pos(e.b)) - a0;
+        if (sweep <= 0.0)
+            sweep += 2.0 * M_PI;
+        arc(c, c.Distance(pos(e.a)), a0, sweep);
+        break;
+    }
+    case EntityKind::Ellipse: {
+        const EllipseAxes axes = ellipseAxes(*this, e);
+        for (int i = 0; i <= kTurn; ++i)
+            out.push_back(axes.at(2.0 * M_PI * i / kTurn));
+        break;
+    }
+    case EntityKind::Spline: {
+        std::vector<gp_Pnt2d> pts;
+        for (PointId p : e.through)
+            pts.push_back(pos(p));
+        out = sampleSpline(pts, e.closed);
+        break;
+    }
+    }
+    return out;
 }
 
 std::optional<EntityId> Sketch::hitTest(const gp_Pnt2d& p, double tolerance) const

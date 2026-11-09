@@ -272,6 +272,98 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Otwórz ostatnie</translation>
     </message>
     <message>
+        <source>S&amp;ketch</source>
+        <translation>S&amp;zkic</translation>
+    </message>
+    <message>
+        <source>Polygon</source>
+        <translation>Wielokąt</translation>
+    </message>
+    <message>
+        <source>Slot</source>
+        <translation>Rowek</translation>
+    </message>
+    <message>
+        <source>Ellipse</source>
+        <translation>Elipsa</translation>
+    </message>
+    <message>
+        <source>Spline</source>
+        <translation>Splajn</translation>
+    </message>
+    <message>
+        <source>Mirror</source>
+        <translation>Lustro</translation>
+    </message>
+    <message>
+        <source>Linear Pattern</source>
+        <translation>Szyk liniowy</translation>
+    </message>
+    <message>
+        <source>Circular Pattern</source>
+        <translation>Szyk kołowy</translation>
+    </message>
+    <message>
+        <source>Mirror (Shift+M): select curves, then tap the line to mirror them about; the copy stays symmetric</source>
+        <translation>Lustro (Shift+M) – zaznacz krzywe, potem dotknij linii, względem której je odbić; kopia pozostaje symetryczna</translation>
+    </message>
+    <message>
+        <source>Linear Pattern (Shift+L): select curves, then pick the step between copies and their count</source>
+        <translation>Szyk liniowy (Shift+L) – zaznacz krzywe, potem wskaż odstęp między kopiami i ich liczbę</translation>
+    </message>
+    <message>
+        <source>Circular Pattern (Shift+O): select curves, then pick the center and the count (a full turn)</source>
+        <translation>Szyk kołowy (Shift+O) – zaznacz krzywe, potem wskaż środek i liczbę (na pełnym obrocie)</translation>
+    </message>
+    <message>
+        <source>Project</source>
+        <translation>Rzutuj</translation>
+    </message>
+    <message>
+        <source>Project (Shift+K): tap body edges or faces to copy them into the sketch, pinned in place</source>
+        <translation>Rzutuj (Shift+K) – dotykaj krawędzi albo ścian brył, by skopiować je do szkicu, unieruchomione</translation>
+    </message>
+    <message>
+        <source>Reference Image</source>
+        <translation>Obraz podkładowy</translation>
+    </message>
+    <message>
+        <source>Insert Image…</source>
+        <translation>Wstaw obraz…</translation>
+    </message>
+    <message>
+        <source>Insert Image</source>
+        <translation>Wstaw obraz</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff);;All files (*)</source>
+        <translation>Obrazy (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff);;Wszystkie pliki (*)</translation>
+    </message>
+    <message>
+        <source>Puts a picture on the sketch plane; then tap two points on it a known distance apart to scale it</source>
+        <translation>Kładzie obraz na płaszczyźnie szkicu; potem dotknij na nim dwóch punktów o znanej odległości, by go przeskalować</translation>
+    </message>
+    <message>
+        <source>Move / Scale Image</source>
+        <translation>Przesuń / skaluj obraz</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Krycie</translation>
+    </message>
+    <message>
+        <source>Remove Image</source>
+        <translation>Usuń obraz</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Obraz</translation>
+    </message>
+    <message>
+        <source>Reference image: insert a picture to trace over, scale it by two points</source>
+        <translation>Obraz podkładowy – wstaw obraz do odrysowania, przeskaluj go dwoma punktami</translation>
+    </message>
+    <message>
         <source>Show Extruded Regions</source>
         <translation>Pokaż wyciągnięte obszary</translation>
     </message>
@@ -444,6 +536,22 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Wymiar</translation>
     </message>
     <message>
+        <source>Horizontal Dimension</source>
+        <translation>Wymiar poziomy</translation>
+    </message>
+    <message>
+        <source>A line or 2 points: the distance along X</source>
+        <translation>Linia albo 2 punkty: odległość wzdłuż X</translation>
+    </message>
+    <message>
+        <source>Vertical Dimension</source>
+        <translation>Wymiar pionowy</translation>
+    </message>
+    <message>
+        <source>A line or 2 points: the distance along Y</source>
+        <translation>Linia albo 2 punkty: odległość wzdłuż Y</translation>
+    </message>
+    <message>
         <source>Horizontal</source>
         <translation>Poziomo</translation>
     </message>
@@ -510,6 +618,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>A point and a line</source>
         <translation>Punkt i linia</translation>
+    </message>
+    <message>
+        <source>Symmetric</source>
+        <translation>Symetria</translation>
+    </message>
+    <message>
+        <source>2 points and a line: the points mirror each other about the line</source>
+        <translation>2 punkty i linia: punkty są swoimi odbiciami względem linii</translation>
     </message>
     <message>
         <source>Fix</source>
@@ -860,6 +976,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Kąt [°]</translation>
     </message>
     <message>
+        <source>Horizontal distance [mm]</source>
+        <translation>Odległość pozioma [mm]</translation>
+    </message>
+    <message>
+        <source>Vertical distance [mm]</source>
+        <translation>Odległość pionowa [mm]</translation>
+    </message>
+    <message>
         <source>Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels</source>
         <translation>Wyciągnij: przeciągnij strzałkę albo wpisz odległość  ·  Enter zatwierdza, Esc anuluje</translation>
     </message>
@@ -910,6 +1034,22 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Tap a sketch region to extrude it, or a face of a body  ·  New Sketch to draw</source>
         <translation>Dotknij obszaru szkicu, by go wyciągnąć, albo ściany bryły  ·  Stwórz szkic, by rysować</translation>
+    </message>
+    <message>
+        <source>Project: there are no bodies to project</source>
+        <translation>Rzutuj: nie ma brył do rzutowania</translation>
+    </message>
+    <message>
+        <source>Project: tap to copy this edge into the sketch</source>
+        <translation>Rzutuj: dotknij, by skopiować tę krawędź do szkicu</translation>
+    </message>
+    <message>
+        <source>Project: tap to copy this face's outline into the sketch</source>
+        <translation>Rzutuj: dotknij, by skopiować obrys tej ściany do szkicu</translation>
+    </message>
+    <message>
+        <source>Project: tap a body edge or face</source>
+        <translation>Rzutuj: dotknij krawędzi albo ściany bryły</translation>
     </message>
     <message>
         <source>  ·  point</source>
@@ -1035,6 +1175,18 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <source>Shell</source>
         <translation>Skorupa</translation>
     </message>
+    <message>
+        <source>Tap an edge or a face of a body</source>
+        <translation>Dotknij krawędzi albo ściany bryły</translation>
+    </message>
+    <message>
+        <source>Already in the sketch (or seen edge-on)</source>
+        <translation>Już jest w szkicu (albo widać ją dokładnie z boku)</translation>
+    </message>
+    <message>
+        <source>Can't read the picture %1</source>
+        <translation>Nie można odczytać obrazu %1</translation>
+    </message>
 </context>
 <context>
     <name>SketchTool</name>
@@ -1101,6 +1253,162 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Offset [mm]</source>
         <translation>Odsunięcie [mm]</translation>
+    </message>
+    <message>
+        <source>Polygon: type the number of sides  ·  Enter accepts, Esc cancels</source>
+        <translation>Wielokąt: wpisz liczbę boków  ·  Enter zatwierdza, Esc anuluje</translation>
+    </message>
+    <message>
+        <source>Polygon: pick the center</source>
+        <translation>Wielokąt: wskaż środek</translation>
+    </message>
+    <message>
+        <source>Polygon: %1 sides, radius %2  ·  pick a corner</source>
+        <translation>Wielokąt: boki: %1, promień %2  ·  wskaż wierzchołek</translation>
+    </message>
+    <message>
+        <source>Sides</source>
+        <translation>Boki</translation>
+    </message>
+    <message>
+        <source>Slot: pick the center of one end</source>
+        <translation>Rowek: wskaż środek jednego końca</translation>
+    </message>
+    <message>
+        <source>Slot: pick the center of the other end  ·  %1</source>
+        <translation>Rowek: wskaż środek drugiego końca  ·  %1</translation>
+    </message>
+    <message>
+        <source>Slot: pick the width  ·  %1</source>
+        <translation>Rowek: wskaż szerokość  ·  %1</translation>
+    </message>
+    <message>
+        <source>Ellipse: pick the center</source>
+        <translation>Elipsa: wskaż środek</translation>
+    </message>
+    <message>
+        <source>Ellipse: pick the end of an axis  ·  %1</source>
+        <translation>Elipsa: wskaż koniec osi  ·  %1</translation>
+    </message>
+    <message>
+        <source>Ellipse: pick the other axis  ·  %1 × %2</source>
+        <translation>Elipsa: wskaż drugą oś  ·  %1 × %2</translation>
+    </message>
+    <message>
+        <source>Spline: tap the points it passes through</source>
+        <translation>Splajn: dotykaj punktów, przez które ma przejść</translation>
+    </message>
+    <message>
+        <source>Spline: tap to close it</source>
+        <translation>Splajn: dotknij, by go zamknąć</translation>
+    </message>
+    <message>
+        <source>Spline: %1 points  ·  tap the first one to close it  ·  Enter finishes, Esc cancels</source>
+        <translation>Splajn: punkty: %1  ·  dotknij pierwszego, by zamknąć  ·  Enter kończy, Esc anuluje</translation>
+    </message>
+    <message>
+        <source>Chamfer [mm]</source>
+        <translation>Faza [mm]</translation>
+    </message>
+    <message>
+        <source>Radius [mm]</source>
+        <translation>Promień [mm]</translation>
+    </message>
+    <message>
+        <source>Chamfer: too big for these lines</source>
+        <translation>Fazuj: za duża faza dla tych linii</translation>
+    </message>
+    <message>
+        <source>Fillet: too big for these lines</source>
+        <translation>Zaokrąglij: za duży promień dla tych linii</translation>
+    </message>
+    <message>
+        <source>Chamfer: type the distance  ·  Enter accepts, Esc cancels</source>
+        <translation>Fazuj: wpisz odległość  ·  Enter zatwierdza, Esc anuluje</translation>
+    </message>
+    <message>
+        <source>Fillet: type the radius  ·  Enter accepts, Esc cancels</source>
+        <translation>Zaokrąglij: wpisz promień  ·  Enter zatwierdza, Esc anuluje</translation>
+    </message>
+    <message>
+        <source>Chamfer: tap a corner where two lines meet</source>
+        <translation>Fazuj: dotknij narożnika, w którym spotykają się dwie linie</translation>
+    </message>
+    <message>
+        <source>Fillet: tap a corner where two lines meet</source>
+        <translation>Zaokrąglij: dotknij narożnika, w którym spotykają się dwie linie</translation>
+    </message>
+    <message>
+        <source>Chamfer: tap the corner of two lines</source>
+        <translation>Fazuj: dotknij narożnika dwóch linii</translation>
+    </message>
+    <message>
+        <source>Fillet: tap the corner of two lines</source>
+        <translation>Zaokrąglij: dotknij narożnika dwóch linii</translation>
+    </message>
+    <message>
+        <source>Mirror</source>
+        <translation>Lustro</translation>
+    </message>
+    <message>
+        <source>Linear pattern</source>
+        <translation>Szyk liniowy</translation>
+    </message>
+    <message>
+        <source>Circular pattern</source>
+        <translation>Szyk kołowy</translation>
+    </message>
+    <message>
+        <source>%1: tap the curves to copy</source>
+        <translation>%1: dotknij krzywych do skopiowania</translation>
+    </message>
+    <message>
+        <source>%1: %2 curves  ·  tap more, or Enter to go on</source>
+        <translation>%1: krzywe: %2  ·  dotykaj kolejnych albo Enter, by przejść dalej</translation>
+    </message>
+    <message>
+        <source>%1: type how many in all (with the original)  ·  Enter accepts</source>
+        <translation>%1: wpisz, ile ma być razem (z oryginałem)  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Mirror: tap the line to mirror about</source>
+        <translation>Lustro: dotknij linii, względem której odbić</translation>
+    </message>
+    <message>
+        <source>Linear pattern: pick where the first copy goes  ·  %1</source>
+        <translation>Szyk liniowy: wskaż, gdzie ma trafić pierwsza kopia  ·  %1</translation>
+    </message>
+    <message>
+        <source>Linear pattern: pick a point to measure the step from</source>
+        <translation>Szyk liniowy: wskaż punkt, od którego mierzyć odstęp</translation>
+    </message>
+    <message>
+        <source>Circular pattern: pick the center</source>
+        <translation>Szyk kołowy: wskaż środek</translation>
+    </message>
+    <message>
+        <source>Count</source>
+        <translation>Liczba</translation>
+    </message>
+    <message>
+        <source>Distance [mm]</source>
+        <translation>Odległość [mm]</translation>
+    </message>
+    <message>
+        <source>Image: insert a picture first (Image → Insert Image…)</source>
+        <translation>Obraz: najpierw wstaw obraz (Obraz → Wstaw obraz…)</translation>
+    </message>
+    <message>
+        <source>Image: type the real distance between the two points  ·  Enter accepts</source>
+        <translation>Obraz: wpisz rzeczywistą odległość między punktami  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Image: tap the second point  ·  %1 now</source>
+        <translation>Obraz: dotknij drugiego punktu  ·  teraz %1</translation>
+    </message>
+    <message>
+        <source>Image: drag it to move it  ·  tap two points a known distance apart to scale it</source>
+        <translation>Obraz: przeciągnij, by przesunąć  ·  dotknij dwóch punktów o znanej odległości, by przeskalować</translation>
     </message>
 </context>
 <context>

@@ -8,6 +8,7 @@
 #include <QLineF>
 #include <QPixmap>
 
+#include <cmath>
 #include <functional>
 #include <tuple>
 
@@ -284,6 +285,120 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.drawEllipse(QPointF(15.5, 12), 4.5, 4.5);
         dot(p, {12, 12}, accent, 2.2);
         break;
+    case Icon::Polygon: {
+        QPolygonF hexagon;
+        for (int k = 0; k < 6; ++k)
+            hexagon << QPointF(12 + 8.5 * std::cos(M_PI / 3 * k), 12 + 8.5 * std::sin(M_PI / 3 * k));
+        p.drawPolygon(hexagon);
+        dot(p, {12, 12}, accent);
+        dot(p, hexagon[0], accent);
+        break;
+    }
+    case Icon::Slot: {
+        QPainterPath slot;
+        slot.addRoundedRect(QRectF(3, 8, 18, 8), 4, 4);
+        p.drawPath(slot);
+        dot(p, {7, 12}, accent);
+        dot(p, {17, 12}, accent);
+        break;
+    }
+    case Icon::Ellipse:
+        p.drawEllipse(QPointF(12, 12), 9, 5.5);
+        dot(p, {12, 12}, accent);
+        dot(p, {21, 12}, accent);
+        break;
+    case Icon::Spline: {
+        QPainterPath curve;
+        curve.moveTo(3, 17);
+        curve.cubicTo(7, 3, 13, 21, 21, 7);
+        p.drawPath(curve);
+        dot(p, {3, 17}, accent);
+        dot(p, {12, 12}, accent);
+        dot(p, {21, 7}, accent);
+        break;
+    }
+    case Icon::SketchFillet:
+    case Icon::SketchChamfer: {
+        p.drawLine(QPointF(4, 20), QPointF(4, 12));
+        p.drawLine(QPointF(12, 4), QPointF(20, 4));
+        p.setPen(pen(accent, 2.2));
+        if (icon == Icon::SketchFillet) {
+            QPainterPath round;
+            round.moveTo(4, 12);
+            round.arcTo(QRectF(4, 4, 16, 16), 180, -90);
+            p.drawPath(round);
+        } else {
+            p.drawLine(QPointF(4, 12), QPointF(12, 4));
+        }
+        break;
+    }
+    case Icon::Mirror: {
+        QPen axis = pen(ink, 1.3);
+        axis.setDashPattern({2.5, 2});
+        p.setPen(axis);
+        p.drawLine(QPointF(12, 2), QPointF(12, 22));
+        p.setPen(pen(ink));
+        p.drawPolygon(QPolygonF({{9, 6}, {9, 18}, {3, 18}}));
+        p.setPen(pen(accent));
+        p.drawPolygon(QPolygonF({{15, 6}, {15, 18}, {21, 18}}));
+        break;
+    }
+    case Icon::LinearPattern:
+        p.drawEllipse(QPointF(5.5, 12), 3, 3);
+        p.setPen(pen(accent));
+        p.drawEllipse(QPointF(12, 12), 3, 3);
+        p.drawEllipse(QPointF(18.5, 12), 3, 3);
+        break;
+    case Icon::CircularPattern: {
+        p.setPen(pen(ink, 1.2));
+        p.drawEllipse(QPointF(12, 12), 7, 7);
+        for (int k = 0; k < 6; ++k) {
+            const QPointF at(12 + 7 * std::cos(M_PI / 3 * k), 12 + 7 * std::sin(M_PI / 3 * k));
+            p.setPen(Qt::NoPen);
+            p.setBrush(k == 0 ? ink : accent);
+            p.drawEllipse(at, 2.4, 2.4);
+        }
+        p.setBrush(Qt::NoBrush);
+        break;
+    }
+    case Icon::Project: {
+        cube(p, ink, accent, 0);
+        p.setPen(pen(accent, 2.0));
+        p.drawLine(QPointF(4, 22), QPointF(15, 22));
+        QPen guide = pen(accent, 1.0);
+        guide.setDashPattern({2, 2});
+        p.setPen(guide);
+        p.drawLine(QPointF(4, 20), QPointF(4, 22));
+        p.drawLine(QPointF(15, 20), QPointF(15, 22));
+        break;
+    }
+    case Icon::Image: {
+        p.drawRoundedRect(QRectF(3, 5, 18, 14), 2, 2);
+        p.setPen(pen(accent));
+        p.drawPolyline(QPolygonF({{5, 17}, {10, 11}, {13, 14}, {16, 10}, {19, 15}}));
+        dot(p, {16.5, 8.5}, accent, 1.6);
+        break;
+    }
+    case Icon::HorizontalDimension:
+    case Icon::VerticalDimension: {
+        p.save();
+        if (icon == Icon::VerticalDimension) {
+            p.translate(12, 12);
+            p.rotate(-90);
+            p.translate(-12, -12);
+        }
+        p.setPen(pen(ink, 1.4));
+        p.drawLine(QPointF(4, 19), QPointF(4, 6));
+        p.drawLine(QPointF(20, 19), QPointF(20, 6));
+        p.setPen(pen(accent, 1.6));
+        p.drawLine(QPointF(5, 9), QPointF(19, 9));
+        arrowHead(p, {5, 9}, {19, 9}, accent);
+        arrowHead(p, {19, 9}, {5, 9}, accent);
+        dot(p, {4, 19}, ink);
+        dot(p, {20, 15}, ink);
+        p.restore();
+        break;
+    }
     }
 }
 

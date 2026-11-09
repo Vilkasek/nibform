@@ -11,6 +11,8 @@ enum class Icon
     NewSketch, EditSketch, CloseSketch, Extrude, Fillet, Chamfer,
     Fit, Iso, Top, Front, Right, Dimension, Coincident, Shell, Construction,
     Undo, Redo, Delete, Cancel, Done,
+    Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
+    Project, Image, HorizontalDimension, VerticalDimension,
 };
 
 // Toolbar icons drawn in code, so they follow the theme: lines in `ink`, the part that

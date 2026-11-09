@@ -43,7 +43,12 @@ ProjectData sample()
     Sketch side(gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX()));
     side.addArc(side.addPoint({5, 3}), side.addPoint({7, 3}), side.addPoint({3, 3}));
     Sketch::Contents withReference = side.contents();
-    withReference.entities.push_back({withReference.nextId++, EntityKind::Line, 2, 3, kNoId, 0.0, true});
+    SketchEntity reference;
+    reference.id = withReference.nextId++;
+    reference.a = 2;
+    reference.b = 3;
+    reference.construction = true;
+    withReference.entities.push_back(reference);
     side = Sketch(side.plane(), withReference);
     project.sketches.push_back({9, side});
 
@@ -98,6 +103,70 @@ void testRoundTrip()
     CHECK(loaded->features[4].kind == Feature::Kind::Shell && near(loaded->features[4].value, 0.8));
     CHECK(loaded->features[1].operation == BodyOperation::NewBody);
     CHECK(loaded->features[3].boolean == BooleanKind::Subtract && loaded->features[3].bodies.size() == 2);
+}
+
+void testToolkitGeometryRoundTrip()
+{
+    // Ellipses, splines, the newer constraints and a reference image survive a save / load.
+    ProjectData project;
+    Sketch s;
+    const PointId c = s.addPoint({0, 0}), a = s.addPoint({8, 0}), b = s.addPoint({0, 3});
+    s.addEllipse(c, a, b);
+    const std::vector<PointId> through{s.addPoint({20, 0}), s.addPoint({25, 5}), s.addPoint({30, 0})};
+    const EntityId open = s.addSpline(through, false);
+    const EntityId closed =
+        s.addSpline({s.addPoint({0, 20}), s.addPoint({5, 25}), s.addPoint({0, 30}), s.addPoint({-5, 25})}, true);
+    const EntityId axis = s.addLine(s.addPoint({50, -5}), s.addPoint({50, 5}));
+    SketchConstraint sym;
+    sym.kind = ConstraintKind::Symmetric;
+    sym.p1 = through[0];
+    sym.p2 = through[2];
+    sym.e1 = axis;
+    s.addConstraint(sym);
+    SketchConstraint across;
+    across.kind = ConstraintKind::HorizontalDistance;
+    across.p1 = through[0];
+    across.p2 = through[2];
+    across.value = 10.0;
+    across.offset = 2.0;
+    s.addConstraint(across);
+    SketchConstraint up = across;
+    up.kind = ConstraintKind::VerticalDistance;
+    up.value = -1.0;
+    s.addConstraint(up);
+    ReferenceImage image;
+    const std::string bytes("\x89PNG fake bytes \0 with a zero", 30);
+    image.data = std::make_shared<const std::string>(bytes);
+    image.pixelWidth = 640;
+    image.pixelHeight = 480;
+    image.corner = gp_Pnt2d(-12.5, 3.25);
+    image.width = 160.0;
+    image.opacity = 0.75;
+    s.setImage(image);
+    project.sketches.push_back({1, s});
+
+    const QByteArray json = projectToJson(project);
+    const auto loaded = projectFromJson(json);
+    CHECK(loaded.has_value());
+    if (!loaded)
+        return;
+    CHECK(projectToJson(*loaded) == json);
+    const Sketch& l = loaded->sketches[0].sketch;
+    CHECK(l.entities()[0].kind == EntityKind::Ellipse && l.entities()[0].b == b);
+    CHECK(l.entity(open)->kind == EntityKind::Spline && l.entity(open)->through == through && !l.entity(open)->closed);
+    CHECK(l.entity(closed)->closed && l.entity(closed)->through.size() == 4);
+    CHECK(l.constraints().size() == 3);
+    CHECK(l.constraints()[0].kind == ConstraintKind::Symmetric);
+    CHECK(l.constraints()[1].kind == ConstraintKind::HorizontalDistance && near(l.constraints()[1].value, 10.0));
+    CHECK(l.constraints()[2].kind == ConstraintKind::VerticalDistance && near(l.constraints()[2].value, -1.0));
+    CHECK(l.image().has_value());
+    if (l.image()) {
+        CHECK(*l.image()->data == bytes);
+        CHECK(l.image()->pixelWidth == 640 && l.image()->pixelHeight == 480);
+        CHECK(near(l.image()->corner, gp_Pnt2d(-12.5, 3.25)));
+        CHECK(near(l.image()->width, 160.0) && near(l.image()->height(), 120.0));
+        CHECK(near(l.image()->opacity, 0.75));
+    }
 }
 
 void testSavedProjectRebuildsTheSameModel()
@@ -201,6 +270,7 @@ int main()
 {
     return runTests({
         {"round trip", testRoundTrip},
+        {"toolkit geometry round trip", testToolkitGeometryRoundTrip},
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
         {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},

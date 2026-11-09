@@ -58,6 +58,8 @@ double paramEnd(const Sketch& s, const SketchEntity& e)
         return sweep <= 0.0 ? kTwoPi : sweep;
     }
     case EntityKind::Circle:
+    case EntityKind::Ellipse: // (only lines, circles and arcs are ever split)
+    case EntityKind::Spline:
         break;
     }
     return kTwoPi;
@@ -81,6 +83,9 @@ double paramOf(const Sketch& s, const SketchEntity& e, const gp_Pnt2d& p)
         return normAngle(angleOf(s.pos(e.c), p));
     case EntityKind::Arc:
         return normAngle(angleOf(s.pos(e.c), p) - arcStart(s, e));
+    case EntityKind::Ellipse:
+    case EntityKind::Spline:
+        break;
     }
     return 0.0;
 }
@@ -100,7 +105,8 @@ gp_Pnt2d pointAt(const Sketch& s, const SketchEntity& e, double t)
 // Whether `p` (already on the curve's line or circle) is within its extent.
 bool withinExtent(const Sketch& s, const SketchEntity& e, const gp_Pnt2d& p)
 {
-    if (e.kind == EntityKind::Circle)
+    // Ellipse and spline crossings come from their bounded curves already.
+    if (e.kind == EntityKind::Circle || !e.isClassic())
         return true;
     const double t = paramOf(s, e, p);
     const double end = paramEnd(s, e);
@@ -113,6 +119,8 @@ bool withinExtent(const Sketch& s, const SketchEntity& e, const gp_Pnt2d& p)
 // Crossings of the infinite lines / full circles carrying two curves.
 std::vector<gp_Pnt2d> carrierIntersections(const Sketch& s, const SketchEntity& e, const SketchEntity& o)
 {
+    if (!e.isClassic() || !o.isClassic())
+        return intersectCurves(s, e, o);
     auto lineOf = [&](const SketchEntity& l) { return std::pair(s.pos(l.a), gp_Vec2d(s.pos(l.a), s.pos(l.b))); };
     if (!isRound(e) && !isRound(o)) {
         const auto [p1, d1] = lineOf(e);
@@ -152,7 +160,7 @@ std::vector<Cut> cutsOn(const Sketch& s, const SketchEntity& e)
 
     // Sketch points first, so a crossing at an existing point reuses it.
     for (const SketchPoint& p : s.points()) {
-        if (p.id != e.a && p.id != e.b && p.id != e.c && s.distanceTo(e, p.pos) < kEps)
+        if (!e.usesPoint(p.id) && s.distanceTo(e, p.pos) < kEps)
             add(p.pos, p.id, kNoId);
     }
     for (const SketchEntity& o : s.entities()) {
@@ -175,6 +183,13 @@ std::optional<TrimPiece> findTrimPiece(const Sketch& sketch, const gp_Pnt2d& cur
     if (!id)
         return std::nullopt;
     const SketchEntity& e = *sketch.entity(*id);
+    if (!e.isClassic()) {
+        // Ellipses and splines aren't split: trimming one removes it whole.
+        TrimPiece piece;
+        piece.entity = e.id;
+        piece.whole = true;
+        return piece;
+    }
     const std::vector<Cut> cuts = cutsOn(sketch, e);
     const double end = paramEnd(sketch, e);
 
@@ -225,6 +240,12 @@ std::vector<Segment2d> trimPieceSegments(const Sketch& sketch, const TrimPiece& 
     const SketchEntity* e = sketch.entity(piece.entity);
     if (!e)
         return out;
+    if (!e->isClassic()) {
+        const std::vector<gp_Pnt2d> pts = sketch.polyline(*e);
+        for (std::size_t i = 1; i < pts.size(); ++i)
+            out.push_back({pts[i - 1], pts[i]});
+        return out;
+    }
     if (e->kind == EntityKind::Line) {
         out.push_back({pointAt(sketch, *e, piece.from), pointAt(sketch, *e, piece.to)});
         return out;
@@ -269,7 +290,8 @@ bool trim(Sketch& s, const TrimPiece& piece)
         if (auto existing = s.findPoint(pos, kEps))
             return *existing;
         const PointId id = s.addPoint(pos);
-        if (cut != cuts.end() && cut->by != kNoId) {
+        const SketchEntity* by = cut != cuts.end() ? s.entity(cut->by) : nullptr;
+        if (by && by->isClassic()) {
             SketchConstraint on;
             on.kind = ConstraintKind::PointOnEntity;
             on.p1 = id;
@@ -342,6 +364,8 @@ bool trim(Sketch& s, const TrimPiece& piece)
             break;
         }
         case ConstraintKind::Distance:
+        case ConstraintKind::HorizontalDistance:
+        case ConstraintKind::VerticalDistance:
         case ConstraintKind::Midpoint:
             drop.insert(c.id); // the length they talk about is gone
             break;

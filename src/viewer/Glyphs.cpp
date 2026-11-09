@@ -56,6 +56,18 @@ void drawConstraintGlyph(QPainter& p, ConstraintKind kind, const QRectF& r, cons
         p.setBrush(ink);
         p.drawRoundedRect(QRectF(at(-0.8, -0.4), at(0.8, 0.9)), 1.5, 1.5);
         break;
+    case ConstraintKind::Symmetric: {
+        QPen dashed = pen;
+        dashed.setDashPattern({1.5, 1.5});
+        p.setPen(dashed);
+        p.drawLine(at(0, -1.1), at(0, 1.1));
+        p.setPen(pen);
+        p.drawLine(at(-1, -0.6), at(-0.35, 0));
+        p.drawLine(at(-0.35, 0), at(-1, 0.6));
+        p.drawLine(at(1, -0.6), at(0.35, 0));
+        p.drawLine(at(0.35, 0), at(1, 0.6));
+        break;
+    }
     default:
         break;
     }

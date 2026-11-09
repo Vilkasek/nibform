@@ -193,6 +193,8 @@ void MainWindow::rebuildUi()
     m_bodyActions.clear();
     m_themeActions.clear();
     m_icons.clear();
+    m_groupButtons.clear();
+    m_imageItems.clear();
 
     buildUi();
     syncUi();
@@ -278,7 +280,8 @@ void MainWindow::buildActions()
         iconize(action, icon);
         action->setCheckable(true);
         action->setShortcut(key);
-        action->setToolTip(QStringLiteral("%1 (%2)").arg(name, key.toString(QKeySequence::NativeText)));
+        action->setToolTip(key.isEmpty() ? name
+                                         : QStringLiteral("%1 (%2)").arg(name, key.toString(QKeySequence::NativeText)));
         tools->addAction(action);
         connect(action, &QAction::triggered, this, [this, kind] { m_editor->setTool(kind); });
         m_toolActions[kind] = action;
@@ -352,23 +355,102 @@ void MainWindow::buildActions()
     });
     m_modelBar->addWidget(operation);
 
-    // Sketch: drawing tools, then the way back to the model.
+    // Sketch: drawing tools, then the way back to the model. Related tools share a button
+    // whose arrow lists the others; it shows whichever was used last. All of them are in
+    // the Sketch menu too.
+    QMenu* sketchMenu = menuBar()->addMenu(tr("S&ketch"));
+    m_sketchMenu = sketchMenu;
+    auto tool = [&](ToolKind kind, const QString& name, const QKeySequence& key, Icon icon) {
+        QAction* action = makeTool(kind, name, key, icon);
+        sketchMenu->addAction(action);
+        return action;
+    };
+    auto group = [&](const std::vector<QAction*>& actions) {
+        auto* menu = new QMenu(m_sketchBar);
+        for (QAction* action : actions)
+            menu->addAction(action);
+        auto* button = new QToolButton(m_sketchBar);
+        button->setDefaultAction(actions.front());
+        button->setMenu(menu);
+        button->setPopupMode(QToolButton::MenuButtonPopup);
+        button->setFocusPolicy(Qt::NoFocus);
+        for (QAction* action : actions)
+            connect(action, &QAction::triggered, button, [button, action] { button->setDefaultAction(action); });
+        m_sketchBar->addWidget(button);
+        m_groupButtons.push_back(button);
+    };
     m_sketchBar->addAction(select);
     m_sketchBar->addSeparator();
-    m_sketchBar->addAction(makeTool(ToolKind::Line, tr("Line"), QKeySequence(Qt::Key_L), Icon::Line));
-    m_sketchBar->addAction(
-        makeTool(ToolKind::Rectangle, tr("Rectangle"), QKeySequence(Qt::Key_R), Icon::Rectangle));
-    m_sketchBar->addAction(makeTool(ToolKind::Circle, tr("Circle"), QKeySequence(Qt::Key_C), Icon::Circle));
-    m_sketchBar->addAction(makeTool(ToolKind::Arc, tr("Arc"), QKeySequence(Qt::Key_A), Icon::Arc));
-    m_sketchBar->addAction(makeTool(ToolKind::Trim, tr("Trim"), QKeySequence(Qt::Key_X), Icon::Trim));
-    m_sketchBar->addAction(
-        makeTool(ToolKind::Offset, tr("Offset"), QKeySequence(Qt::Key_U), Icon::Offset));
+    m_sketchBar->addAction(tool(ToolKind::Line, tr("Line"), QKeySequence(Qt::Key_L), Icon::Line));
+    group({tool(ToolKind::Rectangle, tr("Rectangle"), QKeySequence(Qt::Key_R), Icon::Rectangle),
+           tool(ToolKind::Polygon, tr("Polygon"), QKeySequence(Qt::SHIFT | Qt::Key_P), Icon::Polygon),
+           tool(ToolKind::Slot, tr("Slot"), QKeySequence(Qt::SHIFT | Qt::Key_S), Icon::Slot)});
+    group({tool(ToolKind::Circle, tr("Circle"), QKeySequence(Qt::Key_C), Icon::Circle),
+           tool(ToolKind::Ellipse, tr("Ellipse"), QKeySequence(Qt::SHIFT | Qt::Key_E), Icon::Ellipse)});
+    group({tool(ToolKind::Arc, tr("Arc"), QKeySequence(Qt::Key_A), Icon::Arc),
+           tool(ToolKind::Spline, tr("Spline"), QKeySequence(Qt::SHIFT | Qt::Key_C), Icon::Spline)});
+    sketchMenu->addSeparator();
+    m_sketchBar->addSeparator();
+    m_sketchBar->addAction(tool(ToolKind::Trim, tr("Trim"), QKeySequence(Qt::Key_X), Icon::Trim));
+    m_sketchBar->addAction(tool(ToolKind::Offset, tr("Offset"), QKeySequence(Qt::Key_U), Icon::Offset));
+    group({tool(ToolKind::SketchFillet, tr("Fillet"), QKeySequence(Qt::Key_G), Icon::SketchFillet),
+           tool(ToolKind::SketchChamfer, tr("Chamfer"), QKeySequence(Qt::Key_B), Icon::SketchChamfer)});
+    group({tool(ToolKind::Mirror, tr("Mirror"), QKeySequence(Qt::SHIFT | Qt::Key_M), Icon::Mirror),
+           tool(ToolKind::LinearPattern, tr("Linear Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_L), Icon::LinearPattern),
+           tool(ToolKind::CircularPattern, tr("Circular Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_O),
+                Icon::CircularPattern)});
+    m_toolActions[ToolKind::Mirror]->setToolTip(
+        tr("Mirror (Shift+M): select curves, then tap the line to mirror them about; the copy stays symmetric"));
+    m_toolActions[ToolKind::LinearPattern]->setToolTip(
+        tr("Linear Pattern (Shift+L): select curves, then pick the step between copies and their count"));
+    m_toolActions[ToolKind::CircularPattern]->setToolTip(
+        tr("Circular Pattern (Shift+O): select curves, then pick the center and the count (a full turn)"));
+    m_sketchBar->addAction(tool(ToolKind::Project, tr("Project"), QKeySequence(Qt::SHIFT | Qt::Key_K), Icon::Project));
+    m_toolActions[ToolKind::Project]->setToolTip(
+        tr("Project (Shift+K): tap body edges or faces to copy them into the sketch, pinned in place"));
     m_constructionAction = m_sketchBar->addAction(tr("Construction"), m_editor,
                                                   &SketchEditor::toggleConstruction);
+    sketchMenu->addAction(m_constructionAction);
     m_constructionAction->setShortcut(QKeySequence(Qt::Key_Q));
     m_constructionAction->setToolTip(tr("Construction (Q): the selected curves become reference geometry "
                                         "(dashed, never bounding a region), or back to regular"));
     iconize(m_constructionAction, Icon::Construction);
+
+    // A picture on the sketch plane to trace over.
+    sketchMenu->addSeparator();
+    QMenu* image = sketchMenu->addMenu(tr("Reference Image"));
+    m_imageMenu = image;
+    QAction* insertImage = image->addAction(tr("Insert Image…"), this, [this] {
+        const QString path = QFileDialog::getOpenFileName(
+            this, tr("Insert Image"), lastDirectory(),
+            tr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff);;All files (*)"));
+        if (path.isEmpty())
+            return;
+        rememberDirectory(path);
+        m_editor->insertImage(path);
+    });
+    insertImage->setToolTip(tr("Puts a picture on the sketch plane; then tap two points on it a known distance "
+                               "apart to scale it"));
+    image->addAction(tool(ToolKind::Image, tr("Move / Scale Image"), QKeySequence(), Icon::Image));
+    QMenu* opacity = image->addMenu(tr("Opacity"));
+    for (int percent : {25, 50, 75, 100}) {
+        opacity->addAction(QStringLiteral("%1 %").arg(percent), this,
+                           [this, percent] { m_editor->setImageOpacity(percent / 100.0); });
+    }
+    m_removeImageAction = image->addAction(tr("Remove Image"), m_editor, &SketchEditor::removeImage);
+    m_imageItems = {m_toolActions[ToolKind::Image], opacity->menuAction(), m_removeImageAction};
+    {
+        auto* button = new QToolButton(m_sketchBar);
+        auto* show = new QAction(tr("Image"), button);
+        iconize(show, Icon::Image);
+        show->setToolTip(tr("Reference image: insert a picture to trace over, scale it by two points"));
+        show->setMenu(image);
+        button->setDefaultAction(show);
+        button->setPopupMode(QToolButton::InstantPopup);
+        button->setFocusPolicy(Qt::NoFocus);
+        m_sketchBar->addWidget(button);
+        m_groupButtons.push_back(button);
+    }
     m_sketchBar->addSeparator();
     m_closeSketchAction = m_sketchBar->addAction(tr("Finish Sketch"), m_editor, &SketchEditor::closeSketch);
     m_closeSketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
@@ -524,11 +606,12 @@ void MainWindow::buildActions()
 
     QMenu* constraintMenu = menuBar()->addMenu(tr("&Constraints"));
     m_constraintMenu = constraintMenu;
-    auto addConstraint = [&](ConstraintCommand command, const QString& name, Qt::Key key, const QString& help) {
+    auto addConstraint = [&](ConstraintCommand command, const QString& name, const QKeySequence& key,
+                             const QString& help) {
         QAction* action = constraints->addAction(name);
         constraintMenu->addAction(action);
-        action->setShortcut(QKeySequence(key));
-        action->setToolTip(QStringLiteral("%1 (%2)\n%3").arg(name, QKeySequence(key).toString(), help));
+        action->setShortcut(key);
+        action->setToolTip(QStringLiteral("%1 (%2)\n%3").arg(name, key.toString(QKeySequence::NativeText), help));
         connect(action, &QAction::triggered, this, [this, command] { m_editor->applyConstraint(command); });
         m_constraintActions[command] = action;
         iconize(action, command);
@@ -551,6 +634,10 @@ void MainWindow::buildActions()
                 current->setChecked(true);
         });
     }
+    addConstraint(ConstraintCommand::HorizontalDimension, tr("Horizontal Dimension"), QKeySequence(Qt::SHIFT | Qt::Key_H),
+                  tr("A line or 2 points: the distance along X"));
+    addConstraint(ConstraintCommand::VerticalDimension, tr("Vertical Dimension"), QKeySequence(Qt::SHIFT | Qt::Key_V),
+                  tr("A line or 2 points: the distance along Y"));
     constraints->addSeparator();
     constraintMenu->addSeparator();
     addConstraint(ConstraintCommand::Horizontal, tr("Horizontal"), Qt::Key_H,
@@ -570,6 +657,8 @@ void MainWindow::buildActions()
                   tr("2 points (merges them) or a point and a curve (point on the curve)"));
     addConstraint(ConstraintCommand::Midpoint, tr("Midpoint"), Qt::Key_M,
                   tr("A point and a line"));
+    addConstraint(ConstraintCommand::Symmetric, tr("Symmetric"), Qt::Key_Y,
+                  tr("2 points and a line: the points mirror each other about the line"));
     addConstraint(ConstraintCommand::Fix, tr("Fix"), Qt::Key_Z,
                   tr("Points or curves: pins them where they are"));
 }
@@ -657,6 +746,10 @@ void MainWindow::loadDemo()
             s.addLine(c, d);
             s.addLine(d, a);
         });
+        // NIBFORM_DEMO_IMAGE=picture.png: with a reference image on that sketch.
+        const QString image = qEnvironmentVariable("NIBFORM_DEMO_IMAGE");
+        if (!image.isEmpty())
+            m_editor->insertImage(image);
     }
 }
 
@@ -771,6 +864,10 @@ void MainWindow::updateLayout()
     m_newSketchButton->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
     m_newSketchButton->setIconSize(QSize(icon, icon));
     m_operationLabel->setVisible(!compact);
+    for (QToolButton* button : m_groupButtons) {
+        button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
+        button->setIconSize(QSize(icon, icon));
+    }
     m_constraintBar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
     m_constraintBar->setIconSize(QSize(tablet ? 26 : 20, tablet ? 26 : 20));
 }
@@ -1046,6 +1143,13 @@ void MainWindow::iconize(QAction* action, ConstraintCommand command)
     case ConstraintCommand::Concentric: make = glyph(ConstraintKind::Concentric); break;
     case ConstraintCommand::Midpoint: make = glyph(ConstraintKind::Midpoint); break;
     case ConstraintCommand::Fix: make = glyph(ConstraintKind::Fixed); break;
+    case ConstraintCommand::Symmetric: make = glyph(ConstraintKind::Symmetric); break;
+    case ConstraintCommand::HorizontalDimension:
+        make = [](const QColor& ink, const QColor& accent) { return makeIcon(Icon::HorizontalDimension, ink, accent); };
+        break;
+    case ConstraintCommand::VerticalDimension:
+        make = [](const QColor& ink, const QColor& accent) { return makeIcon(Icon::VerticalDimension, ink, accent); };
+        break;
     }
     m_icons.push_back({action, make});
 }
@@ -1111,6 +1215,7 @@ void MainWindow::updateMode(EditorMode mode)
     m_sketchBar->setVisible(sketch);
     m_constraintBar->setVisible(sketch);
     m_constraintMenu->setEnabled(sketch);
+    m_sketchMenu->setEnabled(sketch);
     m_bodiesMenu->setEnabled(!sketch);
     // Hidden actions must not fire through their shortcuts either.
     for (const auto& [kind, action] : m_toolActions)
@@ -1132,6 +1237,8 @@ void MainWindow::updateEditActions()
         action->setEnabled(m_editor->selectedBodies().size() >= 2);
     m_editSketchAction->setEnabled(m_editor->canEditSketch());
     m_constructionAction->setEnabled(m_editor->canToggleConstruction());
+    for (QAction* action : m_imageItems)
+        action->setEnabled(m_editor->hasImage());
     m_faceSketchAction->setEnabled(m_editor->canSketchOnFace());
     // Grey out the buttons only: a disabled action would also swallow its shortcut
     // silently, while the enabled one explains why the constraint doesn't fit.

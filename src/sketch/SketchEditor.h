@@ -124,6 +124,15 @@ public:
     bool canToggleConstruction() const { return m_active >= 0 && !m_selection.entities.empty(); }
     void toggleConstruction();
 
+    // --- Reference image of the open sketch --------------------------------------------
+    bool hasImage() const { return m_active >= 0 && sketch().image().has_value(); }
+    // Puts the picture on the open sketch, centered in the view (replacing one already
+    // there) and switches to the Image tool to scale it; false (with a message) if the
+    // file can't be read.
+    bool insertImage(const QString& path);
+    void removeImage();
+    void setImageOpacity(double opacity);
+
     // --- Bodies ---------------------------------------------------------------------
     BodyOperation bodyOperation() const { return m_bodyOperation; }
     void setBodyOperation(BodyOperation operation);
@@ -258,6 +267,11 @@ private:
     double pixelsToModel(double logicalPixels) const; // at the view center
     SnapResult snapAt(const PointerEvent& e) const;
     Hit hitAt(const PointerEvent& e) const;
+
+    // Project tool: copies the body edge / face outline under the pointer into the sketch.
+    void projectAt(const PointerEvent& e);
+    // Shows the open sketch's reference image (or nothing), rebuilding it only when it changed.
+    void refreshImage();
 
     // The pen's eraser end trims whatever sketch curve it passes over, whatever the tool.
     void eraseAt(const PointerEvent& e);
@@ -395,6 +409,11 @@ private:
     Handle(AIS_Shape) m_regionPrs;         // all regions, faint fill
     Handle(AIS_Shape) m_selectedRegionPrs; // picked ones, accent fill
     Handle(AIS_Shape) m_previewPrs3d;      // extrusion / rounded bodies being previewed
+
+    Handle(AIS_InteractiveObject) m_imagePrs; // the open sketch's reference image
+    std::optional<ReferenceImage> m_shownImage;
+    gp_Ax3 m_shownImagePlane;
+    int m_imageLayer = -1; // between the bodies and the sketch lines
 
     Handle(PlanarPrs) m_previewPrs; // rubber band of the sketch tool in progress
     Handle(PlanarPrs) m_overlayPrs; // snap marker and alignment guides

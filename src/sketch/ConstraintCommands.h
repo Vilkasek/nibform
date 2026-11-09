@@ -29,6 +29,9 @@ enum class ConstraintCommand
     Midpoint,      // a point and a line
     Fix,           // points, or every point of the selected curves
     Dimension,     // line / two points (distance), circle (diameter), arc (radius), two lines (angle)
+    HorizontalDimension, // a line or two points: the distance along X
+    VerticalDimension,   // a line or two points: the distance along Y
+    Symmetric,     // two points and a line (the points mirror each other about it)
 };
 
 struct CommandResult

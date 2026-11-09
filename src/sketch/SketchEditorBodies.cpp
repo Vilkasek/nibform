@@ -8,6 +8,13 @@
 #include "viewer/ValueEditor.h"
 
 #include <AIS_InteractiveContext.hxx>
+#include <AIS_TexturedShape.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <Graphic3d_ZLayerSettings.hxx>
+#include <Prs3d_ShadingAspect.hxx>
+#include <Image_PixMap.hxx>
+#include <V3d_Viewer.hxx>
+#include <gp_Pln.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepGProp.hxx>
@@ -22,6 +29,8 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 
+#include <QFile>
+#include <QImage>
 #include <QLineF>
 #include <QRegularExpression>
 #include <QPainter>
@@ -29,6 +38,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <map>
 
@@ -228,9 +238,9 @@ void SketchEditor::refreshBodies()
 void SketchEditor::updateSelectionModes()
 {
     // Bodies offer faces and edges (edges win near the pointer); push / pull only faces;
-    // nothing while a sketch is open.
+    // nothing while a sketch is open, unless body edges are being projected into it.
     const auto& ctx = m_viewer->aisContext();
-    const bool model = mode() == EditorMode::Model;
+    const bool model = mode() == EditorMode::Model || m_toolKind == ToolKind::Project;
     const int faces = AIS_Shape::SelectionMode(TopAbs_FACE);
     const int edges = AIS_Shape::SelectionMode(TopAbs_EDGE);
     for (const Handle(AIS_Shape)& prs : m_bodyPrs) {
@@ -419,7 +429,7 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     auto depth = [&](const gp_Pnt& p) { return gp_Vec(camera->Eye(), p).Dot(gp_Vec(camera->Direction())); };
     // Regions only where they can be pulled; the rounding and shell tools want bodies.
     const bool edgeTool = m_toolKind == ToolKind::Fillet || m_toolKind == ToolKind::Chamfer
-                       || m_toolKind == ToolKind::Shell;
+                       || m_toolKind == ToolKind::Shell || m_toolKind == ToolKind::Project;
 
     Hit best;
     double bestDepth = std::numeric_limits<double>::max();
@@ -1128,12 +1138,12 @@ Bnd_Box SketchEditor::sketchBox(int slot) const
     for (const SketchPoint& p : s.points())
         box.Add(s.to3d(p.pos));
     for (const SketchEntity& e : s.entities()) {
-        if (e.kind == EntityKind::Line)
-            continue;
-        const gp_Pnt2d c = s.pos(e.c);
-        const double r = e.kind == EntityKind::Arc ? c.Distance(s.pos(e.a)) : e.radius;
-        for (const auto& [dx, dy] : {std::pair(r, 0.0), std::pair(-r, 0.0), std::pair(0.0, r), std::pair(0.0, -r)})
-            box.Add(s.to3d(gp_Pnt2d(c.X() + dx, c.Y() + dy)));
+        for (const gp_Pnt2d& p : s.polyline(e))
+            box.Add(s.to3d(p));
+    }
+    if (const auto& image = s.image()) {
+        box.Add(s.to3d(image->corner));
+        box.Add(s.to3d(gp_Pnt2d(image->corner.X() + image->width, image->corner.Y() + image->height())));
     }
     if (box.IsVoid() || box.SquareExtent() < 1.0) {
         // Empty or tiny: a 100 mm patch of the plane around it.
@@ -1257,4 +1267,157 @@ void SketchEditor::paintArrow(QPainter& p) const
     p.setPen(QPen(Qt::white, 2.0));
     p.setBrush(ink);
     p.drawEllipse(from, 6.0, 6.0);
+}
+
+// --- Projecting body edges into the open sketch ----------------------------------------
+
+void SketchEditor::projectAt(const PointerEvent& e)
+{
+    const Hit hit = modelHitAt(e);
+    if (hit.kind != Hit::Kind::Edge && hit.kind != Hit::Kind::Face) {
+        emit message(tr("Tap an edge or a face of a body"));
+        return;
+    }
+    const TopoDS_Shape shape = hit.shape;
+    std::size_t added = 0;
+    Sketch probe = sketch();
+    added = projectEdges(probe, shape, false).size();
+    if (added == 0) {
+        emit message(tr("Already in the sketch (or seen edge-on)"));
+        return;
+    }
+    commit([&](Sketch& s) { projectEdges(s, shape, false); });
+    refreshOverlay();
+    m_viewer->update();
+}
+
+// --- Reference image -------------------------------------------------------------------
+
+bool SketchEditor::insertImage(const QString& path)
+{
+    if (m_active < 0)
+        return false;
+    QFile file(path);
+    QByteArray bytes;
+    if (file.open(QIODevice::ReadOnly))
+        bytes = file.readAll();
+    QImage picture;
+    if (bytes.isEmpty() || !picture.loadFromData(bytes) || picture.width() <= 0 || picture.height() <= 0) {
+        emit message(tr("Can't read the picture %1").arg(path));
+        return false;
+    }
+    ReferenceImage image;
+    image.data = std::make_shared<const std::string>(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+    image.pixelWidth = picture.width();
+    image.pixelHeight = picture.height();
+    // About two thirds of the view across, centered where the view looks.
+    const double dpr = m_viewer->devicePixelRatioF();
+    const Graphic3d_Vec2i middle(qRound(m_viewer->width() * dpr / 2.0), qRound(m_viewer->height() * dpr / 2.0));
+    const gp_Pnt2d center = toSketch(middle).value_or(gp_Pnt2d(0.0, 0.0));
+    const double viewWidth = pixelsToModel(m_viewer->width() * 0.6);
+    image.width = viewWidth > 1e-6 ? std::round(viewWidth) : 100.0;
+    image.corner = gp_Pnt2d(center.X() - image.width / 2.0, center.Y() - image.height() / 2.0);
+    commit([&](Sketch& s) { s.setImage(image); });
+    setTool(ToolKind::Image);
+    return true;
+}
+
+void SketchEditor::removeImage()
+{
+    if (!hasImage())
+        return;
+    commit([](Sketch& s) { s.setImage(std::nullopt); });
+    if (m_toolKind == ToolKind::Image)
+        setTool(ToolKind::Select);
+    m_viewer->update();
+}
+
+void SketchEditor::setImageOpacity(double opacity)
+{
+    if (!hasImage())
+        return;
+    commit([opacity](Sketch& s) {
+        ReferenceImage image = *s.image();
+        image.opacity = std::clamp(opacity, 0.05, 1.0);
+        s.setImage(image);
+    });
+    m_viewer->update();
+}
+
+void SketchEditor::refreshImage()
+{
+    const std::optional<ReferenceImage> wanted = m_active >= 0 ? sketch().image() : std::nullopt;
+    const gp_Ax3 plane = m_active >= 0 ? sketch().plane() : gp_Ax3();
+    const bool samePlane = plane.Location().IsEqual(m_shownImagePlane.Location(), 1e-9)
+                        && plane.Direction().IsEqual(m_shownImagePlane.Direction(), 1e-12)
+                        && plane.XDirection().IsEqual(m_shownImagePlane.XDirection(), 1e-12);
+    if (wanted == m_shownImage && (samePlane || !wanted))
+        return;
+    const auto& ctx = m_viewer->aisContext();
+    if (!m_imagePrs.IsNull()) {
+        ctx->Remove(m_imagePrs, false);
+        m_imagePrs.Nullify();
+    }
+    m_shownImage = wanted;
+    m_shownImagePlane = plane;
+    if (!wanted || !wanted->data)
+        return;
+
+    QImage picture;
+    if (!picture.loadFromData(reinterpret_cast<const uchar*>(wanted->data->data()),
+                              static_cast<int>(wanted->data->size())))
+        return;
+    // Plenty for tracing, and kind to the graphics memory.
+    if (picture.width() > 4096 || picture.height() > 4096)
+        picture = picture.scaled(4096, 4096, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    picture = picture.convertToFormat(QImage::Format_RGBA8888);
+    Handle(Image_PixMap) pixmap = new Image_PixMap();
+    if (!pixmap->InitTrash(Image_Format_RGBA, picture.width(), picture.height()))
+        return;
+    // Rows bottom-up in memory: the texture's first row is the picture's bottom edge,
+    // which lands on the face's lower edge (the corner).
+    pixmap->SetTopDown(false);
+    // The opacity goes into the texture's alpha: unmodulated, the texture replaces the
+    // material's color and transparency alike.
+    const int alpha = qRound(std::clamp(wanted->opacity, 0.0, 1.0) * 256.0);
+    for (int row = 0; row < picture.height(); ++row) {
+        uchar* to = pixmap->ChangeRow(row);
+        std::memcpy(to, picture.constScanLine(row), static_cast<std::size_t>(picture.width()) * 4);
+        for (int x = 0; x < picture.width(); ++x)
+            to[4 * x + 3] = static_cast<uchar>(std::min(255, to[4 * x + 3] * alpha / 256));
+    }
+
+    const gp_Ax3 at(sketch().to3d(wanted->corner), plane.Direction(), plane.XDirection());
+    const TopoDS_Face face = BRepBuilderAPI_MakeFace(gp_Pln(at), 0.0, wanted->width, 0.0, wanted->height()).Face();
+    Handle(AIS_TexturedShape) prs = new AIS_TexturedShape(face);
+    prs->SetTexturePixMap(pixmap);
+    prs->SetTextureMapOn();
+    prs->SetTextureRepeat(false);
+    prs->DisableTextureModulate();
+    prs->SetDisplayMode(3); // shaded with the texture
+    prs->Attributes()->SetupOwnShadingAspect();
+    prs->Attributes()->ShadingAspect()->Aspect()->SetAlphaMode(Graphic3d_AlphaMode_Blend);
+
+    if (m_imageLayer < 0) {
+        // Its own layer between the bodies and the sketch: depth-tested against the bodies
+        // (pulled forward, so a body face it lies on doesn't cover it), but writing no
+        // depth, so the sketch lines drawn after it always show.
+        Graphic3d_ZLayerId layer = Graphic3d_ZLayerId_UNKNOWN;
+        Graphic3d_ZLayerSettings settings;
+        settings.SetName("reference image");
+        settings.SetEnableDepthTest(true);
+        settings.SetEnableDepthWrite(false);
+        settings.SetClearDepth(false);
+        Graphic3d_PolygonOffset offset;
+        offset.Mode = Aspect_POM_Fill;
+        offset.Factor = -1.0f;
+        offset.Units = -2.0f;
+        settings.SetPolygonOffset(offset);
+        if (m_viewer->viewer()->InsertLayerBefore(layer, settings, Graphic3d_ZLayerId_Top))
+            m_imageLayer = layer;
+    }
+    ctx->Display(prs, 3, -1, false);
+    if (m_imageLayer >= 0)
+        ctx->SetZLayer(prs, m_imageLayer);
+    m_imagePrs = prs;
 }

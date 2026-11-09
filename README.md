@@ -36,7 +36,7 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
-Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`).
 
 ## Language
 
@@ -77,6 +77,22 @@ sketch whose region is selected. Shortcuts only work in their own mode.
 | Offset | `U` | tap a curve – takes the whole connected chain (or circle); the copy follows the cursor (side and distance), another tap asks for an exact value. Corners are intersected again, lines get "parallel", arcs share the center with the original |
 | Construction | `Q` | toggles the selected curves to helper geometry (dashed): you can snap to and dimension them, but they don't make regions |
 | Trim | `X` | like in Fusion: highlights in red the piece between the nearest intersections, a tap removes it; a drag removes everything along the way (one undo step). A curve without intersections disappears whole, a circle turns into an arc |
+| Polygon | `Shift+P` | center, then a corner; asks for the number of sides (remembered). A regular polygon inscribed in a construction circle: corners on it, sides equal |
+| Slot | `Shift+S` | the centers of both round ends, then the width: two lines tangent to two equal arcs, with a construction center line |
+| Ellipse | `Shift+E` | center, the end of one axis, then how far the other axis reaches. Its center and axis ends are points to drag, snap to and dimension (the axes stay perpendicular) |
+| Spline | `Shift+C` | tap the points it passes through; tapping the first one closes it, landing on an existing point or `Enter` ends it (`Esc` drops it). Drag its points to reshape it; deleting a selected inner point takes it out of the curve |
+| Fillet | `G` | tap a corner where two lines meet, type the radius: the lines are cut back and joined by a tangent arc with a radius dimension (relations of the lines carry over) |
+| Chamfer | `B` | the same with a straight bevel, both lines cut back by the distance |
+| Mirror | `Shift+M` | select curves (in Select, or by tapping them in the tool and `Enter`), then tap the line to mirror about. The copy is held symmetric to the original (points on the line are shared), so it follows later changes |
+| Linear pattern | `Shift+L` | select curves, pick a point and where its first copy goes, type the count (with the original). Copies keep the relations among the copied curves; copied circles and arcs stay equal to their originals |
+| Circular pattern | `Shift+O` | select curves, pick the center, type the count: copies spread over a full turn |
+| Project | `Shift+K` | tap a body edge or face: it is copied into the sketch, pinned in place (a face gives its outline). Edges not in the sketch's plane are projected onto it: slanted circles become ellipses, other curves splines |
+| Image | | *Image → Insert Image…* puts a picture on the sketch plane, about the width of the view. In the Image tool, drag it to move it, or tap two points on it a known distance apart and type that distance to scale it. *Opacity* and *Remove Image* are in the same menu; the picture is saved in the project |
+
+Related tools share a toolbar button (Rectangle / Polygon / Slot, Circle / Ellipse, Arc / Spline,
+Fillet / Chamfer, Mirror / patterns): the arrow lists the others, and the button shows the one used last.
+All of them are also in the *Sketch* menu. Ellipses and splines are trimmed whole (a line crossing
+one is still cut at the crossing); Offset takes lines, circles and arcs.
 
 Snapping: points → origin → segment midpoints → horizontal/vertical alignment
 (first with the tool's start point). `Alt` disables snapping.
@@ -94,6 +110,7 @@ buttons that don't fit the selection are greyed out.
 | Constraint | Shortcut | Selection |
 |---|---|---|
 | Dimension | `D` | line / 2 points → distance, point + line → distance from the line, 2 parallel lines → spacing (adds "parallel" if needed), 2 other lines → angle, circle → diameter, arc → radius |
+| Horizontal / Vertical dimension | `Shift+H` / `Shift+V` | a line or 2 points → the distance along X / Y |
 | Horizontal / Vertical | `H` / `V` | lines or 2 points |
 | Parallel / Perpendicular | `P` / `N` | 2+ / 2 lines |
 | Equal | `E` | 2+ lines (length) or 2+ circles/arcs (radius) |
@@ -101,6 +118,7 @@ buttons that don't fit the selection are greyed out.
 | Concentric | `O` | 2+ circles/arcs |
 | Coincident | `I` | 2 points (merges them) or a point and a curve |
 | Midpoint | `M` | a point and a line |
+| Symmetric | `Y` | 2 points and a line → the points mirror each other about it |
 | Fix | `Z` | points or curves (pins them where they are) |
 
 Or the other way round: **`D` with nothing selected** (or the *Dimension* button) is a tool – tap
@@ -156,7 +174,8 @@ An extrusion that failed leaves its region in sight.
 The *Bodies* menu unions, subtracts (from the first selected) or intersects the bodies whose faces
 are selected. `Delete` removes bodies with selected faces and sketches with selected regions.
 Undo covers sketches and bodies together.
-`NIBFORM_DEMO=1` builds a sample model (`NIBFORM_DEMO=sketch` also opens a sketch) –
+`NIBFORM_DEMO=1` builds a sample model (`NIBFORM_DEMO=sketch` also opens a sketch,
+`NIBFORM_DEMO_IMAGE=picture.png` puts a reference image on it) –
 handy with `NIBFORM_SCREENSHOT`.
 
 ## History, projects, export
@@ -238,13 +257,13 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M6** – Framework 12 polish (screen rotation, palm rejection, tablet mode)
 - [x] **i18n** – English UI with a Polish translation, language switching
 - [x] **M7** – release basics: CI, AUR / Flatpak packages, file association, autosave and recovery
-- [ ] **M8** – pen first: freehand shape recognition, radial menu, gestures, scribble to delete
-- [ ] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns
+- [x] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns, projection, reference images
 - [ ] **M10** – solid features: revolve, sweep, loft, patterns, holes, construction planes
 - [ ] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
 - [ ] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export
 - [ ] **M13** – drawings: views, dimensions, PDF / SVG export
 - [ ] **M14** – speed and robustness: background and incremental rebuild, large models
+- [ ] **M8** – pen first (after M14): freehand shape recognition, radial menu, gestures, scribble to delete
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).
 

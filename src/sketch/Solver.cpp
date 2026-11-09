@@ -65,6 +65,13 @@ public:
                 const P c = pt(e.c), a = pt(e.a), b = pt(e.b);
                 add({c.i, c.i + 1, a.i, a.i + 1, b.i, b.i + 1},
                     [=](const VectorXd& v) { return (a(v) - c(v)).norm() - (b(v) - c(v)).norm(); });
+            } else if (e.kind == EntityKind::Ellipse) {
+                // The two half-axes stay perpendicular.
+                const P c = pt(e.c), a = pt(e.a), b = pt(e.b);
+                add({c.i, c.i + 1, a.i, a.i + 1, b.i, b.i + 1}, [=](const VectorXd& v) {
+                    const Vector2d u = a(v) - c(v), w = b(v) - c(v);
+                    return u.dot(w) / (u.norm() * w.norm() + 1e-300);
+                });
             }
         }
         for (const SketchConstraint& c : sketch.constraints())
@@ -174,6 +181,19 @@ private:
         return {-1, pointVar(e->c), pointVar(e->a)};
     }
     P center(EntityId id) const { return pt(m_sketch.entity(id)->c); }
+    // An end of line `line` that is also an end of arc `round`, if any.
+    PointId sharedEnd(EntityId line, EntityId round) const
+    {
+        const SketchEntity* l = m_sketch.entity(line);
+        const SketchEntity* r = m_sketch.entity(round);
+        if (!l || !r || r->kind != EntityKind::Arc)
+            return kNoId;
+        for (PointId p : {l->a, l->b}) {
+            if (p == r->a || p == r->b)
+                return p;
+        }
+        return kNoId;
+    }
     bool isLine(EntityId id) const
     {
         const SketchEntity* e = m_sketch.entity(id);
@@ -202,6 +222,9 @@ private:
         }
         for (EntityId e : {c.e1, c.e2}) {
             if (e != kNoId && !m_sketch.entity(e))
+                return;
+            // Relations to ellipses and splines aren't modelled (nothing creates them).
+            if (e != kNoId && !m_sketch.entity(e)->isClassic() && c.kind != ConstraintKind::Fixed)
                 return;
         }
 
@@ -241,7 +264,17 @@ private:
             const P c2 = center(c.e2);
             const R r2 = radius(c.e2);
             const double side = c.value < 0.0 ? -1.0 : 1.0;
-            if (isLine(c.e1)) {
+            if (isLine(c.e1) && sharedEnd(c.e1, c.e2) != kNoId) {
+                // The line ends on the arc: tangent there means the radius to that point is
+                // square to the line. (The distance form below is at its extreme exactly
+                // when it holds, so its gradient vanishes and the solver can't steer.)
+                const L l = line(c.e1);
+                const P at = pt(sharedEnd(c.e1, c.e2));
+                add(join({l.vars(), {c2.i, c2.i + 1, at.i, at.i + 1}}), [=](const VectorXd& v) {
+                    const Vector2d d = l.dir(v), r = at(v) - c2(v);
+                    return d.dot(r) / (d.norm() * r.norm() + 1e-300);
+                });
+            } else if (isLine(c.e1)) {
                 // Signed distance from the center to the line equals the radius.
                 const L l = line(c.e1);
                 add(join({l.vars(), {c2.i, c2.i + 1}, r2.vars()}), [=](const VectorXd& v) {
@@ -307,6 +340,29 @@ private:
             const P a = pt(c.p1), b = pt(c.p2);
             const double target = c.value;
             add({a.i, a.i + 1, b.i, b.i + 1}, [=](const VectorXd& v) { return (b(v) - a(v)).norm() - target; });
+            break;
+        }
+        case ConstraintKind::HorizontalDistance:
+        case ConstraintKind::VerticalDistance: {
+            const int axis = c.kind == ConstraintKind::HorizontalDistance ? 0 : 1;
+            const P a = pt(c.p1), b = pt(c.p2);
+            const double target = c.value;
+            add({a.i + axis, b.i + axis}, [=](const VectorXd& v) { return v[b.i + axis] - v[a.i + axis] - target; });
+            break;
+        }
+        case ConstraintKind::Symmetric: {
+            // The middle of p1 p2 on the line, and p1 p2 across it.
+            const P a = pt(c.p1), b = pt(c.p2);
+            const L l = line(c.e1);
+            const std::vector<int> vars = join({{a.i, a.i + 1, b.i, b.i + 1}, l.vars()});
+            add(vars, [=](const VectorXd& v) {
+                const Vector2d d = l.dir(v);
+                return cross(d, 0.5 * (a(v) + b(v)) - l.a(v)) / (d.norm() + 1e-300);
+            });
+            add(vars, [=](const VectorXd& v) {
+                const Vector2d d = l.dir(v);
+                return d.dot(b(v) - a(v)) / (d.norm() + 1e-300);
+            });
             break;
         }
         case ConstraintKind::Radius:
@@ -441,8 +497,8 @@ void analyzeAt(const Sketch& sketch, const System& sys, const VectorXd& x, Solve
     }
     for (const SketchEntity& e : sketch.entities()) {
         bool all = true;
-        for (PointId p : {e.a, e.b, e.c}) {
-            if (p != kNoId && !out.definedPoints.count(p))
+        for (PointId p : e.pointIds()) {
+            if (!out.definedPoints.count(p))
                 all = false;
         }
         if (e.kind == EntityKind::Circle && !defined(sys.radiusVar(e.id)))
@@ -531,6 +587,10 @@ double measure(const Sketch& sketch, const SketchConstraint& c)
     }
     case ConstraintKind::Distance:
         return sketch.pos(c.p1).Distance(sketch.pos(c.p2));
+    case ConstraintKind::HorizontalDistance:
+        return sketch.pos(c.p2).X() - sketch.pos(c.p1).X();
+    case ConstraintKind::VerticalDistance:
+        return sketch.pos(c.p2).Y() - sketch.pos(c.p1).Y();
     case ConstraintKind::Radius:
     case ConstraintKind::Diameter: {
         const SketchEntity* e = sketch.entity(c.e1);

@@ -109,8 +109,8 @@ gp_Pnt2d junction(const Piece& prev, const Piece& next, const gp_Pnt2d& shared, 
 std::optional<Chain> chainFrom(const Sketch& sketch, EntityId seed)
 {
     const SketchEntity* first = sketch.entity(seed);
-    if (!first)
-        return std::nullopt;
+    if (!first || !first->isClassic())
+        return std::nullopt; // ellipses and splines have no exact offset here
     if (first->kind == EntityKind::Circle)
         return Chain{{{seed, false}}, true};
 
@@ -125,6 +125,9 @@ std::optional<Chain> chainFrom(const Sketch& sketch, EntityId seed)
             if (e.id != from)
                 found = ChainLink{e.id, e.b == at}; // walking away from `at`
         }
+        // The chain ends where it would run on into a spline.
+        if (found && !sketch.entity(found->entity)->isClassic())
+            return std::nullopt;
         return count == 2 ? found : std::nullopt;
     };
 
