@@ -723,9 +723,28 @@ void OcctViewerWidget::wheelEvent(QWheelEvent* e)
     if (m_debugInput)
         qInfo() << "wheel" << e->angleDelta() << e->pixelDelta() << e->phase() << e->modifiers();
 
-    // XWayland merges every pointer into one device, so tell them apart by the data:
-    // wheel mice scroll in whole 120-unit notches, touchpads and the TrackPoint smoothly.
     const QPoint angle = e->angleDelta();
+    if (m_scrollZooms) {
+        // Shift pans (some systems turn Shift+wheel into a sideways scroll); otherwise zoom.
+        if (e->modifiers() & Qt::ShiftModifier) {
+            QPointF d = e->pixelDelta().isNull() ? QPointF(angle) * kScrollToPixels : QPointF(e->pixelDelta());
+            if (std::abs(d.y()) < 1e-9)
+                d = QPointF(0.0, d.x());
+            d *= devicePixelRatioF();
+            if (m_invertScroll)
+                d = -d;
+            continuousDrag(DragGesture::Pan, toPixels(e->position()), Graphic3d_Vec2d(-d.x(), -d.y()));
+            updateView();
+            return;
+        }
+        const double notches = angle.y() != 0 ? angle.y() / 8.0 : e->pixelDelta().y() / 2.0;
+        if (std::abs(notches) > 1e-9 && UpdateZoom(Aspect_ScrollDelta(toPixels(e->position()), notches)))
+            updateView();
+        return;
+    }
+
+    // Touchpad style: XWayland merges every pointer into one device, so tell them apart by
+    // the data: wheel mice scroll in whole 120-unit notches, touchpads and the TrackPoint smoothly.
     const bool smooth = m_dragGesture != DragGesture::None || !e->pixelDelta().isNull()
                         || angle.x() % 120 != 0 || angle.y() % 120 != 0;
 

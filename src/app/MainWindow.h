@@ -63,6 +63,12 @@ private:
     void buildBodyList();
     void updateBodyList();
     void setUnits(LengthUnit unit);
+    // Keyboard shortcuts the user can change: actions get a stable id (and a group for the
+    // shortcuts window); saved changes are put on after every UI build.
+    void bindable(QAction* action, const QString& id, const QString& group);
+    void applyShortcuts();
+    void editShortcuts();
+    void setScrollZooms(bool zooms);
     // The drawing sheet instead of the 3D view, and back.
     void enterDrawing();
     void leaveDrawing();
@@ -170,6 +176,8 @@ private:
     QTreeWidget* m_bodyList = nullptr;
     bool m_fillingBodyList = false;
     QAction* m_sectionAction = nullptr;
+    std::map<QString, QList<QKeySequence>> m_defaultShortcuts; // by id, as built
+    std::map<bool, QAction*> m_scrollActions;
     QStackedWidget* m_stack = nullptr;
     DrawingWidget* m_drawingWidget = nullptr;
     QToolBar* m_drawingBar = nullptr;

@@ -32,6 +32,7 @@ public:
     void cancel();
     void fitSheet();
     bool hasSelection() const { return m_selected.kind != SheetHighlight::Kind::None; }
+    void setScrollZooms(bool zooms) { m_scrollZooms = zooms; } // as the 3D view
 
     QString exportPdf(const QString& path) const; // error, empty on success
     QString exportSvg(const QString& path) const;
@@ -85,6 +86,7 @@ private:
     double m_zoom = 3.0;   // widget px per sheet mm
     QPointF m_origin;      // where the sheet's top left is
     bool m_fitted = false;
+    bool m_scrollZooms = true;
 
     Tool m_tool = Tool::Select;
     SheetHighlight m_selected, m_hover;

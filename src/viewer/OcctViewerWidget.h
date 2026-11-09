@@ -30,8 +30,9 @@ class QTouchEvent;
 //   1 finger       -> orbit
 //   2 fingers      -> pan + pinch zoom; a quick tap undoes (3 fingers redo)
 //   mouse          -> LMB select, RMB orbit (a click: radial menu), MMB / Shift+RMB pan,
-//                     wheel zoom
-//   touchpad       -> 2-finger scroll orbit, Shift+scroll pan, pinch zoom,
+//                     wheel zoom (Shift+wheel pans)
+//   touchpad       -> pinch zoom, 2-finger scroll zooms like a wheel or (setting) orbits,
+//                     Shift+scroll pan,
 //                     3-finger swipe pan (TrackPoint scroll behaves the same)
 class OcctViewerWidget : public QOpenGLWidget, public AIS_ViewController
 {
@@ -64,6 +65,10 @@ public:
     // Routes the primary pointer (pen tip, left mouse button) to `interaction`
     // before AIS selection; navigation input is unaffected. Not owned.
     void setInteraction(ViewerInteraction* interaction) { m_interaction = interaction; }
+    // The mouse wheel / two-finger scroll zooms (Shift pans), or, touchpad style, orbits
+    // (Shift pans, Ctrl zooms). Zooming is the default: a wheel can't be told from a
+    // touchpad reliably (XWayland merges them, fine-grained wheels scroll smoothly too).
+    void setScrollZooms(bool zooms) { m_scrollZooms = zooms; }
     // Ignore touches while the pen is in use (on by default).
     void setPalmRejection(bool on) { m_palm.setEnabled(on); }
 
@@ -134,6 +139,7 @@ private:
     bool m_primaryGrab = false; // interaction owns the current primary press
     bool m_debugInput = false;
     bool m_invertScroll = false;
+    bool m_scrollZooms = true;
 
     // A press that stays put this long opens the radial menu instead.
     static constexpr int kLongPressMs = 500;

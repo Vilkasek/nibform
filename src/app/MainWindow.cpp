@@ -4,10 +4,13 @@
 #include "app/Language.h"
 #include "app/DrawingWidget.h"
 #include "app/RadialMenu.h"
+#include "app/ShortcutsDialog.h"
 #include "viewer/UnitText.h"
 #include "model/Export.h"
 #include "sketch/SketchEditor.h"
 #include "viewer/OcctViewerWidget.h"
+
+#include <set>
 
 #include <QAction>
 #include <QActionGroup>
@@ -39,6 +42,77 @@
 #include <QToolBar>
 #include <QToolButton>
 
+namespace {
+
+// Stable names for actions whose shortcuts can be changed (saved in the settings).
+QString toolId(ToolKind kind)
+{
+    switch (kind) {
+    case ToolKind::Select: return QStringLiteral("select");
+    case ToolKind::Line: return QStringLiteral("line");
+    case ToolKind::Rectangle: return QStringLiteral("rectangle");
+    case ToolKind::Circle: return QStringLiteral("circle");
+    case ToolKind::Arc: return QStringLiteral("arc");
+    case ToolKind::Trim: return QStringLiteral("trim");
+    case ToolKind::Offset: return QStringLiteral("offset");
+    case ToolKind::Dimension: return QStringLiteral("dimension");
+    case ToolKind::PushPull: return QStringLiteral("extrude");
+    case ToolKind::Fillet: return QStringLiteral("fillet");
+    case ToolKind::Chamfer: return QStringLiteral("chamfer");
+    case ToolKind::Shell: return QStringLiteral("shell");
+    case ToolKind::Polygon: return QStringLiteral("polygon");
+    case ToolKind::Slot: return QStringLiteral("slot");
+    case ToolKind::Ellipse: return QStringLiteral("ellipse");
+    case ToolKind::Spline: return QStringLiteral("spline");
+    case ToolKind::SketchFillet: return QStringLiteral("sketchFillet");
+    case ToolKind::SketchChamfer: return QStringLiteral("sketchChamfer");
+    case ToolKind::Mirror: return QStringLiteral("sketchMirror");
+    case ToolKind::LinearPattern: return QStringLiteral("sketchLinearPattern");
+    case ToolKind::CircularPattern: return QStringLiteral("sketchCircularPattern");
+    case ToolKind::Project: return QStringLiteral("project");
+    case ToolKind::Image: return QStringLiteral("image");
+    case ToolKind::Freehand: return QStringLiteral("freehand");
+    case ToolKind::Move: return QStringLiteral("move");
+    case ToolKind::Measure: return QStringLiteral("measure");
+    case ToolKind::Section: return QStringLiteral("section");
+    case ToolKind::Revolve: return QStringLiteral("revolve");
+    case ToolKind::Sweep: return QStringLiteral("sweep");
+    case ToolKind::Loft: return QStringLiteral("loft");
+    case ToolKind::Hole: return QStringLiteral("hole");
+    case ToolKind::BodyMirror: return QStringLiteral("mirror");
+    case ToolKind::BodyLinearPattern: return QStringLiteral("linearPattern");
+    case ToolKind::BodyCircularPattern: return QStringLiteral("circularPattern");
+    case ToolKind::OffsetPlane: return QStringLiteral("offsetPlane");
+    case ToolKind::AnglePlane: return QStringLiteral("anglePlane");
+    case ToolKind::ThreePointPlane: return QStringLiteral("threePointPlane");
+    case ToolKind::Axis: return QStringLiteral("axis");
+    }
+    return QStringLiteral("unknown");
+}
+
+QString constraintId(ConstraintCommand command)
+{
+    switch (command) {
+    case ConstraintCommand::Horizontal: return QStringLiteral("horizontal");
+    case ConstraintCommand::Vertical: return QStringLiteral("vertical");
+    case ConstraintCommand::Parallel: return QStringLiteral("parallel");
+    case ConstraintCommand::Perpendicular: return QStringLiteral("perpendicular");
+    case ConstraintCommand::Equal: return QStringLiteral("equal");
+    case ConstraintCommand::Tangent: return QStringLiteral("tangent");
+    case ConstraintCommand::Concentric: return QStringLiteral("concentric");
+    case ConstraintCommand::Coincident: return QStringLiteral("coincident");
+    case ConstraintCommand::Midpoint: return QStringLiteral("midpoint");
+    case ConstraintCommand::Fix: return QStringLiteral("fix");
+    case ConstraintCommand::Dimension: return QStringLiteral("dimension");
+    case ConstraintCommand::HorizontalDimension: return QStringLiteral("horizontalDimension");
+    case ConstraintCommand::VerticalDimension: return QStringLiteral("verticalDimension");
+    case ConstraintCommand::Symmetric: return QStringLiteral("symmetric");
+    }
+    return QStringLiteral("unknown");
+}
+
+} // namespace
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
@@ -60,6 +134,9 @@ MainWindow::MainWindow(QWidget* parent)
             m_hintLabel->setText(hint);
     });
     connect(m_drawingWidget, &DrawingWidget::selectionChanged, this, [this] { updateEditActions(); });
+    const bool zooms = QSettings().value(QStringLiteral("scrollZooms"), true).toBool();
+    m_viewer->setScrollZooms(zooms);
+    m_drawingWidget->setScrollZooms(zooms);
     // Remembered length unit, and the Bodies panel (the View menu shows it).
     setLengthUnit(QSettings().value(QStringLiteral("units")).toString() == QLatin1String("in") ? LengthUnit::Inch
                                                                                                 : LengthUnit::Millimetre);
@@ -253,6 +330,87 @@ void MainWindow::exportDrawing(bool pdf)
         showMessage(tr("Exported %1").arg(QFileInfo(path).fileName()));
 }
 
+void MainWindow::setScrollZooms(bool zooms)
+{
+    QSettings().setValue(QStringLiteral("scrollZooms"), zooms);
+    m_viewer->setScrollZooms(zooms);
+    m_drawingWidget->setScrollZooms(zooms);
+    if (QAction* action = m_scrollActions[zooms])
+        action->setChecked(true);
+}
+
+void MainWindow::bindable(QAction* action, const QString& id, const QString& group)
+{
+    action->setObjectName(QStringLiteral("key:") + id);
+    action->setProperty("shortcutGroup", group);
+}
+
+void MainWindow::applyShortcuts()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("shortcuts"));
+    for (QAction* action : findChildren<QAction*>()) {
+        const QString name = action->objectName();
+        if (!name.startsWith(QLatin1String("key:")))
+            continue;
+        const QString id = name.mid(4);
+        if (!m_defaultShortcuts.count(id))
+            m_defaultShortcuts[id] = action->shortcuts(); // as the UI was built: the default
+        QList<QKeySequence> keys = m_defaultShortcuts[id];
+        if (settings.contains(id)) {
+            const QString chosen = settings.value(id).toString();
+            keys = chosen.isEmpty() ? QList<QKeySequence>{} : QList<QKeySequence>{QKeySequence::fromString(chosen, QKeySequence::PortableText)};
+        }
+        const QString before = action->shortcut().toString(QKeySequence::NativeText);
+        if (keys == action->shortcuts())
+            continue;
+        action->setShortcuts(keys);
+        // Tooltips name the keys: "Line (L)".
+        QString tip = action->toolTip();
+        const QString after = action->shortcut().toString(QKeySequence::NativeText);
+        if (!before.isEmpty() && tip.contains(QStringLiteral(" (%1)").arg(before)))
+            tip.replace(QStringLiteral(" (%1)").arg(before), after.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(after));
+        else if (!before.isEmpty() && tip.contains(QStringLiteral("(%1)").arg(before)))
+            tip.replace(QStringLiteral("(%1)").arg(before), after.isEmpty() ? QString() : QStringLiteral("(%1)").arg(after));
+        action->setToolTip(tip);
+    }
+}
+
+void MainWindow::editShortcuts()
+{
+    std::vector<ShortcutsDialog::Entry> entries;
+    std::set<QString> seen;
+    for (QAction* action : findChildren<QAction*>()) {
+        const QString name = action->objectName();
+        if (!name.startsWith(QLatin1String("key:")))
+            continue;
+        const QString id = name.mid(4);
+        if (!seen.insert(id).second)
+            continue;
+        QString text = action->text();
+        text.remove(QLatin1Char('&'));
+        const QList<QKeySequence> defaults = m_defaultShortcuts.count(id) ? m_defaultShortcuts[id] : QList<QKeySequence>{};
+        entries.push_back({id, text, action->property("shortcutGroup").toString(),
+                           defaults.isEmpty() ? QKeySequence() : defaults.front(), action->shortcut()});
+    }
+    std::stable_sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.group < b.group; });
+    ShortcutsDialog dialog(entries, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    QSettings settings;
+    settings.remove(QStringLiteral("shortcuts"));
+    settings.beginGroup(QStringLiteral("shortcuts"));
+    for (const auto& [id, keys] : dialog.result()) {
+        const QList<QKeySequence> defaults = m_defaultShortcuts.count(id) ? m_defaultShortcuts[id] : QList<QKeySequence>{};
+        const QKeySequence primary = defaults.isEmpty() ? QKeySequence() : defaults.front();
+        if (keys != primary)
+            settings.setValue(id, keys.toString(QKeySequence::PortableText));
+    }
+    settings.endGroup();
+    applyShortcuts();
+    showMessage(tr("Keyboard shortcuts saved"));
+}
+
 void MainWindow::setUnits(LengthUnit unit)
 {
     setLengthUnit(unit);
@@ -373,6 +531,7 @@ void MainWindow::buildUi()
 
 void MainWindow::syncUi()
 {
+    applyShortcuts();
     // Freshly built bars and menus take the current state.
     m_themeActions[m_theme]->setChecked(true);
     applyTheme(); // icons and style sheet
@@ -428,17 +587,19 @@ void MainWindow::buildActions()
 {
     // --- File menu -------------------------------------------------------------------
     QMenu* file = menuBar()->addMenu(tr("&File"));
-    file->addAction(tr("New"), QKeySequence::New, this, &MainWindow::newFile);
-    file->addAction(tr("Open…"), QKeySequence::Open, this, &MainWindow::openFile);
+    const QString fileGroup = tr("File");
+    bindable(file->addAction(tr("New"), QKeySequence::New, this, &MainWindow::newFile), QStringLiteral("file.new"), fileGroup);
+    bindable(file->addAction(tr("Open…"), QKeySequence::Open, this, &MainWindow::openFile), QStringLiteral("file.open"), fileGroup);
     QMenu* recent = file->addMenu(tr("Open Recent"));
     connect(recent, &QMenu::aboutToShow, this, [this, recent] { fillRecentMenu(recent); });
     file->addSeparator();
-    file->addAction(tr("Save"), QKeySequence::Save, this, &MainWindow::save);
-    file->addAction(tr("Save As…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this,
-                    &MainWindow::saveAs);
+    bindable(file->addAction(tr("Save"), QKeySequence::Save, this, &MainWindow::save), QStringLiteral("file.save"), fileGroup);
+    bindable(file->addAction(tr("Save As…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this, &MainWindow::saveAs),
+             QStringLiteral("file.saveAs"), fileGroup);
     file->addSeparator();
     QAction* import = file->addAction(tr("Import…"), this, &MainWindow::importModel);
     import->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I));
+    bindable(import, QStringLiteral("file.import"), fileGroup);
     import->setToolTip(tr("A STEP, IGES or STL file: as bodies to build on, or as a reference"));
     QMenu* exports = file->addMenu(tr("Export"));
     m_exportStepAction = exports->addAction(tr("STEP…"), this, [this] { exportBodies(ExportFormat::Step); });
@@ -446,7 +607,7 @@ void MainWindow::buildActions()
     m_exportStlAction = exports->addAction(tr("STL…"), this, [this] { exportBodies(ExportFormat::Stl); });
     m_export3mfAction = exports->addAction(tr("3MF (3D printing)…"), this, [this] { exportBodies(ExportFormat::ThreeMf); });
     file->addSeparator();
-    file->addAction(tr("Quit"), QKeySequence::Quit, this, &QWidget::close);
+    bindable(file->addAction(tr("Quit"), QKeySequence::Quit, this, &QWidget::close), QStringLiteral("file.quit"), fileGroup);
 
     // --- Edit menu -------------------------------------------------------------------
     QMenu* edit = menuBar()->addMenu(tr("&Edit"));
@@ -478,6 +639,14 @@ void MainWindow::buildActions()
     m_cancelAction->setShortcut(QKeySequence(Qt::Key_Escape));
     m_confirmAction = edit->addAction(tr("Finish / Edit Dimension"), m_editor, &SketchEditor::confirm);
     m_confirmAction->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
+    edit->addSeparator();
+    QAction* shortcuts = edit->addAction(tr("Keyboard Shortcuts…"), this, &MainWindow::editShortcuts);
+    const QString editGroup = tr("Edit");
+    for (const auto& [action, id] : {std::pair(m_undoAction, "edit.undo"), std::pair(m_redoAction, "edit.redo"),
+                                     std::pair(m_copyAction, "edit.copy"), std::pair(paste, "edit.paste"),
+                                     std::pair(m_deleteAction, "edit.delete"), std::pair(m_cancelAction, "edit.cancel"),
+                                     std::pair(m_confirmAction, "edit.confirm"), std::pair(shortcuts, "edit.shortcuts")})
+        bindable(action, QString::fromLatin1(id), editGroup);
     iconize(m_undoAction, Icon::Undo);
     iconize(m_redoAction, Icon::Redo);
     iconize(m_deleteAction, Icon::Delete);
@@ -518,6 +687,8 @@ void MainWindow::buildActions()
         tools->addAction(action);
         connect(action, &QAction::triggered, this, [this, kind] { m_editor->setTool(kind); });
         m_toolActions[kind] = action;
+        bindable(action, QStringLiteral("tool.") + toolId(kind),
+                 kind == ToolKind::Select ? tr("Edit") : isSketchTool(kind) ? tr("Sketch") : tr("Model"));
         return action;
     };
     QAction* select = makeTool(ToolKind::Select, tr("Select"), QKeySequence(Qt::Key_S), Icon::Select);
@@ -527,6 +698,7 @@ void MainWindow::buildActions()
     m_modelBar->addSeparator();
     m_newSketchAction = new QAction(tr("New Sketch"), m_uiRoot);
     m_newSketchAction->setShortcut(QKeySequence(Qt::Key_K));
+    bindable(m_newSketchAction, QStringLiteral("model.newSketch"), tr("Model"));
     iconize(m_newSketchAction, Icon::NewSketch);
     m_newSketchAction->setToolTip(tr("New Sketch (K): on the selected flat face, otherwise on the ground; "
                                      "the arrow next to it picks the plane"));
@@ -711,6 +883,7 @@ void MainWindow::buildActions()
                                                   &SketchEditor::toggleConstruction);
     sketchMenu->addAction(m_constructionAction);
     m_constructionAction->setShortcut(QKeySequence(Qt::Key_Q));
+    bindable(m_constructionAction, QStringLiteral("sketch.construction"), tr("Sketch"));
     m_constructionAction->setToolTip(tr("Construction (Q): the selected curves become reference geometry "
                                         "(dashed, never bounding a region), or back to regular"));
     iconize(m_constructionAction, Icon::Construction);
@@ -843,9 +1016,11 @@ void MainWindow::buildActions()
         iconize(svg, Icon::Import);
         QAction* printing = m_drawingBar->addAction(tr("Print"), m_drawingWidget, &DrawingWidget::print);
         printing->setShortcut(QKeySequence::Print);
+        bindable(printing, QStringLiteral("drawing.print"), tr("Drawing"));
         iconize(printing, Icon::Drawing);
     }
     m_closeSketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
+    bindable(m_closeSketchAction, QStringLiteral("sketch.finish"), tr("Sketch"));
     m_closeSketchAction->setToolTip(tr("Back to the model (Ctrl+Enter)"));
     iconize(m_closeSketchAction, Icon::CloseSketch);
     if (QWidget* button = m_sketchBar->widgetForAction(m_closeSketchAction))
@@ -860,12 +1035,25 @@ void MainWindow::buildActions()
     });
     m_fitAction = fit;
     fit->setShortcut(QKeySequence(Qt::Key_F));
+    bindable(fit, QStringLiteral("view.fit"), tr("View"));
     fit->setToolTip(tr("Fit the view (F)"));
     iconize(fit, Icon::Fit);
 
     // --- Views: digits = faces, Ctrl+digit = corners, Shift+digit = edges --------------
     QMenu* views = menuBar()->addMenu(tr("&View"));
     views->addAction(fit);
+
+    // What scrolling does (a wheel and a touchpad can't be told apart reliably).
+    QMenu* scrolling = views->addMenu(tr("Scrolling"));
+    auto* scrollGroup = new QActionGroup(scrolling);
+    for (const auto& [zooms, name] : {std::pair(true, tr("Zooms (Shift pans)")),
+                                      std::pair(false, tr("Orbits, touchpad style (Shift pans, Ctrl zooms)"))}) {
+        QAction* action = scrolling->addAction(name, this, [this, zooms] { setScrollZooms(zooms); });
+        action->setCheckable(true);
+        action->setChecked(QSettings().value(QStringLiteral("scrollZooms"), true).toBool() == zooms);
+        scrollGroup->addAction(action);
+        m_scrollActions[zooms] = action;
+    }
 
     // Units, the section view and the Bodies panel.
     QMenu* units = views->addMenu(tr("Units"));
@@ -907,6 +1095,7 @@ void MainWindow::buildActions()
     });
     m_tabletAction->setCheckable(true);
     m_tabletAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    bindable(m_tabletAction, QStringLiteral("view.tabletMode"), tr("View"));
     m_tabletAction->setToolTip(tr("Bigger buttons and pick areas, an Undo / Delete / Done bar on the side "
                                   "and a numeric keypad for values"));
     m_tabletAction->setChecked(QSettings().value(QStringLiteral("tabletMode"), false).toBool());
@@ -958,6 +1147,7 @@ void MainWindow::buildActions()
         QAction* action = views->addAction(name, this, [this, orientation] { m_viewer->setProjection(orientation); });
         action->setShortcut(key);
         action->setToolTip(QStringLiteral("%1 (%2)").arg(name, key.toString(QKeySequence::NativeText)));
+        bindable(action, QStringLiteral("view.%1").arg(static_cast<int>(orientation)), tr("View"));
         return action;
     };
     const Qt::Key digits[] = {Qt::Key_1, Qt::Key_2, Qt::Key_3, Qt::Key_4, Qt::Key_5,
@@ -1049,6 +1239,7 @@ void MainWindow::buildActions()
         action->setToolTip(QStringLiteral("%1 (%2)\n%3").arg(name, key.toString(QKeySequence::NativeText), help));
         connect(action, &QAction::triggered, this, [this, command] { m_editor->applyConstraint(command); });
         m_constraintActions[command] = action;
+        bindable(action, QStringLiteral("constraint.") + constraintId(command), tr("Constraints"));
         iconize(action, command);
     };
     addConstraint(ConstraintCommand::Dimension, tr("Dimension"), Qt::Key_D,

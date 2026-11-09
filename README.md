@@ -31,7 +31,17 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 (in core, Mesa limits line width to 1 px); for the core profile: `NIBFORM_GL_CORE=1`.
 `NIBFORM_SCREENSHOT=file.png` renders one frame, saves it and quits.
 `NIBFORM_DEBUG_INPUT=1` prints the input devices and scroll/gesture events,
-`NIBFORM_INVERT_SCROLL=1` inverts the touchpad's orbit/pan direction.
+`NIBFORM_INVERT_SCROLL=1` inverts the scroll pan / orbit direction.
+
+**Scrolling** (*View → Scrolling*, remembered): the mouse wheel and two-finger touchpad scrolling
+**zoom** about the pointer, `Shift` pans – or, touchpad style, they orbit (`Shift` pans, `Ctrl`
+zooms). A pinch always zooms. (A wheel can't be told from a touchpad reliably: XWayland merges
+them, and fine-grained wheels scroll in small steps too.)
+
+**Keyboard shortcuts** (*Edit → Keyboard Shortcuts…*): every tool, constraint, view and command,
+grouped and searchable; click a field and press the new keys, clear it for none, *Default* puts one
+back, *Reset All* all of them. Keys used twice in one group show in red (a sketch tool and a model
+tool may share keys: only one of them works at a time). Saved in the settings.
 
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
@@ -290,11 +300,11 @@ at a standard scale that fits an A4 sheet (A3 for big parts), with a frame and a
 | Pen + button | orbit |
 | 1 finger | orbit |
 | 2 fingers | pan + pinch zoom |
-| Mouse LMB / RMB / MMB / wheel | sketch tool / orbit / pan / zoom |
+| Mouse LMB / RMB / MMB / wheel | sketch tool / orbit / pan / zoom (Shift+wheel pans) |
 | Shift+RMB, Ctrl+RMB | pan, zoom |
-| Touchpad: 2-finger scroll | orbit (a TrackPoint with the middle button too) |
+| Touchpad: 2-finger scroll | zoom, or orbit with *View → Scrolling → Orbits* (a TrackPoint with the middle button too) |
 | Touchpad: Shift + 2 fingers / 3 fingers | pan |
-| Touchpad: pinch, Ctrl + 2 fingers | zoom |
+| Touchpad: pinch | zoom |
 | `F` | fit the view |
 | `1`–`6` | faces: top, front, right, back, left, bottom |
 | `Ctrl+1`–`8` | corners: top (front-right, back-right, back-left, front-left), then bottom in the same order; `Ctrl+1` = isometric |

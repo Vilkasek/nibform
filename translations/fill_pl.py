@@ -6,6 +6,9 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "Keyboard shortcuts saved": "Zapisano skróty klawiszowe", "File": "Plik", "Keyboard Shortcuts…": "Skróty klawiszowe…",
+  "Scrolling": "Przewijanie", "Zooms (Shift pans)": "Przybliża (Shift przesuwa)",
+  "Orbits, touchpad style (Shift pans, Ctrl zooms)": "Obraca, jak na touchpadzie (Shift przesuwa, Ctrl przybliża)",
   "Make a body first: a drawing shows the bodies": "Najpierw utwórz bryłę: rysunek pokazuje bryły",
   "Export Drawing": "Eksportuj rysunek", "Drawing": "Rysunek",
   "A technical drawing of the bodies: views, sections, dimensions; PDF, SVG or printed":
@@ -278,6 +281,11 @@ PL = {
   "Delete Dimension": "Usuń wymiar", "Edit Text…": "Edytuj tekst…", "Note": "Notatka", "Text:": "Tekst:",
   "Text Size": "Wielkość tekstu", "Delete Note": "Usuń notatkę", "Title…": "Tytuł…", "Fit the Sheet": "Dopasuj arkusz",
   "Could not write %1": "Nie udało się zapisać %1",
+ },
+ "ShortcutsDialog": {
+  "Keyboard Shortcuts": "Skróty klawiszowe", "Search actions or keys…": "Szukaj akcji albo klawiszy…",
+  "Action": "Akcja", "Shortcut": "Skrót", "Default": "Domyślny", "Back to %1": "Przywróć %1", "none": "brak",
+  "Reset All": "Przywróć wszystkie", "These keys are used twice here": "Te klawisze są tu użyte dwa razy",
  },
  "SketchEditor": {
   "Reference": "Odniesienie", "Import": "Import", "Imported %1 as a reference": "Zaimportowano %1 jako odniesienie",

@@ -691,13 +691,17 @@ void DrawingWidget::mouseDoubleClickEvent(QMouseEvent* e)
 
 void DrawingWidget::wheelEvent(QWheelEvent* e)
 {
-    // A wheel zooms about the pointer; a touchpad's two-finger scroll pans.
-    if (!e->pixelDelta().isNull() && !(e->modifiers() & Qt::ControlModifier)) {
-        m_origin += QPointF(e->pixelDelta());
+    // Scrolling zooms about the pointer (Shift pans); touchpad style it pans (Ctrl zooms).
+    const bool pan = (e->modifiers() & Qt::ShiftModifier)
+                  || (!m_scrollZooms && !e->pixelDelta().isNull() && !(e->modifiers() & Qt::ControlModifier));
+    if (pan) {
+        QPointF d = e->pixelDelta().isNull() ? QPointF(e->angleDelta()) / 4.0 : QPointF(e->pixelDelta());
+        m_origin += d;
         update();
         return;
     }
-    const double factor = std::pow(1.0015, e->angleDelta().y());
+    const double steps = e->angleDelta().y() != 0 ? e->angleDelta().y() : e->pixelDelta().y() * 4.0;
+    const double factor = std::pow(1.0015, steps);
     const QPointF at = e->position();
     m_origin = at - (at - m_origin) * factor;
     m_zoom *= factor;

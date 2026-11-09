@@ -482,6 +482,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Eksportuj rysunek</translation>
     </message>
     <message>
+        <source>Keyboard shortcuts saved</source>
+        <translation>Zapisano skróty klawiszowe</translation>
+    </message>
+    <message>
         <source>The checkbox shows or hides a body; double-click the name to rename it</source>
         <translation>Pole wyboru pokazuje albo ukrywa bryłę; dwuklik na nazwie zmienia ją</translation>
     </message>
@@ -496,6 +500,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Default Color</source>
         <translation>Domyślny kolor</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Plik</translation>
     </message>
     <message>
         <source>Import…</source>
@@ -536,6 +544,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Paste</source>
         <translation>Wklej</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts…</source>
+        <translation>Skróty klawiszowe…</translation>
     </message>
     <message>
         <source>Drawing</source>
@@ -812,6 +824,18 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Print</source>
         <translation>Drukuj</translation>
+    </message>
+    <message>
+        <source>Scrolling</source>
+        <translation>Przewijanie</translation>
+    </message>
+    <message>
+        <source>Zooms (Shift pans)</source>
+        <translation>Przybliża (Shift przesuwa)</translation>
+    </message>
+    <message>
+        <source>Orbits, touchpad style (Shift pans, Ctrl zooms)</source>
+        <translation>Obraca, jak na touchpadzie (Shift przesuwa, Ctrl przybliża)</translation>
     </message>
     <message>
         <source>Units</source>
@@ -1585,6 +1609,45 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Can't open %1: %2</source>
         <translation>Nie można otworzyć %1: %2</translation>
+    </message>
+</context>
+<context>
+    <name>ShortcutsDialog</name>
+    <message>
+        <source>Keyboard Shortcuts</source>
+        <translation>Skróty klawiszowe</translation>
+    </message>
+    <message>
+        <source>Search actions or keys…</source>
+        <translation>Szukaj akcji albo klawiszy…</translation>
+    </message>
+    <message>
+        <source>Action</source>
+        <translation>Akcja</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <translation>Skrót</translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <translation>Domyślny</translation>
+    </message>
+    <message>
+        <source>Back to %1</source>
+        <translation>Przywróć %1</translation>
+    </message>
+    <message>
+        <source>none</source>
+        <translation>brak</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Przywróć wszystkie</translation>
+    </message>
+    <message>
+        <source>These keys are used twice here</source>
+        <translation>Te klawisze są tu użyte dwa razy</translation>
     </message>
 </context>
 <context>
