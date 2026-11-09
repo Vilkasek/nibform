@@ -152,6 +152,7 @@ void SketchEditor::rebuildModel()
     refreshBodies();
     showRegions(); // what is extruded now hides, what failed shows
     showDatums();
+    showReferences();
     updateStatus();
     m_viewer->update();
 }
@@ -176,6 +177,7 @@ bool SketchEditor::commitFeature(const Feature& made)
     clearModelSelection();
     showRegions(); // the extruded regions hide
     showDatums();
+    showReferences();
     updateStatus();
     emit historyChanged();
     m_viewer->update();
@@ -1194,6 +1196,10 @@ std::vector<TimelineItem> SketchEditor::timeline() const
         case Feature::Kind::Move:
             base = f.copy ? tr("Copy") : tr("Move");
             break;
+        case Feature::Kind::Import:
+            base = f.reference ? tr("Reference") : tr("Import");
+            item.detail = QString::fromStdString(f.label);
+            break;
         case Feature::Kind::Datum:
             if (f.datum == Feature::DatumKind::Axis || f.datum == Feature::DatumKind::TwoPointAxis) {
                 base = tr("Axis");
@@ -1210,6 +1216,10 @@ std::vector<TimelineItem> SketchEditor::timeline() const
         if (i < m_featureErrors.size())
             item.error = modelText(m_featureErrors[i]);
         item.rolledBack = m_active >= 0 && m_rollback >= 0 && static_cast<int>(i) > m_rollback;
+        // Values and sketches can be changed from here; imports, moves and the like can't.
+        item.editable = item.sketch || f.kind == Feature::Kind::Extrude || f.kind == Feature::Kind::Fillet
+                     || f.kind == Feature::Kind::Chamfer || f.kind == Feature::Kind::Shell
+                     || !promptsFor(f).empty();
         items.push_back(item);
     }
     return items;

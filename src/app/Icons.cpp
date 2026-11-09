@@ -488,6 +488,14 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.setBrush(Qt::NoBrush);
         break;
     }
+    case Icon::Import: {
+        // A box with an arrow coming into it.
+        p.drawPolyline(QPolygonF({{4, 10}, {4, 20}, {20, 20}, {20, 10}}));
+        p.setPen(pen(accent, 1.8));
+        p.drawLine(QPointF(12, 2), QPointF(12, 15));
+        arrowHead(p, {12, 16}, {12, 11}, accent);
+        break;
+    }
     case Icon::Freehand: {
         // A rough loop drawn by a pen nib.
         QPainterPath loop;

@@ -82,7 +82,12 @@ private:
     void openFile();
     bool save();
     bool saveAs();
-    void exportBodies(bool step);
+    enum class ExportFormat { Step, Iges, Stl, ThreeMf };
+    void exportBodies(ExportFormat format);
+    void importModel();
+    // A STEP / IGES / STL opened as a new, unsaved project.
+    bool openModel(const QString& path);
+    static bool isModelFile(const QString& path);
     void autosave();
     void addRecentFile(const QString& path);
     void fillRecentMenu(QMenu* menu);
@@ -132,6 +137,11 @@ private:
     QTimer m_messageTimer;
     QAction* m_exportStepAction = nullptr;
     QAction* m_exportStlAction = nullptr;
+    QAction* m_exportIgesAction = nullptr;
+    QAction* m_export3mfAction = nullptr;
+    QAction* m_copyAction = nullptr;
+    QAction* m_importDrawingAction = nullptr;
+    QAction* m_exportDrawingAction = nullptr;
     std::vector<std::pair<QToolButton*, Icon>> m_contextButtons;
     QToolButton* m_ctxFillet = nullptr;
     QToolButton* m_ctxChamfer = nullptr;

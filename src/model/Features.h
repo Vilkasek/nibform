@@ -16,6 +16,7 @@
 #include <array>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -110,6 +111,7 @@ struct Feature
         Hole,    // holes into `faces[0]` at `holeAt` / `points`, shaped by `hole`
         Datum,   // a construction plane or axis (`datum`)
         Move,    // bodies moved (or copied, `copy`) by `matrix`
+        Import,  // the solids of `shape` as new bodies, or all of it as a `reference`
     };
     enum class PatternKind { Linear, Circular };
     enum class DatumKind { OffsetPlane, AnglePlane, ThreePointPlane, Axis, TwoPointAxis };
@@ -143,6 +145,11 @@ struct Feature
     // Move: a rigid motion, the 3 × 4 matrix row by row (rotation | translation).
     std::vector<double> matrix;
     bool copy = false;
+    // Import: the geometry (BREP text, shared between copies of the history), where it
+    // came from, and whether it is only to look at.
+    std::shared_ptr<const std::string> shape;
+    std::string label;
+    bool reference = false;
 };
 
 std::vector<double> matrixOf(const gp_Trsf& trsf);
@@ -170,6 +177,7 @@ struct ModelContext
 {
     std::vector<Datum> datums;
     std::map<int, FeatureTool> tools;
+    std::vector<TopoDS_Shape> references; // imported to look at, not to build on
     const Datum* datum(int id) const;
 };
 
@@ -197,6 +205,7 @@ std::optional<int> findBody(const std::vector<TopoDS_Shape>& bodies, const gp_Pn
 struct FeatureResult : ModelResult
 {
     std::optional<Datum> datum;
+    std::optional<TopoDS_Shape> reference;
 };
 FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies,
                            const Feature& feature, const ModelContext& context = {});

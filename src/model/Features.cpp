@@ -1,6 +1,7 @@
 #include "model/Features.h"
 #include "model/Tr.h"
 
+#include "model/Export.h"
 #include "model/Profiles.h"
 
 #include <BRepAdaptor_Curve.hxx>
@@ -385,6 +386,31 @@ double reachOf(const std::vector<TopoDS_Shape>& bodies)
 
 } // namespace
 
+namespace {
+
+// Imported geometry, read once: the text is shared by every copy of the feature.
+std::optional<TopoDS_Shape> importedShape(const std::shared_ptr<const std::string>& text)
+{
+    if (!text)
+        return std::nullopt;
+    struct Entry
+    {
+        std::weak_ptr<const std::string> text;
+        TopoDS_Shape shape;
+    };
+    static std::map<const std::string*, Entry> cache;
+    std::erase_if(cache, [](const auto& item) { return item.second.text.expired(); });
+    const auto found = cache.find(text.get());
+    if (found != cache.end() && found->second.text.lock() == text)
+        return found->second.shape;
+    const auto shape = shapeFromText(*text);
+    if (shape)
+        cache[text.get()] = {text, *shape};
+    return shape;
+}
+
+} // namespace
+
 FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies, const Feature& f,
                            const ModelContext& context)
 {
@@ -615,6 +641,23 @@ FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoD
         }
         return result;
     }
+    case Feature::Kind::Import: {
+        const auto shape = importedShape(f.shape);
+        if (!shape)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The imported geometry can't be read"));
+        FeatureResult result;
+        result.bodies = bodies;
+        if (f.reference) {
+            result.reference = *shape;
+            return result;
+        }
+        std::size_t before = result.bodies.size();
+        for (TopExp_Explorer it(*shape, TopAbs_SOLID); it.More(); it.Next())
+            result.bodies.push_back(it.Current());
+        if (result.bodies.size() == before)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The file has no closed solids; import it as a reference"));
+        return result;
+    }
     case Feature::Kind::Datum: {
         FeatureResult result;
         result.bodies = bodies;
@@ -677,6 +720,8 @@ void remember(ModelContext& context, const Feature& feature, const FeatureResult
     }
     if (result.tool)
         context.tools[feature.id] = *result.tool;
+    if (result.reference)
+        context.references.push_back(*result.reference);
 }
 
 std::vector<double> matrixOf(const gp_Trsf& trsf)

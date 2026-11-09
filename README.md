@@ -36,7 +36,7 @@ Arch's OpenCASCADE is built against GLX, so the app forces `QT_QPA_PLATFORM=xcb`
 `NIBFORM_AUTOSAVE_SECONDS=5` autosaves more often than every minute.
 `-DNIBFORM_BUILD_TESTS=OFF` skips the tests (and Qt Test).
 
-Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`, `./build/test_inspect`).
+Core tests: `ctest --test-dir build` (or `./build/test_sketch`, `./build/test_solver`, `./build/test_trim`, `./build/test_offset`, `./build/test_model`, `./build/test_features`, `./build/test_project`, `./build/test_input`, `./build/test_value_editor`, `./build/test_toolkit`, `./build/test_freehand`, `./build/test_solid_features`, `./build/test_inspect`, `./build/test_interop`).
 
 ## Language
 
@@ -229,8 +229,28 @@ point inside it.
 **File**: *New* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save As…*
 (`Ctrl+Shift+S`) – a `.nibform` project is readable JSON with the sketches and the history;
 `nibform file.nibform` opens one right away. The window title shows `*` for unsaved changes,
-and closing asks to save. *Open Recent* lists the last projects. *Export STEP…* / *Export STL…*
-save the bodies (binary STL, 0.05 mm mesh).
+and closing asks to save. *Open Recent* lists the last projects.
+
+**Getting models in and out**:
+
+- *Open…* also takes STEP, IGES and STL files (and `nibform part.step` from the command line): they
+  become a new, unsaved project whose history starts with the imported bodies – push / pull their
+  faces, drill holes, round edges, then *Export* back.
+- *Import…* (`Ctrl+I`) adds a STEP, IGES or STL file to the open project, as **bodies** to build on
+  or as a **reference** – shown see-through, not modelled (a big or open STL mesh can only be one).
+  The geometry is kept in the project, so it doesn't need the file later; the import is a step of
+  the history ("Import · part.step").
+- *Export* saves the bodies as STEP, IGES, STL (binary, 0.05 mm mesh) or **3MF** for 3D printing:
+  one object per shown body with its name and color, in millimetres (or inches, when the app shows
+  inches).
+- *Sketch → Import Drawing (DXF / SVG)…* adds a drawing to the open sketch: DXF lines, circles,
+  arcs, polylines (with bulges), splines, ellipses and points in the file's units; SVG paths, lines,
+  rectangles, circles, ellipses and polylines with their transforms, in millimetres. Touching ends are
+  joined, curves become splines. *Export Sketch (DXF / SVG)…* writes the open sketch (construction
+  curves on their own layer / dashed).
+- *Edit → Copy* / *Paste* (`Ctrl+C` / `Ctrl+V`), also between projects (two windows): curves selected
+  in a sketch, with the relations and dimensions among them, paste into the open sketch (shifted a
+  little when they would land right on top of themselves); selected bodies paste as an import.
 
 Unsaved work is autosaved every minute to a recovery file (in `~/.local/share/Nibform/Nibform/recovery`,
 never over the project itself). If Nibform is killed or crashes, the next start offers to
@@ -302,7 +322,7 @@ read through xdg-desktop-portal), Light or Dark; the choice is remembered.
 - [x] **M9** – sketch toolkit: polygon, slot, ellipse, spline, sketch fillets, mirror and patterns, projection, reference images
 - [x] **M10** – solid features: revolve, sweep, loft, mirror, patterns, holes, construction planes
 - [x] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
-- [ ] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export
+- [x] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export, copy and paste
 - [ ] **M13** – drawings: views, dimensions, PDF / SVG export
 - [ ] **M14** – speed and robustness: background and incremental rebuild, large models
 

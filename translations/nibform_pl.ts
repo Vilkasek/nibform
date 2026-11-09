@@ -36,14 +36,6 @@
         <translation>Zapisz jako…</translation>
     </message>
     <message>
-        <source>Export STEP…</source>
-        <translation>Eksportuj STEP…</translation>
-    </message>
-    <message>
-        <source>Export STL…</source>
-        <translation>Eksportuj STL…</translation>
-    </message>
-    <message>
         <source>Quit</source>
         <translation>Zakończ</translation>
     </message>
@@ -336,6 +328,46 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Domyślny kolor</translation>
     </message>
     <message>
+        <source>Import…</source>
+        <translation>Importuj…</translation>
+    </message>
+    <message>
+        <source>A STEP, IGES or STL file: as bodies to build on, or as a reference</source>
+        <translation>Plik STEP, IGES albo STL: jako bryły do dalszej pracy albo jako odniesienie</translation>
+    </message>
+    <message>
+        <source>Export</source>
+        <translation>Eksportuj</translation>
+    </message>
+    <message>
+        <source>STEP…</source>
+        <translation>STEP…</translation>
+    </message>
+    <message>
+        <source>IGES…</source>
+        <translation>IGES…</translation>
+    </message>
+    <message>
+        <source>STL…</source>
+        <translation>STL…</translation>
+    </message>
+    <message>
+        <source>3MF (3D printing)…</source>
+        <translation>3MF (druk 3D)…</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Kopiuj</translation>
+    </message>
+    <message>
+        <source>Copies the selected curves (in a sketch) or bodies, to paste here or in another project</source>
+        <translation>Kopiuje zaznaczone krzywe (w szkicu) albo bryły, by wkleić je tu albo w innym projekcie</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Wklej</translation>
+    </message>
+    <message>
         <source>Revolve</source>
         <translation>Obrót</translation>
     </message>
@@ -494,6 +526,26 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Remove Image</source>
         <translation>Usuń obraz</translation>
+    </message>
+    <message>
+        <source>Import Drawing (DXF / SVG)…</source>
+        <translation>Importuj rysunek (DXF / SVG)…</translation>
+    </message>
+    <message>
+        <source>Import Drawing</source>
+        <translation>Importuj rysunek</translation>
+    </message>
+    <message>
+        <source>Drawings (*.dxf *.svg)</source>
+        <translation>Rysunki (*.dxf *.svg)</translation>
+    </message>
+    <message>
+        <source>Export Sketch (DXF / SVG)…</source>
+        <translation>Eksportuj szkic (DXF / SVG)…</translation>
+    </message>
+    <message>
+        <source>Export Sketch</source>
+        <translation>Eksportuj szkic</translation>
     </message>
     <message>
         <source>Image</source>
@@ -860,6 +912,26 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Otwórz projekt</translation>
     </message>
     <message>
+        <source>Nibform projects (*.nibform);;3D models (*.step *.stp *.iges *.igs *.stl)</source>
+        <translation>Projekty Nibform (*.nibform);;Modele 3D (*.step *.stp *.iges *.igs *.stl)</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Import</translation>
+    </message>
+    <message>
+        <source>3D models (*.step *.stp *.iges *.igs *.stl)</source>
+        <translation>Modele 3D (*.step *.stp *.iges *.igs *.stl)</translation>
+    </message>
+    <message>
+        <source>Import %1 as bodies to build on, or as a reference to look at?</source>
+        <translation>Zaimportować %1 jako bryły do dalszej pracy, czy jako odniesienie do podglądu?</translation>
+    </message>
+    <message>
+        <source>Reference</source>
+        <translation>Odniesienie</translation>
+    </message>
+    <message>
         <source>Nibform projects (*.nibform)</source>
         <translation>Projekty Nibform (*.nibform)</translation>
     </message>
@@ -936,14 +1008,6 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Wolne oprogramowanie na licencji GNU General Public License w wersji 3 lub nowszej. Bez żadnej gwarancji.</translation>
     </message>
     <message>
-        <source>Export STEP</source>
-        <translation>Eksportuj STEP</translation>
-    </message>
-    <message>
-        <source>Export STL</source>
-        <translation>Eksportuj STL</translation>
-    </message>
-    <message>
         <source>Export Failed</source>
         <translation>Eksport nieudany</translation>
     </message>
@@ -993,6 +1057,42 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Could not read the STEP file</source>
         <translation>Nie udało się odczytać pliku STEP</translation>
+    </message>
+    <message>
+        <source>Could not prepare a body for IGES</source>
+        <translation>Nie udało się przygotować bryły do IGES</translation>
+    </message>
+    <message>
+        <source>Could not write the IGES file</source>
+        <translation>Nie udało się zapisać pliku IGES</translation>
+    </message>
+    <message>
+        <source>Could not mesh the bodies for 3MF</source>
+        <translation>Nie udało się utworzyć siatki brył do 3MF</translation>
+    </message>
+    <message>
+        <source>Could not write the 3MF file</source>
+        <translation>Nie udało się zapisać pliku 3MF</translation>
+    </message>
+    <message>
+        <source>The file has no geometry</source>
+        <translation>Plik nie zawiera geometrii</translation>
+    </message>
+    <message>
+        <source>Could not read the IGES file</source>
+        <translation>Nie udało się odczytać pliku IGES</translation>
+    </message>
+    <message>
+        <source>Could not read the STL file</source>
+        <translation>Nie udało się odczytać pliku STL</translation>
+    </message>
+    <message>
+        <source>The file could not be read</source>
+        <translation>Nie udało się odczytać pliku</translation>
+    </message>
+    <message>
+        <source>Unknown file type (STEP, IGES or STL)</source>
+        <translation>Nieznany rodzaj pliku (STEP, IGES albo STL)</translation>
     </message>
     <message>
         <source>The sketch region that was extruded is gone</source>
@@ -1077,6 +1177,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Pick the bodies to move</source>
         <translation>Wybierz bryły do przesunięcia</translation>
+    </message>
+    <message>
+        <source>The imported geometry can't be read</source>
+        <translation>Nie da się odczytać zaimportowanej geometrii</translation>
+    </message>
+    <message>
+        <source>The file has no closed solids; import it as a reference</source>
+        <translation>Plik nie ma zamkniętych brył; zaimportuj go jako odniesienie</translation>
     </message>
     <message>
         <source>The plane it was made from is gone</source>
@@ -1548,6 +1656,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Przesunięcie</translation>
     </message>
     <message>
+        <source>Reference</source>
+        <translation>Odniesienie</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Import</translation>
+    </message>
+    <message>
         <source>Axis</source>
         <translation>Oś</translation>
     </message>
@@ -1818,6 +1934,73 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Turn about Z [°]</source>
         <translation>Obróć wokół Z [°]</translation>
+    </message>
+    <message>
+        <source>Imported %1 as a reference</source>
+        <translation>Zaimportowano %1 jako odniesienie</translation>
+    </message>
+    <message>
+        <source>Imported %1</source>
+        <translation>Zaimportowano %1</translation>
+    </message>
+    <message>
+        <source>Open a sketch to import a drawing into</source>
+        <translation>Otwórz szkic, do którego zaimportować rysunek</translation>
+    </message>
+    <message>
+        <source>Imported from %1: %2 curves</source>
+        <translation>Zaimportowano z %1 krzywe: %2</translation>
+    </message>
+    <message>
+        <source>Open a sketch to export</source>
+        <translation>Otwórz szkic do wyeksportowania</translation>
+    </message>
+    <message>
+        <source>Copied curves: %1</source>
+        <translation>Skopiowano krzywe: %1</translation>
+    </message>
+    <message>
+        <source>Copied bodies: %1</source>
+        <translation>Skopiowano bryły: %1</translation>
+    </message>
+    <message>
+        <source>Open a sketch to paste curves into</source>
+        <translation>Otwórz szkic, do którego wkleić krzywe</translation>
+    </message>
+    <message>
+        <source>pasted</source>
+        <translation>wklejone</translation>
+    </message>
+    <message>
+        <source>Nothing to paste: copy curves or bodies first</source>
+        <translation>Nie ma czego wkleić: najpierw skopiuj krzywe albo bryły</translation>
+    </message>
+</context>
+<context>
+    <name>SketchExchange</name>
+    <message>
+        <source>Not a DXF file (or a binary one: save it as ASCII DXF)</source>
+        <translation>To nie jest plik DXF (albo jest binarny: zapisz go jako DXF ASCII)</translation>
+    </message>
+    <message>
+        <source>The drawing has no curves this app reads (lines, circles, arcs, polylines, splines, ellipses)</source>
+        <translation>Rysunek nie zawiera krzywych, które aplikacja czyta (linie, okręgi, łuki, polilinie, splajny, elipsy)</translation>
+    </message>
+    <message>
+        <source>Not a readable SVG file: %1</source>
+        <translation>Nie da się odczytać pliku SVG: %1</translation>
+    </message>
+    <message>
+        <source>The drawing has no shapes this app reads (paths, lines, rectangles, circles, ellipses, polylines)</source>
+        <translation>Rysunek nie zawiera kształtów, które aplikacja czyta (ścieżki, linie, prostokąty, okręgi, elipsy, polilinie)</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Nie udało się zapisać %1</translation>
+    </message>
+    <message>
+        <source>Could not open %1</source>
+        <translation>Nie udało się otworzyć %1</translation>
     </message>
 </context>
 <context>

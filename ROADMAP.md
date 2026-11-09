@@ -1,7 +1,6 @@
 # Roadmap
 
-M0–M11 and i18n are done (see the README). Next, roughly in order: interop, drawings, then
-make big models fast.
+M0–M12 and i18n are done (see the README). Next: drawings, then make big models fast.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -77,7 +76,7 @@ Working with what is already there.
 
 **Done when:** two parts can be lined up, checked for fit with a section and measured.
 
-## M12 – Interop
+## M12 – Interop ✓
 
 Getting models in and out.
 

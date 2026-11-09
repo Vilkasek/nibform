@@ -375,8 +375,14 @@ void MainWindow::buildActions()
     file->addAction(tr("Save As…"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), this,
                     &MainWindow::saveAs);
     file->addSeparator();
-    m_exportStepAction = file->addAction(tr("Export STEP…"), this, [this] { exportBodies(true); });
-    m_exportStlAction = file->addAction(tr("Export STL…"), this, [this] { exportBodies(false); });
+    QAction* import = file->addAction(tr("Import…"), this, &MainWindow::importModel);
+    import->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I));
+    import->setToolTip(tr("A STEP, IGES or STL file: as bodies to build on, or as a reference"));
+    QMenu* exports = file->addMenu(tr("Export"));
+    m_exportStepAction = exports->addAction(tr("STEP…"), this, [this] { exportBodies(ExportFormat::Step); });
+    m_exportIgesAction = exports->addAction(tr("IGES…"), this, [this] { exportBodies(ExportFormat::Iges); });
+    m_exportStlAction = exports->addAction(tr("STL…"), this, [this] { exportBodies(ExportFormat::Stl); });
+    m_export3mfAction = exports->addAction(tr("3MF (3D printing)…"), this, [this] { exportBodies(ExportFormat::ThreeMf); });
     file->addSeparator();
     file->addAction(tr("Quit"), QKeySequence::Quit, this, &QWidget::close);
 
@@ -387,6 +393,11 @@ void MainWindow::buildActions()
     m_redoAction = edit->addAction(tr("Redo"), m_editor, &SketchEditor::redo);
     m_redoAction->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::Key_Y)});
     edit->addSeparator();
+    m_copyAction = edit->addAction(tr("Copy"), m_editor, &SketchEditor::copy);
+    m_copyAction->setShortcut(QKeySequence::Copy);
+    m_copyAction->setToolTip(tr("Copies the selected curves (in a sketch) or bodies, to paste here or in another project"));
+    QAction* paste = edit->addAction(tr("Paste"), m_editor, &SketchEditor::paste);
+    paste->setShortcut(QKeySequence::Paste);
     m_deleteAction = edit->addAction(tr("Delete Selected"), m_editor, &SketchEditor::deleteSelection);
     m_deleteAction->setShortcuts({QKeySequence::Delete, QKeySequence(Qt::Key_Backspace)});
     m_clearSketchAction = edit->addAction(tr("Clear Sketch"), m_editor, &SketchEditor::clearActiveSketch);
@@ -649,6 +660,32 @@ void MainWindow::buildActions()
                            [this, percent] { m_editor->setImageOpacity(percent / 100.0); });
     }
     m_removeImageAction = image->addAction(tr("Remove Image"), m_editor, &SketchEditor::removeImage);
+
+    // 2D drawings: DXF and SVG into / out of the open sketch.
+    sketchMenu->addSeparator();
+    m_importDrawingAction = sketchMenu->addAction(tr("Import Drawing (DXF / SVG)…"), this, [this] {
+        const QString path = QFileDialog::getOpenFileName(this, tr("Import Drawing"), lastDirectory(),
+                                                          tr("Drawings (*.dxf *.svg)"));
+        if (path.isEmpty())
+            return;
+        rememberDirectory(path);
+        m_editor->importDrawing(path);
+    });
+    m_exportDrawingAction = sketchMenu->addAction(tr("Export Sketch (DXF / SVG)…"), this, [this] {
+        QString selected;
+        QString path = QFileDialog::getSaveFileName(this, tr("Export Sketch"), lastDirectory() + QStringLiteral("/sketch.dxf"),
+                                                    QStringLiteral("DXF (*.dxf);;SVG (*.svg)"), &selected);
+        if (path.isEmpty())
+            return;
+        if (QFileInfo(path).suffix().isEmpty())
+            path += selected.startsWith(QLatin1String("SVG")) ? QStringLiteral(".svg") : QStringLiteral(".dxf");
+        rememberDirectory(path);
+        const QString error = m_editor->exportDrawing(path);
+        if (!error.isEmpty())
+            QMessageBox::warning(this, tr("Export Failed"), error);
+        else
+            showMessage(tr("Exported %1").arg(QFileInfo(path).fileName()));
+    });
     m_imageItems = {m_toolActions[ToolKind::Image], opacity->menuAction(), m_removeImageAction};
     {
         auto* button = new QToolButton(m_sketchBar);
@@ -1024,7 +1061,7 @@ void MainWindow::updateTimeline()
         chip->setProperty("failed", !item.error.isEmpty()); // red by the style sheet
         chip->setProperty("rolledBack", item.rolledBack);   // dimmed while a sketch before it is edited
         chip->setText(item.detail.isEmpty() ? item.name : QStringLiteral("%1  ·  %2").arg(item.name, item.detail));
-        const bool editable = item.sketch || !item.detail.isEmpty();
+        const bool editable = item.editable;
         chip->setToolTip(!item.error.isEmpty() ? item.error
                          : item.sketch         ? tr("Double-click: edit the sketch")
                          : editable            ? tr("Double-click: change the value")
@@ -1048,6 +1085,8 @@ void MainWindow::updateTimeline()
                         : item.kind == Feature::Kind::Mirror  ? Icon::BodyMirror
                         : item.kind == Feature::Kind::Pattern ? Icon::CircularPattern
                         : item.kind == Feature::Kind::Datum   ? Icon::Plane
+                        : item.kind == Feature::Kind::Import  ? Icon::Import
+                        : item.kind == Feature::Kind::Move    ? Icon::Move
                                                               : Icon::Coincident;
         chip->setIcon(makeIcon(icon, palette().color(QPalette::WindowText), QColor(m_accent)));
         connect(chip, &QToolButton::clicked, this, [this, i] {
@@ -1071,8 +1110,8 @@ void MainWindow::updateTimeline()
         m_timelineBar->addWidget(chip);
     }
     const bool any = m_editor->bodyCount() > 0;
-    m_exportStepAction->setEnabled(any);
-    m_exportStlAction->setEnabled(any);
+    for (QAction* action : {m_exportStepAction, m_exportStlAction, m_exportIgesAction, m_export3mfAction})
+        action->setEnabled(any);
 }
 
 void MainWindow::showMessage(const QString& text)
@@ -1188,14 +1227,60 @@ void MainWindow::openFile()
 {
     if (!maybeSave())
         return;
-    const QString path = QFileDialog::getOpenFileName(this, tr("Open Project"), lastDirectory(),
-                                                      tr("Nibform projects (*.nibform)"));
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Open Project"), lastDirectory(),
+        tr("Nibform projects (*.nibform);;3D models (*.step *.stp *.iges *.igs *.stl)"));
     if (!path.isEmpty())
         openPath(path);
 }
 
+bool MainWindow::isModelFile(const QString& path)
+{
+    static const QStringList models{QStringLiteral("step"), QStringLiteral("stp"), QStringLiteral("iges"),
+                                    QStringLiteral("igs"), QStringLiteral("stl")};
+    return models.contains(QFileInfo(path).suffix().toLower());
+}
+
+bool MainWindow::openModel(const QString& path)
+{
+    m_editor->newProject();
+    m_path.clear();
+    m_recovery->clear();
+    m_autosavedChanges = -1;
+    // Its solids as bodies to work on; something without solids (a mesh, loose faces) to look at.
+    const bool ok = m_editor->importModel(path, false) || m_editor->importModel(path, true);
+    rememberDirectory(path);
+    updateTitle();
+    m_viewer->fitAll();
+    return ok;
+}
+
+void MainWindow::importModel()
+{
+    const QString path = QFileDialog::getOpenFileName(this, tr("Import"), lastDirectory(),
+                                                      tr("3D models (*.step *.stp *.iges *.igs *.stl)"));
+    if (path.isEmpty())
+        return;
+    rememberDirectory(path);
+    QMessageBox ask(QMessageBox::Question, tr("Import"),
+                    tr("Import %1 as bodies to build on, or as a reference to look at?").arg(QFileInfo(path).fileName()),
+                    QMessageBox::Cancel, this);
+    QPushButton* bodies = ask.addButton(tr("Bodies"), QMessageBox::AcceptRole);
+    QPushButton* reference = ask.addButton(tr("Reference"), QMessageBox::AcceptRole);
+    ask.setDefaultButton(bodies);
+    ask.exec();
+    if (ask.clickedButton() != bodies && ask.clickedButton() != reference)
+        return;
+    if (m_editor->importModel(path, ask.clickedButton() == reference))
+        m_viewer->fitAll();
+}
+
 void MainWindow::openPath(const QString& path)
 {
+    if (isModelFile(path)) {
+        openModel(path);
+        return;
+    }
     QString error;
     auto project = ::loadProject(path, &error);
     if (!project) {
@@ -1343,23 +1428,43 @@ void MainWindow::showAbout()
                  website, source, QString::fromLatin1(qVersion()), QStringLiteral(OCC_VERSION_COMPLETE)));
 }
 
-void MainWindow::exportBodies(bool step)
+void MainWindow::exportBodies(ExportFormat format)
 {
-    const QString filter = step ? QStringLiteral("STEP (*.step *.stp)") : QStringLiteral("STL (*.stl)");
-    const QString suffix = step ? QStringLiteral(".step") : QStringLiteral(".stl");
+    const QString filter = format == ExportFormat::Step  ? QStringLiteral("STEP (*.step *.stp)")
+                         : format == ExportFormat::Iges  ? QStringLiteral("IGES (*.iges *.igs)")
+                         : format == ExportFormat::Stl   ? QStringLiteral("STL (*.stl)")
+                                                         : QStringLiteral("3MF (*.3mf)");
+    const QString suffix = format == ExportFormat::Step  ? QStringLiteral(".step")
+                         : format == ExportFormat::Iges  ? QStringLiteral(".iges")
+                         : format == ExportFormat::Stl   ? QStringLiteral(".stl")
+                                                         : QStringLiteral(".3mf");
     const QString suggested = m_path.isEmpty() ? lastDirectory() + QStringLiteral("/model") + suffix
                                                : QFileInfo(m_path).absolutePath() + QLatin1Char('/')
                                                      + QFileInfo(m_path).completeBaseName() + suffix;
-    QString path = QFileDialog::getSaveFileName(this, step ? tr("Export STEP")
-                                                           : tr("Export STL"),
-                                                suggested, filter);
+    QString path = QFileDialog::getSaveFileName(this, tr("Export"), suggested, filter);
     if (path.isEmpty())
         return;
     if (QFileInfo(path).suffix().isEmpty())
         path += suffix;
     rememberDirectory(path);
-    const std::string error = step ? exportStep(m_editor->bodies(), path.toStdString())
-                                   : exportStl(m_editor->bodies(), path.toStdString());
+    const std::string file = path.toStdString();
+    std::string error;
+    switch (format) {
+    case ExportFormat::Step:
+        error = exportStep(m_editor->bodies(), file);
+        break;
+    case ExportFormat::Iges:
+        error = exportIges(m_editor->bodies(), file);
+        break;
+    case ExportFormat::Stl:
+        error = exportStl(m_editor->bodies(), file);
+        break;
+    case ExportFormat::ThreeMf:
+        error = export3mf(m_editor->printBodies(), file, lengthUnit() == LengthUnit::Inch);
+        break;
+    }
+    if (!error.empty())
+        error = SketchEditor::modelText(error).toStdString();
     if (!error.empty())
         QMessageBox::warning(this, tr("Export Failed"), QString::fromStdString(error));
     else
@@ -1493,6 +1598,7 @@ void MainWindow::updateEditActions()
     m_undoAction->setEnabled(m_editor->canUndo());
     m_redoAction->setEnabled(m_editor->canRedo());
     m_deleteAction->setEnabled(!m_editor->selection().empty() || !m_editor->selectedBodies().empty());
+    m_copyAction->setEnabled(m_editor->canCopy());
     for (QAction* action : m_bodyActions)
         action->setEnabled(m_editor->selectedBodies().size() >= 2);
     m_editSketchAction->setEnabled(m_editor->canEditSketch());

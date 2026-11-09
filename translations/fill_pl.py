@@ -6,6 +6,21 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "Import…": "Importuj…", "A STEP, IGES or STL file: as bodies to build on, or as a reference":
+      "Plik STEP, IGES albo STL: jako bryły do dalszej pracy albo jako odniesienie",
+  "Export": "Eksportuj", "STEP…": "STEP…", "IGES…": "IGES…", "STL…": "STL…", "3MF (3D printing)…": "3MF (druk 3D)…",
+  "Copy": "Kopiuj", "Paste": "Wklej",
+  "Copies the selected curves (in a sketch) or bodies, to paste here or in another project":
+      "Kopiuje zaznaczone krzywe (w szkicu) albo bryły, by wkleić je tu albo w innym projekcie",
+  "Import Drawing (DXF / SVG)…": "Importuj rysunek (DXF / SVG)…", "Import Drawing": "Importuj rysunek",
+  "Drawings (*.dxf *.svg)": "Rysunki (*.dxf *.svg)", "Export Sketch (DXF / SVG)…": "Eksportuj szkic (DXF / SVG)…",
+  "Export Sketch": "Eksportuj szkic",
+  "Nibform projects (*.nibform);;3D models (*.step *.stp *.iges *.igs *.stl)":
+      "Projekty Nibform (*.nibform);;Modele 3D (*.step *.stp *.iges *.igs *.stl)",
+  "Import": "Import", "3D models (*.step *.stp *.iges *.igs *.stl)": "Modele 3D (*.step *.stp *.iges *.igs *.stl)",
+  "Import %1 as bodies to build on, or as a reference to look at?":
+      "Zaimportować %1 jako bryły do dalszej pracy, czy jako odniesienie do podglądu?",
+  "Reference": "Odniesienie",
   "The checkbox shows or hides a body; double-click the name to rename it":
       "Pole wyboru pokazuje albo ukrywa bryłę; dwuklik na nazwie zmienia ją",
   "Choose Color…": "Wybierz kolor…", "Body Color": "Kolor bryły", "Default Color": "Domyślny kolor",
@@ -68,8 +83,8 @@ PL = {
   "Free software under the GNU General Public License, version 3 or later. It comes with no warranty.":
       "Wolne oprogramowanie na licencji GNU General Public License w wersji 3 lub nowszej. Bez żadnej gwarancji.",
   "Quick": "Szybkie", "History": "Historia", "OpenGL error": "Błąd OpenGL", "&File": "&Plik", "New": "Nowy",
-  "Open…": "Otwórz…", "Save": "Zapisz", "Save As…": "Zapisz jako…", "Export STEP…": "Eksportuj STEP…",
-  "Export STL…": "Eksportuj STL…", "Quit": "Zakończ", "&Edit": "&Edycja", "Undo": "Cofnij", "Redo": "Ponów",
+  "Open…": "Otwórz…", "Save": "Zapisz", "Save As…": "Zapisz jako…",
+  "Quit": "Zakończ", "&Edit": "&Edycja", "Undo": "Cofnij", "Redo": "Ponów",
   "Delete Selected": "Usuń zaznaczone", "Clear Sketch": "Wyczyść szkic", "Cancel / Deselect": "Przerwij / odznacz",
   "Finish / Edit Dimension": "Zakończ / edytuj wymiar", "Model": "Bryła", "Sketch": "Szkic", "View": "Widok",
   "MODEL": "BRYŁA", "SKETCH": "SZKIC", "Select": "Zaznacz", "New Sketch": "Stwórz szkic",
@@ -126,8 +141,8 @@ PL = {
   "Unsaved Changes": "Niezapisane zmiany", "Save the changes to the project?": "Zapisać zmiany w projekcie?",
   "Open Project": "Otwórz projekt", "Nibform projects (*.nibform)": "Projekty Nibform (*.nibform)",
   "Can't Open": "Nie można otworzyć", "Opened %1": "Otwarto %1", "Can't Save": "Nie można zapisać",
-  "Saved %1": "Zapisano %1", "Save Project": "Zapisz projekt", "Export STEP": "Eksportuj STEP",
-  "Export STL": "Eksportuj STL", "Export Failed": "Eksport nieudany", "Exported %1": "Wyeksportowano %1",
+  "Saved %1": "Zapisano %1", "Save Project": "Zapisz projekt",
+  "Export Failed": "Eksport nieudany", "Exported %1": "Wyeksportowano %1",
   "Sketch on Face": "Szkic na ścianie", "Pen%1: pressure %2%3": "Rysik%1: nacisk %2%3", " [eraser]": " [gumka]",
   " [button]": " [przycisk]",
   "S&ketch": "S&zkic", "Polygon": "Wielokąt", "Slot": "Rowek", "Ellipse": "Elipsa", "Spline": "Splajn",
@@ -156,6 +171,15 @@ PL = {
       "2 punkty i linia: punkty są swoimi odbiciami względem linii",
  },
  "Model": {
+  "Could not prepare a body for IGES": "Nie udało się przygotować bryły do IGES",
+  "Could not write the IGES file": "Nie udało się zapisać pliku IGES",
+  "Could not mesh the bodies for 3MF": "Nie udało się utworzyć siatki brył do 3MF",
+  "Could not write the 3MF file": "Nie udało się zapisać pliku 3MF", "The file has no geometry": "Plik nie zawiera geometrii",
+  "Could not read the IGES file": "Nie udało się odczytać pliku IGES", "Could not read the STL file": "Nie udało się odczytać pliku STL",
+  "The file could not be read": "Nie udało się odczytać pliku",
+  "Unknown file type (STEP, IGES or STL)": "Nieznany rodzaj pliku (STEP, IGES albo STL)",
+  "The imported geometry can't be read": "Nie da się odczytać zaimportowanej geometrii",
+  "The file has no closed solids; import it as a reference": "Plik nie ma zamkniętych brył; zaimportuj go jako odniesienie",
   "The move isn't a rigid motion": "Przesunięcie nie jest ruchem sztywnym",
   "Pick the bodies to move": "Wybierz bryły do przesunięcia",
   "The sketch region it was made from is gone": "Obszar szkicu, z którego powstała, zniknął",
@@ -214,7 +238,22 @@ PL = {
   "The project was saved by a newer version of the app": "Projekt zapisany nowszą wersją programu",
   "Can't save %1: %2": "Nie można zapisać %1: %2", "Can't open %1: %2": "Nie można otworzyć %1: %2",
  },
+ "SketchExchange": {
+  "Not a DXF file (or a binary one: save it as ASCII DXF)": "To nie jest plik DXF (albo jest binarny: zapisz go jako DXF ASCII)",
+  "The drawing has no curves this app reads (lines, circles, arcs, polylines, splines, ellipses)":
+      "Rysunek nie zawiera krzywych, które aplikacja czyta (linie, okręgi, łuki, polilinie, splajny, elipsy)",
+  "Not a readable SVG file: %1": "Nie da się odczytać pliku SVG: %1",
+  "The drawing has no shapes this app reads (paths, lines, rectangles, circles, ellipses, polylines)":
+      "Rysunek nie zawiera kształtów, które aplikacja czyta (ścieżki, linie, prostokąty, okręgi, elipsy, polilinie)",
+  "Could not write %1": "Nie udało się zapisać %1", "Could not open %1": "Nie udało się otworzyć %1",
+ },
  "SketchEditor": {
+  "Reference": "Odniesienie", "Import": "Import", "Imported %1 as a reference": "Zaimportowano %1 jako odniesienie",
+  "Imported %1": "Zaimportowano %1", "Open a sketch to import a drawing into": "Otwórz szkic, do którego zaimportować rysunek",
+  "Imported from %1: %2 curves": "Zaimportowano z %1 krzywe: %2", "Open a sketch to export": "Otwórz szkic do wyeksportowania",
+  "Copied curves: %1": "Skopiowano krzywe: %1", "Copied bodies: %1": "Skopiowano bryły: %1",
+  "Open a sketch to paste curves into": "Otwórz szkic, do którego wkleić krzywe", "pasted": "wklejone",
+  "Nothing to paste: copy curves or bodies first": "Nie ma czego wkleić: najpierw skopiuj krzywe albo bryły",
   "Move: type the offset or the turn  ·  Enter goes on": "Przesuń: wpisz przesunięcie albo obrót  ·  Enter przechodzi dalej",
   "Move: tap the bodies to move or copy": "Przesuń: dotknij brył do przesunięcia albo skopiowania",
   "Move: tap where it goes: a corner, round edge or face of another body":

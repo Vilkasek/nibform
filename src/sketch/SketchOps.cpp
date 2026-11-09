@@ -460,3 +460,88 @@ std::vector<EntityId> circularPattern(Sketch& s, const std::set<EntityId>& entit
         return t;
     });
 }
+
+Sketch::Contents copyEntities(const Sketch& sketch, const std::set<EntityId>& entities)
+{
+    Sketch::Contents part;
+    std::set<PointId> points;
+    for (EntityId id : entities) {
+        const SketchEntity* e = sketch.entity(id);
+        if (!e)
+            continue;
+        part.entities.push_back(*e);
+        for (PointId p : e->pointIds())
+            points.insert(p);
+    }
+    for (PointId p : points) {
+        if (const SketchPoint* point = sketch.point(p))
+            part.points.push_back(*point);
+    }
+    auto pointKnown = [&](PointId p) { return p == kNoId || points.count(p); };
+    auto entityKnown = [&](EntityId e) { return e == kNoId || entities.count(e); };
+    for (const SketchConstraint& c : sketch.constraints()) {
+        if (pointKnown(c.p1) && pointKnown(c.p2) && entityKnown(c.e1) && entityKnown(c.e2))
+            part.constraints.push_back(c);
+    }
+    return part;
+}
+
+std::vector<EntityId> pasteContents(Sketch& sketch, const Sketch::Contents& part, const gp_Vec2d& offset)
+{
+    std::map<PointId, PointId> points;
+    for (const SketchPoint& p : part.points)
+        points[p.id] = sketch.addPoint(p.pos.Translated(offset));
+    auto point = [&](PointId p) {
+        const auto it = points.find(p);
+        return it != points.end() ? it->second : kNoId;
+    };
+    std::map<EntityId, EntityId> entities;
+    std::vector<EntityId> made;
+    for (const SketchEntity& e : part.entities) {
+        EntityId id = kNoId;
+        switch (e.kind) {
+        case EntityKind::Line:
+            id = sketch.addLine(point(e.a), point(e.b));
+            break;
+        case EntityKind::Circle:
+            id = sketch.addCircle(point(e.c), e.radius);
+            break;
+        case EntityKind::Arc:
+            id = sketch.addArc(point(e.c), point(e.a), point(e.b));
+            break;
+        case EntityKind::Ellipse:
+            id = sketch.addEllipse(point(e.c), point(e.a), point(e.b));
+            break;
+        case EntityKind::Spline: {
+            std::vector<PointId> through;
+            for (PointId p : e.through)
+                through.push_back(point(p));
+            id = sketch.addSpline(through, e.closed);
+            break;
+        }
+        }
+        if (id == kNoId)
+            continue;
+        if (e.construction)
+            sketch.setConstruction(id, true);
+        entities[e.id] = id;
+        made.push_back(id);
+    }
+    auto entity = [&](EntityId e) {
+        const auto it = entities.find(e);
+        return it != entities.end() ? it->second : kNoId;
+    };
+    for (SketchConstraint c : part.constraints) {
+        const bool complete = (c.p1 == kNoId || point(c.p1) != kNoId) && (c.p2 == kNoId || point(c.p2) != kNoId)
+                           && (c.e1 == kNoId || entity(c.e1) != kNoId) && (c.e2 == kNoId || entity(c.e2) != kNoId);
+        if (!complete)
+            continue;
+        c.p1 = c.p1 == kNoId ? kNoId : point(c.p1);
+        c.p2 = c.p2 == kNoId ? kNoId : point(c.p2);
+        c.e1 = c.e1 == kNoId ? kNoId : entity(c.e1);
+        c.e2 = c.e2 == kNoId ? kNoId : entity(c.e2);
+        c.target = c.target.Translated(offset);
+        sketch.addConstraint(c);
+    }
+    return made;
+}

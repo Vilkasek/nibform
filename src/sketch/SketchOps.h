@@ -50,6 +50,13 @@ std::vector<EntityId> mirrorEntities(Sketch& sketch, const std::set<EntityId>& e
 std::vector<EntityId> linearPattern(Sketch& sketch, const std::set<EntityId>& entities, const gp_Vec2d& step,
                                     int count);
 
+// The curves with the points they use and the relations among just them (dimensions
+// too), to copy elsewhere.
+Sketch::Contents copyEntities(const Sketch& sketch, const std::set<EntityId>& entities);
+
+// Adds a copied part to the sketch under new ids, shifted by `offset`; returns the new curves.
+std::vector<EntityId> pasteContents(Sketch& sketch, const Sketch::Contents& part, const gp_Vec2d& offset = gp_Vec2d());
+
 // `count` instances spread evenly over a full turn around `center` (as above; horizontal /
 // vertical relations don't carry over, they don't survive the turn).
 std::vector<EntityId> circularPattern(Sketch& sketch, const std::set<EntityId>& entities, const gp_Pnt2d& center,

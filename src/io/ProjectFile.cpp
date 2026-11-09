@@ -39,9 +39,9 @@ constexpr std::array<const char*, 19> kConstraintKinds{
     "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
     "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
     "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
-constexpr std::array<const char*, 15> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine",
-                                                    "delete", "shell",   "revolve", "sweep",  "loft",
-                                                    "mirror", "pattern", "hole",    "datum",  "move"};
+constexpr std::array<const char*, 16> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine", "delete",
+                                                    "shell",  "revolve", "sweep",  "loft",    "mirror",  "pattern",
+                                                    "hole",   "datum",   "move",   "import"};
 constexpr std::array<const char*, 4> kAxisKinds{"none", "edge", "sketchLine", "datum"};
 constexpr std::array<const char*, 3> kPlaneKinds{"none", "face", "datum"};
 constexpr std::array<const char*, 2> kPatternKinds{"linear", "circular"};
@@ -248,6 +248,9 @@ QJsonObject featureToJson(const Feature& f)
              return m;
          }()},
         {"copy", f.copy},
+        {"shape", f.shape ? QString::fromStdString(*f.shape) : QString()},
+        {"label", QString::fromStdString(f.label)},
+        {"reference", f.reference},
         {"sketch", f.sketch},
         {"value", f.value},
         {"operation", nameOf(f.operation, kOperations)},
@@ -328,6 +331,10 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
     for (const auto& v : o.value("matrix").toArray())
         f.matrix.push_back(v.toDouble());
     f.copy = o.value("copy").toBool(false);
+    if (const QString shape = o.value("shape").toString(); !shape.isEmpty())
+        f.shape = std::make_shared<const std::string>(shape.toStdString());
+    f.label = o.value("label").toString().toStdString();
+    f.reference = o.value("reference").toBool(false);
     return f;
 }
 
@@ -418,4 +425,38 @@ std::optional<ProjectData> loadProject(const QString& path, QString* error)
         return std::nullopt;
     }
     return projectFromJson(file.readAll(), error);
+}
+
+QByteArray sketchClipboard(const Sketch::Contents& part)
+{
+    const QJsonObject root{{"format", "nibform-clipboard"}, {"kind", "sketch"}, {"sketch", sketchToJson(0, Sketch(gp_Ax3(), part))}};
+    return QJsonDocument(root).toJson(QJsonDocument::Compact);
+}
+
+std::optional<Sketch::Contents> sketchFromClipboard(const QByteArray& data)
+{
+    const QJsonObject root = QJsonDocument::fromJson(data).object();
+    if (root.value("format").toString() != QLatin1String("nibform-clipboard") || root.value("kind").toString() != QLatin1String("sketch"))
+        return std::nullopt;
+    const auto entry = sketchFromJson(root.value("sketch").toObject(), nullptr);
+    if (!entry)
+        return std::nullopt;
+    return entry->sketch.contents();
+}
+
+QByteArray bodiesClipboard(const std::string& shape)
+{
+    const QJsonObject root{{"format", "nibform-clipboard"}, {"kind", "bodies"}, {"shape", QString::fromStdString(shape)}};
+    return QJsonDocument(root).toJson(QJsonDocument::Compact);
+}
+
+std::optional<std::string> bodiesFromClipboard(const QByteArray& data)
+{
+    const QJsonObject root = QJsonDocument::fromJson(data).object();
+    if (root.value("format").toString() != QLatin1String("nibform-clipboard") || root.value("kind").toString() != QLatin1String("bodies"))
+        return std::nullopt;
+    const QString shape = root.value("shape").toString();
+    if (shape.isEmpty())
+        return std::nullopt;
+    return shape.toStdString();
 }

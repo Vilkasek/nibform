@@ -1,6 +1,7 @@
 #pragma once
 
 #include "io/ProjectFile.h"
+#include "model/Export.h"
 #include "model/Features.h"
 #include "model/Solids.h"
 #include "sketch/ConstraintCommands.h"
@@ -50,6 +51,7 @@ struct TimelineItem
     QString error;  // why it didn't apply on the last rebuild, empty if it did
     bool sketch = false;
     bool rolledBack = false; // after the sketch being edited: not shown in the model now
+    bool editable = false;   // a double tap / Edit changes it
 };
 
 // A closed region of sketch `sketch` (index into its regions).
@@ -184,6 +186,20 @@ public:
     void clearSection();
     // The length unit changed: redraw values in it.
     void unitsChanged();
+
+    // --- Exchange ---------------------------------------------------------------------
+    // A STEP, IGES or STL file into the history: its solids as bodies to build on, or
+    // the whole of it as a reference (shown, not modelled). False (with a message) if not.
+    bool importModel(const QString& path, bool reference);
+    // Bodies as a 3D printer gets them: shown ones, with their names and colors.
+    std::vector<PrintBody> printBodies() const;
+    // DXF / SVG (by the file's suffix) into / out of the open sketch.
+    bool importDrawing(const QString& path);
+    QString exportDrawing(const QString& path) const; // error, empty on success
+    // The clipboard: the selected curves (sketch) or bodies (model), and pasting them.
+    bool canCopy() const;
+    void copy();
+    void paste();
 
     // Whether the entry made a solid a pattern can repeat (an extrusion from a sketch, a
     // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
@@ -443,6 +459,9 @@ private:
     BodyStyle& styleFor(int body);
     Quantity_Color bodyColor(int body) const;
     void inspectToolChanged(); // tool switched: end what the old tool had going
+
+    std::vector<Handle(AIS_Shape)> m_referencePrs; // imported references, see-through
+    void showReferences();
 
     // Model mode (SketchEditorBodies.cpp)
     Hit modelHitAt(const PointerEvent& e) const;

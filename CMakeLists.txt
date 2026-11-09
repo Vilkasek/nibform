@@ -66,11 +66,12 @@ target_include_directories(nibform_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
 target_compile_options(nibform_core PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_core PUBLIC
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet TKOffset
-  TKMesh TKXSBase TKDESTEP TKDESTL
+  TKMesh TKXSBase TKDESTEP TKDESTL TKDEIGES
   Eigen3::Eigen)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
-add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h src/io/Recovery.cpp src/io/Recovery.h)
+add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h src/io/Recovery.cpp src/io/Recovery.h
+  src/io/SketchExchange.cpp src/io/SketchExchange.h)
 target_compile_options(nibform_io PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_io PUBLIC nibform_core Qt6::Core)
 
@@ -90,6 +91,7 @@ add_executable(nibform
   src/sketch/SketchEditorBodies.cpp
   src/sketch/SketchEditorSolids.cpp
   src/sketch/SketchEditorInspect.cpp
+  src/sketch/SketchEditorExchange.cpp
   src/viewer/UnitText.h
   src/sketch/SketchEditor.h
   src/sketch/SketchTools.cpp
@@ -158,6 +160,11 @@ add_executable(test_project tests/test_project.cpp tests/Check.h)
 target_compile_options(test_project PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_project PRIVATE nibform_io)
 add_test(NAME project COMMAND test_project)
+
+add_executable(test_interop tests/test_interop.cpp tests/Check.h)
+target_compile_options(test_interop PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(test_interop PRIVATE nibform_io)
+add_test(NAME interop COMMAND test_interop)
 
 # The floating value field, on Qt's offscreen platform (no display needed).
 add_executable(test_value_editor tests/test_value_editor.cpp src/viewer/ValueEditor.cpp src/viewer/ValueEditor.h
