@@ -144,6 +144,7 @@ void SketchEditor::setTool(ToolKind kind)
     // Each tool belongs to one mode (the toolbar only offers those).
     if (isSketchTool(kind) != (mode() == EditorMode::Sketch) && kind != ToolKind::Select)
         return;
+    endPatternEdit(false); // a pattern being changed from the history goes back
     endValueSession(true); // before the field is dropped, so dropping it doesn't clear picks
     m_valueEditor->cancel(); // may call back into the old tool, so before it goes
     const std::vector<int> pickedBodies = selectedBodies(); // Move starts with them
@@ -1230,6 +1231,10 @@ void SketchEditor::cancel()
         m_valueEditor->cancel();
         return;
     }
+    if (m_patternEdit) {
+        endPatternEdit(false);
+        return;
+    }
     if (mode() == EditorMode::Model) {
         // First drop what is picked, then leave the tool.
         if (m_toolKind == ToolKind::Move && (m_move.anchor || !m_move.bodies.empty())) {
@@ -1267,6 +1272,10 @@ void SketchEditor::confirm()
         m_valueEditor->accept();
         return;
     }
+    if (m_patternEdit) {
+        acceptPattern();
+        return;
+    }
     if (solidConfirm())
         return;
     if (mode() == EditorMode::Model && m_toolKind == ToolKind::Move && !m_move.bodies.empty()) {
@@ -1300,6 +1309,7 @@ void SketchEditor::setSelection(SketchSelection selection)
 
 void SketchEditor::resetInteraction()
 {
+    endPatternEdit(false);
     endValueSession(true);
     m_valueEditor->cancel();
     if (m_tool)
@@ -1390,6 +1400,16 @@ void SketchEditor::retranslate()
 
 void SketchEditor::updateHint()
 {
+    emit patternChanged(); // the panel follows the picks and values
+    if (m_patternEdit) {
+        const bool circular = m_patternEdit->draft.pattern == Feature::PatternKind::Circular;
+        const QString name = circular ? tr("Circular pattern") : tr("Linear pattern");
+        const QString error = modelText(m_solidError);
+        emit hintChanged(!error.isEmpty() ? QStringLiteral("%1: %2").arg(name, error)
+                                          : tr("%1: change the values in the panel  ·  Enter accepts  ·  Esc puts it back")
+                                                .arg(name));
+        return;
+    }
     if (mode() == EditorMode::Model && isSolidTool(m_toolKind)) {
         emit hintChanged(solidHint());
         return;

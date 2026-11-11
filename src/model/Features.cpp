@@ -19,6 +19,7 @@
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepGProp.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <BRepTools.hxx>
 #include <BRep_Tool.hxx>
 #include <GProp_GProps.hxx>
 #include <Poly_Triangulation.hxx>
@@ -196,6 +197,98 @@ std::optional<int> findBody(const std::vector<TopoDS_Shape>& bodies, const gp_Pn
         }
     }
     return nearest;
+}
+
+// --- What a feature made ------------------------------------------------------------
+
+namespace {
+
+constexpr double kOnTool = 1e-4; // how far off a tool's surface a face still lies on it
+
+// A point well inside the face (on its surface), from a grid over its parameters.
+std::optional<gp_Pnt> pointOnFace(const TopoDS_Face& face)
+{
+    double u0 = 0, u1 = 0, v0 = 0, v1 = 0;
+    BRepTools::UVBounds(face, u0, u1, v0, v1);
+    const BRepAdaptor_Surface surface(face);
+    constexpr int kSteps = 7;
+    // The middle first, then outwards.
+    for (int ring = 0; ring <= kSteps / 2; ++ring) {
+        for (int i = -ring; i <= ring; ++i) {
+            for (int j = -ring; j <= ring; ++j) {
+                if (std::max(std::abs(i), std::abs(j)) != ring)
+                    continue;
+                const double u = u0 + (u1 - u0) * (0.5 + i / double(kSteps + 1));
+                const double v = v0 + (v1 - v0) * (0.5 + j / double(kSteps + 1));
+                if (BRepClass_FaceClassifier(face, gp_Pnt2d(u, v), kTolerance).State() == TopAbs_IN)
+                    return surface.Value(u, v);
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+// The tool's faces, as one shape to measure distances to (a solid would count its inside).
+TopoDS_Shape surfaceOf(const TopoDS_Shape& tool)
+{
+    TopoDS_Compound faces;
+    BRep_Builder().MakeCompound(faces);
+    for (TopExp_Explorer it(tool, TopAbs_FACE); it.More(); it.Next())
+        BRep_Builder().Add(faces, it.Current());
+    return faces;
+}
+
+bool liesOn(const gp_Pnt& p, const TopoDS_Shape& surface, const Bnd_Box& box)
+{
+    if (box.IsOut(p))
+        return false;
+    BRepExtrema_DistShapeShape distance(BRepBuilderAPI_MakeVertex(p).Vertex(), surface);
+    return distance.IsDone() && distance.Value() < kOnTool;
+}
+
+Bnd_Box boxOf(const TopoDS_Shape& shape)
+{
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    box.Enlarge(10.0 * kOnTool);
+    return box;
+}
+
+} // namespace
+
+std::optional<int> featureOfFace(const std::vector<Feature>& features, const ModelContext& context,
+                                 const TopoDS_Face& face)
+{
+    const auto p = pointOnFace(face);
+    if (!p)
+        return std::nullopt;
+    for (auto f = features.rbegin(); f != features.rend(); ++f) {
+        const auto tool = context.tools.find(f->id);
+        if (tool == context.tools.end() || tool->second.operation == BodyOperation::NewBody)
+            continue;
+        if (liesOn(*p, surfaceOf(tool->second.shape), boxOf(tool->second.shape)))
+            return f->id;
+    }
+    return std::nullopt;
+}
+
+std::vector<TopoDS_Face> facesOnTool(const std::vector<TopoDS_Shape>& bodies, const TopoDS_Shape& tool)
+{
+    std::vector<TopoDS_Face> faces;
+    const TopoDS_Shape surface = surfaceOf(tool);
+    const Bnd_Box box = boxOf(tool);
+    for (const TopoDS_Shape& body : bodies) {
+        for (TopExp_Explorer it(body, TopAbs_FACE); it.More(); it.Next()) {
+            const TopoDS_Face face = TopoDS::Face(it.Current());
+            Bnd_Box faceBox;
+            BRepBndLib::Add(face, faceBox);
+            if (box.IsOut(faceBox))
+                continue;
+            if (const auto p = pointOnFace(face); p && liesOn(*p, surface, box))
+                faces.push_back(face);
+        }
+    }
+    return faces;
 }
 
 // --- Construction geometry ---------------------------------------------------------

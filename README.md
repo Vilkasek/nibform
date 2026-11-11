@@ -56,14 +56,14 @@ forces `QT_QPA_PLATFORM=xcb` itself (on Wayland it runs through XWayland).
 
 ## Getting started
 
-1. **New Sketch** (`K`) opens a sketch on the ground (or on a selected flat face). Draw a closed
+1. **New Sketch** (`Shift+S`) opens a sketch on the ground (or on a selected flat face). Draw a closed
    outline – with **Line** (`L`), **Rectangle** (`R`), **Circle** (`C`)… or roughly with
-   **Freehand** (`W`).
+   **Freehand** (`Ctrl+Shift+F`).
 2. Select a line and press **`D`** to give it a length; add relations from the constraint bar.
    Geometry turns green when nothing is left to move.
 3. **✓ Finish Sketch** (`Ctrl+Enter`), tap the closed region and drag its arrow (or type a
    distance): it becomes a body.
-4. Round edges with **Fillet** (`G`), drill with **Hole** (`H`)… Every step lands on the
+4. Round edges with **Fillet** (`Shift+F`), drill with **Hole** (`H`)… Every step lands on the
    **History** bar at the bottom – double-tap one to change it, and everything after it follows.
 5. *File → Save* keeps a `.nibform` project; *File → Export* hands the bodies to other tools,
    **Drawing** makes a dimensioned sheet of them.
@@ -72,7 +72,7 @@ forces `QT_QPA_PLATFORM=xcb` itself (on Wayland it runs through XWayland).
 
 ## Sketching
 
-The app starts in **Model** mode (the "MODEL" badge). **New Sketch** (`K`) opens a sketch – on
+The app starts in **Model** mode (the "MODEL" badge). **New Sketch** (`Shift+S`) opens a sketch – on
 the selected flat face of a body (its edges come in as locked construction geometry, to snap and
 dimension to), on a selected construction plane, or on the ground; the arrow next to the button
 picks a base plane (XY / XZ / YZ). The view turns to face it and the badge changes to "SKETCH".
@@ -84,20 +84,20 @@ shortcuts.
 |---|---|---|
 | Select | `S` | tap an item, more taps add to the selection; drag points and curves; `Delete` removes |
 | Line | `L` | tap-tap draws a polyline (it ends on an existing point, or with `Esc` / `Enter`); a drag draws a single segment |
-| Freehand | `W` | draw roughly in one stroke and get the clean shape: a line, corners (a polyline or a closed polygon), a rectangle (turned or not), a circle or an arc. Ends join points nearby, nearly level / upright sides become exactly so, a turned rectangle keeps its right angles. A scribble deletes what it covers; a tap selects |
+| Freehand | `Ctrl+Shift+F` | draw roughly in one stroke and get the clean shape: a line, corners (a polyline or a closed polygon), a rectangle (turned or not), a circle or an arc. Ends join points nearby, nearly level / upright sides become exactly so, a turned rectangle keeps its right angles. A scribble deletes what it covers; a tap selects |
 | Rectangle | `R` | two opposite corners |
 | Polygon | `Shift+P` | center, then a corner; asks for the number of sides. Inscribed in a construction circle, sides equal |
 | Slot | `Shift+S` | the centers of both round ends, then the width |
 | Circle | `C` | center, then a point on the rim |
 | Ellipse | `Shift+E` | center, the end of one axis, then how far the other one reaches |
 | Arc | `A` | start, end, then a point on the arc |
-| Spline | `Shift+C` | tap the points it passes through; tapping the first one closes it, `Enter` (or landing on an existing point) ends it. Drag its points to reshape it; deleting an inner point takes it out of the curve |
-| Trim | `X` | the piece between the nearest crossings lights up red; a tap removes it, a drag removes everything along the way |
-| Offset | `U` | tap a curve: its whole connected chain follows the pointer; another tap asks for an exact distance |
-| Fillet / Chamfer | `G` / `B` | tap a corner where two lines meet and type the radius / distance |
+| Spline | `Shift+N` | tap the points it passes through; tapping the first one closes it, `Enter` (or landing on an existing point) ends it. Drag its points to reshape it; deleting an inner point takes it out of the curve |
+| Trim | `T` | the piece between the nearest crossings lights up red; a tap removes it, a drag removes everything along the way |
+| Offset | `O` | tap a curve: its whole connected chain follows the pointer; another tap asks for an exact distance |
+| Fillet / Chamfer | `Shift+F` / `Shift+C` | tap a corner where two lines meet and type the radius / distance |
 | Mirror | `Shift+M` | select curves, then tap the line to mirror about; the copy stays symmetric |
-| Linear / Circular pattern | `Shift+L` / `Shift+O` | select curves, pick the step (or the center) and the count |
-| Project | `Shift+K` | tap a body edge or face: it is copied into the sketch, pinned in place |
+| Linear / Circular pattern | `Shift+L` / `Ctrl+Shift+C` | select curves, pick the step (or the center) and the count |
+| Project | `Ctrl+Shift+P` | tap a body edge or face: it is copied into the sketch, pinned in place |
 | Construction | `Q` | toggles the selected curves to helper geometry (dashed: snapped to and dimensioned, never bounding a region) |
 | Image | | *Image → Insert Image…* puts a picture on the sketch plane to trace over; tap two points a known distance apart and type it to scale it |
 
@@ -121,8 +121,8 @@ menu); the ones that don't fit the selection are greyed out.
 | Horizontal / Vertical | `H` / `V` | lines, or 2 points |
 | Parallel / Perpendicular | `P` / `N` | 2+ / 2 lines |
 | Equal | `E` | lines (length) or circles and arcs (radius) |
-| Tangent | `T` | a line and a circle / arc, or two circles / arcs |
-| Concentric | `O` | circles and arcs |
+| Tangent | `Shift+T` | a line and a circle / arc, or two circles / arcs |
+| Concentric | `Shift+O` | circles and arcs |
 | Coincident | `I` | 2 points (merged), or a point and a curve |
 | Midpoint | `M` | a point and a line |
 | Symmetric | `Y` | 2 points and a line they mirror about |
@@ -138,23 +138,23 @@ are refused with a message. Relation glyphs and dimension labels can be selected
 
 ## Bodies
 
-Closed sketch regions are lightly filled. **Tap a region** (in Select or *Extrude*, `W`) and an
+Closed sketch regions are lightly filled. **Tap a region** (in Select or *Extrude*, `E`) and an
 arrow appears with a distance field and a preview: drag the arrow or type a value (negative goes
 the other way), tap more regions or flat body faces to add them, `Enter` applies, `Esc` drops it.
 
 | Tool | Shortcut | How |
 |---|---|---|
-| Extrude | `W` | sketch regions and flat body faces (push / pull) |
+| Extrude | `E` | sketch regions and flat body faces (push / pull) |
 | Revolve | `R` | tap regions, then the axis – a sketch line, a straight or round edge, or an axis; type the angle |
-| Sweep | `Shift+W` | tap the profile region, then a curve of the path sketch (the curves connected to it follow) |
-| Loft | `Shift+F` | tap profile regions on different planes in order, then `Enter` |
+| Sweep | `W` | tap the profile region, then a curve of the path sketch (the curves connected to it follow) |
+| Loft | `L` | tap profile regions on different planes in order, then `Enter` |
 | Hole | `H` | tap a flat face where it goes (it snaps to sketch points – and then follows them – and to round edges' centers); through, blind, counterbored or countersunk |
-| Fillet / Chamfer | `G` / `B` | tap edges (a face takes all of its edges), drag the handle or type the size |
-| Shell | `J` | tap the faces to open and type the wall thickness |
-| Move | `T` | tap bodies, then drag the gizmo's arrows and rings – or tap a corner, round edge or face of them and then one of another body: they meet, faces lie flush. `Enter` types offsets and a turn, and moves or copies |
-| Mirror | `M` | tap bodies, `Enter`, then the mirror plane (a flat face or a plane) |
-| Linear / Circular Pattern | `Shift+L` / `Shift+O` | tap bodies, then the direction or axis; type the count and the spacing or angle |
-| Measure | `I` | tap a face, edge or corner, and a second one: lengths, areas, radii, distances, angles, plus the body's volume, center of mass, size and mass |
+| Fillet / Chamfer | `Shift+F` / `Shift+C` | tap edges (a face takes all of its edges), drag the handle or type the size |
+| Shell | `Shift+H` | tap the faces to open and type the wall thickness |
+| Move | `M` | tap bodies, then drag the gizmo's arrows and rings – or tap a corner, round edge or face of them and then one of another body: they meet, faces lie flush. `Enter` types offsets and a turn, and moves or copies |
+| Mirror | `Shift+M` | tap bodies, `Enter`, then the mirror plane (a flat face or a plane) |
+| Linear / Circular Pattern | `Shift+L` / `Ctrl+Shift+C` | tap a face of a cut, boss or hole to repeat what made it (or tap bodies), then the direction or axis; the count, spacing or angle go in the *Pattern* panel |
+| Measure | `Ctrl+Shift+M` | tap a face, edge or corner, and a second one: lengths, areas, radii, distances, angles, plus the body's volume, center of mass, size and mass |
 | Section | | tap a flat face or a plane: the view is cut open there (*View → Section View* turns it off) |
 | Planes and axes | | an offset plane, a plane at an angle, a plane through 3 points, an axis – to sketch on, mirror about, revolve or pattern around |
 
@@ -163,9 +163,16 @@ field or in the *Operation* box: **Automatic** cuts when it starts inside a body
 face pushed into it), joins when it reaches or touches one, and makes a new body otherwise;
 *New Body*, *Join* and *Cut* force one of them.
 
-- **Patterns of features**: on the *History* bar, the arrow of an extrusion, revolve, sweep, loft
-  or hole offers *Linear / Circular Pattern…* – the copies repeat that operation, so a bolt circle
+- **Patterns of features**: in *Linear / Circular Pattern*, tap any face of a pocket cut from a
+  sketch, a boss, a hole (what an extrusion from a sketch, a revolve, sweep, loft or hole cut or
+  added): that operation is picked and its faces light up; tap it again to drop it. Faces of
+  nothing in particular pick their bodies instead. The *History* bar's arrow of such an entry
+  offers the same (*Linear / Circular Pattern…*). The copies repeat the operation, so a bolt circle
   is one hole and a circular pattern of it, and changing the hole changes them all.
+- **The Pattern panel** (on the right while a pattern tool is on, or a pattern from the history is
+  edited) takes the numbers: the count (the original included), the spacing or the angle covered,
+  *Full circle* (spread evenly around), *Reverse direction*; the model previews them as they are
+  typed. *Accept* (`Enter`) applies, *Cancel* drops it (an edited pattern goes back).
 - **Construction planes and axes** show as see-through squares and lines; the base planes and axes
   through the origin appear while a tool can use them. A plane picked in Select is where New
   Sketch starts.
@@ -261,7 +268,10 @@ View changes glide. *View* also has:
 **Keyboard shortcuts** (*Edit → Keyboard Shortcuts…*): every tool, constraint, view and command,
 grouped and searchable. Click a field and press the new keys, clear it for none; *Default* and
 *Reset All* put them back. Keys that two actions would answer at the same time show in red (a
-sketch tool and a model tool may share keys – only one of them works at a time).
+sketch tool and a model tool may share keys – only one of them works at a time). The defaults
+follow the tools' English names: the first letter, else `Shift` + it, else `Ctrl+Shift` + it
+(`F` stays *Fit*); where all three are taken, another letter of the name (*Sweep* `W`,
+*Shell* `Shift+H`, *Spline* `Shift+N`).
 
 ## Pen, touch and tablet
 

@@ -201,6 +201,14 @@ std::optional<std::pair<TopoDS_Face, int>> findFace(const std::vector<TopoDS_Sha
 std::optional<EdgeRef> findEdge(const std::vector<TopoDS_Shape>& bodies, const EdgePick& pick);
 std::optional<int> findBody(const std::vector<TopoDS_Shape>& bodies, const gp_Pnt& inside);
 
+// Picking what a feature made, for patterns: the feature (id) whose cut or added solid
+// shaped `face`, i.e. the face lies on that solid's surface. The latest such feature
+// wins; features that made a new body don't count (their faces stand for the body).
+std::optional<int> featureOfFace(const std::vector<Feature>& features, const ModelContext& context,
+                                 const TopoDS_Face& face);
+// The faces of `bodies` that lie on the surface of `tool` (to show what a feature made).
+std::vector<TopoDS_Face> facesOnTool(const std::vector<TopoDS_Shape>& bodies, const TopoDS_Shape& tool);
+
 // Applies one feature on top of `bodies` (a Datum feature returns its datum).
 struct FeatureResult : ModelResult
 {

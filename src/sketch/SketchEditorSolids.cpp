@@ -322,12 +322,26 @@ void SketchEditor::solidTap(const Hit& hit)
         break;
     case ToolKind::BodyLinearPattern:
     case ToolKind::BodyCircularPattern:
-        // Faces pick bodies, edges (and datum axes, sketch lines) the direction.
-        if (const auto axis = axisOf(hit))
+        // Edges (and datum axes, sketch lines) pick the direction. A face a cut or a boss
+        // made picks that feature (again: drops it); other faces and corners pick bodies.
+        // Features and bodies don't mix: picking one kind drops the other.
+        if (const auto axis = axisOf(hit)) {
             m_solid.axis = axis;
-        else if ((hit.kind == Hit::Kind::Face || hit.kind == Hit::Kind::Vertex) && m_solid.source == 0)
-            toggleBody(hit.id);
-        ready = (m_solid.source != 0 || !m_solid.bodies.empty()) && m_solid.axis;
+        } else if (hit.kind == Hit::Kind::Face || hit.kind == Hit::Kind::Vertex) {
+            const auto feature = hit.kind == Hit::Kind::Face
+                                   ? featureOfFace(m_features, m_context, TopoDS::Face(hit.shape))
+                                   : std::nullopt;
+            if (feature) {
+                m_solid.source = m_solid.source == *feature ? 0 : *feature;
+                m_solid.bodies.clear();
+            } else {
+                m_solid.source = 0;
+                toggleBody(hit.id);
+            }
+        }
+        ready = patternReady();
+        if (!ready)
+            clearFeaturePreview();
         break;
     case ToolKind::OffsetPlane:
         if (const auto plane = planeOf(hit))
@@ -407,6 +421,13 @@ void SketchEditor::refreshSolidMarks()
         if (const auto face = findFace(m_bodies, m_solid.plane->face))
             add(face->first);
     }
+    // A picked feature: the faces it made.
+    if (m_solid.source != 0) {
+        if (const auto tool = m_context.tools.find(m_solid.source); tool != m_context.tools.end()) {
+            for (const TopoDS_Face& face : facesOnTool(m_bodies, tool->second.shape))
+                add(face);
+        }
+    }
     for (const gp_Pnt& p : m_solid.points)
         add(BRepBuilderAPI_MakeVertex(p).Shape());
     for (const SketchPointRef& r : m_solid.holeAt) {
@@ -457,6 +478,10 @@ bool SketchEditor::solidConfirm()
         solidReady();
         return true;
     }
+    if (patternTool() && patternReady()) {
+        acceptPattern();
+        return true;
+    }
     return false;
 }
 
@@ -469,7 +494,7 @@ bool SketchEditor::solidCancel()
                   || !m_solid.holeAt.empty() || m_solid.face;
     if (!any)
         return false;
-    hideSessionPreview();
+    clearFeaturePreview();
     resetSolid();
     updateHint();
     m_viewer->update();
@@ -762,6 +787,10 @@ void SketchEditor::previewNewFeature(const Feature& feature)
 
 void SketchEditor::solidReady()
 {
+    if (patternTool()) {
+        previewPattern(); // the values come from the pattern panel
+        return;
+    }
     const std::optional<Feature> made = solidFeature();
     if (!made) {
         emit message(tr("Couldn't record the picks"));
@@ -821,6 +850,10 @@ void SketchEditor::solidReady()
 void SketchEditor::editFeature(int index)
 {
     const Feature original = m_features[index];
+    if (original.kind == Feature::Kind::Pattern) {
+        startPatternEdit(index); // in the pattern panel
+        return;
+    }
     const std::vector<FeaturePrompt> prompts = promptsFor(original);
     if (prompts.empty())
         return;
@@ -884,6 +917,7 @@ void SketchEditor::patternFeature(int index, bool circular)
     const int source = m_features[index].id;
     setTool(circular ? ToolKind::BodyCircularPattern : ToolKind::BodyLinearPattern);
     m_solid.source = source;
+    refreshSolidMarks(); // its faces light up
     updateHint();
 }
 
@@ -921,10 +955,13 @@ QString SketchEditor::solidHint() const
     case ToolKind::BodyCircularPattern: {
         const bool circular = m_toolKind == ToolKind::BodyCircularPattern;
         const QString name = circular ? tr("Circular pattern") : tr("Linear pattern");
-        if (asking)
-            return with(name, tr("type the count, then the %1  ·  Enter accepts").arg(circular ? tr("angle") : tr("spacing")));
+        if (patternReady()) {
+            if (!error.isEmpty())
+                return QStringLiteral("%1: %2").arg(name, error);
+            return tr("%1: set the count and the %2 in the panel  ·  Enter accepts").arg(name, circular ? tr("angle") : tr("spacing"));
+        }
         if (m_solid.source == 0 && m_solid.bodies.empty())
-            return tr("%1: tap the bodies to repeat (or pick a feature in the history: Pattern…)").arg(name);
+            return tr("%1: tap a face of the cut or boss to repeat (or bodies)").arg(name);
         return circular ? tr("%1: tap the axis: a round or straight edge, an axis or a sketch line").arg(name)
                         : tr("%1: tap the direction: a straight edge, an axis or a sketch line").arg(name);
     }
@@ -946,4 +983,188 @@ QString SketchEditor::solidHint() const
     default:
         return {};
     }
+}
+
+// --- The pattern panel --------------------------------------------------------------
+
+bool SketchEditor::patternTool() const
+{
+    return mode() == EditorMode::Model
+        && (m_toolKind == ToolKind::BodyLinearPattern || m_toolKind == ToolKind::BodyCircularPattern);
+}
+
+bool SketchEditor::patternReady() const
+{
+    return patternTool() && (m_solid.source != 0 || !m_solid.bodies.empty()) && m_solid.axis.has_value();
+}
+
+void SketchEditor::clearFeaturePreview()
+{
+    hideSessionPreview();
+    for (const Handle(AIS_Shape)& prs : m_bodyPrs)
+        m_viewer->aisContext()->UnsetTransparency(prs, false);
+    m_solidError.clear();
+    m_viewer->update();
+}
+
+void SketchEditor::previewPattern()
+{
+    if (!patternReady())
+        return;
+    if (const std::optional<Feature> f = solidFeature())
+        previewNewFeature(*f);
+}
+
+std::optional<SketchEditor::PatternState> SketchEditor::patternState() const
+{
+    PatternState state;
+    const Feature* shown = nullptr;
+    std::optional<Feature> draft;
+    if (m_patternEdit) {
+        shown = &m_patternEdit->draft;
+        state.editing = true;
+        state.ready = true;
+    } else if (patternTool()) {
+        state.ready = patternReady();
+        Feature f;
+        f.kind = Feature::Kind::Pattern;
+        const bool circular = m_toolKind == ToolKind::BodyCircularPattern;
+        f.pattern = circular ? Feature::PatternKind::Circular : Feature::PatternKind::Linear;
+        f.count = circular ? s_circularCount : s_linearCount;
+        f.value = circular ? s_circularAngle : s_linearSpacing;
+        f.source = m_solid.source;
+        if (m_solid.axis)
+            f.axis = *m_solid.axis;
+        draft = f;
+        shown = &*draft;
+    } else {
+        return std::nullopt;
+    }
+    state.circular = shown->pattern == Feature::PatternKind::Circular;
+    state.count = shown->count;
+    state.value = shown->value;
+    state.error = modelText(m_solidError);
+
+    // What it repeats: the feature by its history name, or how many bodies.
+    if (shown->source != 0) {
+        const std::vector<TimelineItem> items = timeline();
+        for (std::size_t i = 0; i < m_features.size() && i < items.size(); ++i) {
+            if (m_features[i].id == shown->source)
+                state.source = items[i].name;
+        }
+    } else if (m_patternEdit) {
+        state.source = tr("Bodies: %1").arg(shown->bodies.size());
+    } else if (!m_solid.bodies.empty()) {
+        state.source = tr("Bodies: %1").arg(m_solid.bodies.size());
+    }
+    const AxisRef& axis = shown->axis;
+    switch (axis.kind) {
+    case AxisRef::Kind::None:
+        break;
+    case AxisRef::Kind::Edge:
+        state.axis = tr("An edge");
+        break;
+    case AxisRef::Kind::SketchLine:
+        state.axis = tr("A sketch line");
+        break;
+    case AxisRef::Kind::Datum:
+        state.axis = axis.datum == kBaseX   ? tr("The X axis")
+                   : axis.datum == kBaseY   ? tr("The Y axis")
+                   : axis.datum == kBaseZ   ? tr("The Z axis")
+                                            : tr("A construction axis");
+        break;
+    }
+    return state;
+}
+
+void SketchEditor::setPatternValues(int count, double value)
+{
+    count = std::clamp(count, 2, 500);
+    if (m_patternEdit) {
+        m_patternEdit->draft.count = count;
+        m_patternEdit->draft.value = value;
+        // The whole model follows, as when other features are edited.
+        std::vector<Feature> features = m_features;
+        features[m_patternEdit->index] = m_patternEdit->draft;
+        RebuildResult result = rebuild(sketchLookup(), features);
+        m_bodies = std::move(result.bodies);
+        m_context = std::move(result.context);
+        const auto index = static_cast<std::size_t>(m_patternEdit->index);
+        m_solidError = index < result.errors.size() ? result.errors[index] : std::string();
+        refreshBodies();
+        showDatums();
+        updateHint();
+        m_viewer->update();
+        return;
+    }
+    if (!patternTool())
+        return;
+    if (m_toolKind == ToolKind::BodyCircularPattern) {
+        s_circularCount = count;
+        s_circularAngle = value;
+    } else {
+        s_linearCount = count;
+        s_linearSpacing = value;
+    }
+    if (patternReady())
+        previewPattern();
+    else
+        updateHint();
+}
+
+void SketchEditor::acceptPattern()
+{
+    if (m_patternEdit) {
+        endPatternEdit(true);
+        return;
+    }
+    if (!patternReady())
+        return;
+    const std::optional<Feature> f = solidFeature();
+    if (!f)
+        return;
+    clearFeaturePreview();
+    if (commitFeature(*f))
+        resetSolid();
+    updateHint();
+    m_viewer->update();
+}
+
+void SketchEditor::cancelPattern()
+{
+    if (m_patternEdit) {
+        endPatternEdit(false);
+        return;
+    }
+    if (patternTool())
+        setTool(ToolKind::Select);
+}
+
+void SketchEditor::startPatternEdit(int index)
+{
+    if (mode() == EditorMode::Sketch)
+        closeSketch();
+    setTool(ToolKind::Select); // ends what else was going on (and an earlier pattern edit)
+    endValueSession(true);
+    clearModelSelection();
+    m_patternEdit = PatternEdit{index, m_features[index]};
+    setPatternValues(m_patternEdit->draft.count, m_patternEdit->draft.value); // the preview, and the panel
+}
+
+void SketchEditor::endPatternEdit(bool keep)
+{
+    if (!m_patternEdit)
+        return;
+    const PatternEdit edit = *m_patternEdit;
+    m_patternEdit.reset();
+    m_solidError.clear();
+    if (keep && edit.index < static_cast<int>(m_features.size())) {
+        pushUndo();
+        m_features[edit.index] = edit.draft;
+        rebuildModel();
+        emit historyChanged();
+    } else {
+        rebuildModel();
+    }
+    updateHint();
 }

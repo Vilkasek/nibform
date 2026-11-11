@@ -40,11 +40,11 @@ PL = {
       "Pole wyboru pokazuje albo ukrywa bryłę; dwuklik na nazwie zmienia ją",
   "Choose Color…": "Wybierz kolor…", "Body Color": "Kolor bryły", "Default Color": "Domyślny kolor",
   "Move": "Przesuń", "Measure": "Zmierz", "Section": "Przekrój",
-  "Move (T): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)":
-      "Przesuń (T): dotknij brył, potem przeciągnij strzałki i pierścienie albo dotknij ich narożnika, okrągłej "
+  "Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)":
+      "Przesuń (M): dotknij brył, potem przeciągnij strzałki i pierścienie albo dotknij ich narożnika, okrągłej "
       "krawędzi lub ściany, a potem miejsca docelowego; Enter pozwala wpisać przesunięcie i zatwierdza (albo kopiuje)",
-  "Measure (I): tap a face, edge or corner, and a second one to measure between them; the body's volume and mass properties too":
-      "Zmierz (I): dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi; "
+  "Measure (Ctrl+Shift+M): tap a face, edge or corner, and a second one to measure between them; the body's volume and mass properties too":
+      "Zmierz (Ctrl+Shift+M): dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi; "
       "pokazuje też objętość i właściwości masowe bryły",
   "Section: tap a flat face or a plane to cut the view open along it; View → Section View turns it off":
       "Przekrój: dotknij płaskiej ściany albo płaszczyzny, by przeciąć widok wzdłuż niej; Widok → Przekrój wyłącza go",
@@ -53,21 +53,21 @@ PL = {
   "Revolve": "Obrót", "Sweep": "Przeciągnij", "Loft": "Wyciągnij przez profile", "Hole": "Otwór",
   "Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)":
       "Obrót (R): dotknij obszarów szkicu, potem osi (linii szkicu, krawędzi albo osi)",
-  "Sweep (Shift+W): tap the profile region, then a curve of the path sketch":
-      "Przeciągnij (Shift+W): dotknij obszaru profilu, potem krzywej szkicu ścieżki",
-  "Loft (Shift+F): tap profile regions on different planes in order, then Enter":
-      "Wyciągnij przez profile (Shift+F): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter",
+  "Sweep (W): tap the profile region, then a curve of the path sketch":
+      "Przeciągnij (W): dotknij obszaru profilu, potem krzywej szkicu ścieżki",
+  "Loft (L): tap profile regions on different planes in order, then Enter":
+      "Wyciągnij przez profile (L): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter",
   "Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored or countersunk":
       "Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych "
       "krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym",
-  "Mirror (M): tap bodies, Enter, then the mirror plane (a flat face or a plane)":
-      "Lustro (M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)",
-  "Linear Pattern (Shift+L): tap bodies, then the direction (an edge, axis or sketch line). To repeat a feature (a hole, a boss), use Pattern in its history menu":
-      "Szyk liniowy (Shift+L): dotknij brył, potem kierunku (krawędzi, osi albo linii szkicu). Żeby powtórzyć "
-      "operację (otwór, występ), użyj Szyku w jej menu w historii",
-  "Circular Pattern (Shift+O): tap bodies, then the axis (a round or straight edge, an axis). To repeat a feature, use Pattern in its history menu":
-      "Szyk kołowy (Shift+O): dotknij brył, potem osi (okrągłej albo prostej krawędzi, osi). Żeby powtórzyć "
-      "operację, użyj Szyku w jej menu w historii",
+  "Mirror (Shift+M): tap bodies, Enter, then the mirror plane (a flat face or a plane)":
+      "Lustro (Shift+M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)",
+  "Linear Pattern (Shift+L): tap a face of the cut, boss or hole to repeat (or bodies), then the direction (an edge, axis or sketch line); the count and spacing go in the panel":
+      "Szyk liniowy (Shift+L): dotknij ściany wycięcia, występu albo otworu do powtórzenia (albo brył), potem "
+      "kierunku (krawędzi, osi albo linii szkicu); liczbę i odstęp podaj w panelu",
+  "Circular Pattern (Ctrl+Shift+C): tap a face of the cut, boss or hole to repeat (or bodies), then the axis (a round or straight edge, an axis); the count and angle go in the panel":
+      "Szyk kołowy (Ctrl+Shift+C): dotknij ściany wycięcia, występu albo otworu do powtórzenia (albo brył), potem "
+      "osi (okrągłej albo prostej krawędzi, osi); liczbę i kąt podaj w panelu",
   "Offset Plane": "Płaszczyzna odsunięta", "Plane at Angle": "Płaszczyzna pod kątem",
   "Plane Through 3 Points": "Płaszczyzna przez 3 punkty", "Axis": "Oś",
   "Offset Plane: a construction plane parallel to a flat face or a plane; select it to start a sketch on it, or mirror about it":
@@ -79,8 +79,8 @@ PL = {
       "Oś: wzdłuż prostej krawędzi, przez środek okrągłej albo przez dwa narożniki",
   "Linear Pattern…": "Szyk liniowy…", "Circular Pattern…": "Szyk kołowy…",
   "Freehand": "Odręcznie",
-  "Freehand (W): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it":
-      "Odręcznie (W): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); "
+  "Freehand (Ctrl+Shift+F): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it":
+      "Odręcznie (Ctrl+Shift+F): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); "
       "zamaż coś, by to usunąć",
   "Nothing to undo": "Nie ma czego cofnąć", "Nothing to redo": "Nie ma czego ponowić",
   "Undone (two-finger tap)": "Cofnięto (stuknięcie dwoma palcami)",
@@ -103,8 +103,8 @@ PL = {
   "Delete Selected": "Usuń zaznaczone", "Clear Sketch": "Wyczyść szkic", "Cancel / Deselect": "Przerwij / odznacz",
   "Finish / Edit Dimension": "Zakończ / edytuj wymiar", "Model": "Bryła", "Sketch": "Szkic", "View": "Widok",
   "MODEL": "BRYŁA", "SKETCH": "SZKIC", "Select": "Zaznacz", "New Sketch": "Stwórz szkic",
-  "New Sketch (K): on the selected flat face, otherwise on the ground; the arrow next to it picks the plane":
-      "Stwórz szkic (K) – na zaznaczonej płaskiej ścianie, inaczej na podłożu; strzałka obok: wybór płaszczyzny",
+  "New Sketch (Shift+S): on the selected flat face, otherwise on the ground; the arrow next to it picks the plane":
+      "Stwórz szkic (Shift+S) – na zaznaczonej płaskiej ścianie, inaczej na podłożu; strzałka obok: wybór płaszczyzny",
   "On the Selected Face": "Na zaznaczonej ścianie", "Ground (XY)": "Podłoże (XY)", "Front (XZ)": "Przód (XZ)",
   "Right (YZ)": "Prawo (YZ)", "Edit Sketch": "Edytuj szkic",
   "Opens the sketch whose region is selected": "Otwiera szkic, którego obszar jest zaznaczony",
@@ -166,10 +166,10 @@ PL = {
       "Lustro (Shift+M) – zaznacz krzywe, potem dotknij linii, względem której je odbić; kopia pozostaje symetryczna",
   "Linear Pattern (Shift+L): select curves, then pick the step between copies and their count":
       "Szyk liniowy (Shift+L) – zaznacz krzywe, potem wskaż odstęp między kopiami i ich liczbę",
-  "Circular Pattern (Shift+O): select curves, then pick the center and the count (a full turn)":
-      "Szyk kołowy (Shift+O) – zaznacz krzywe, potem wskaż środek i liczbę (na pełnym obrocie)",
-  "Project (Shift+K): tap body edges or faces to copy them into the sketch, pinned in place":
-      "Rzutuj (Shift+K) – dotykaj krawędzi albo ścian brył, by skopiować je do szkicu, unieruchomione",
+  "Circular Pattern (Ctrl+Shift+C): select curves, then pick the center and the count (a full turn)":
+      "Szyk kołowy (Ctrl+Shift+C) – zaznacz krzywe, potem wskaż środek i liczbę (na pełnym obrocie)",
+  "Project (Ctrl+Shift+P): tap body edges or faces to copy them into the sketch, pinned in place":
+      "Rzutuj (Ctrl+Shift+P) – dotykaj krawędzi albo ścian brył, by skopiować je do szkicu, unieruchomione",
   "Reference Image": "Obraz podkładowy", "Insert Image…": "Wstaw obraz…", "Insert Image": "Wstaw obraz",
   "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff);;All files (*)":
       "Obrazy (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff);;Wszystkie pliki (*)",
@@ -346,10 +346,14 @@ PL = {
   "Mirror: %1 bodies  ·  Enter, then tap the mirror plane": "Lustro: %1 brył  ·  Enter, potem dotknij płaszczyzny odbicia",
   "Mirror: tap the mirror plane: a flat face or a plane": "Lustro: dotknij płaszczyzny odbicia: płaskiej ściany albo płaszczyzny",
   "Circular pattern": "Szyk kołowy", "Linear pattern": "Szyk liniowy",
-  "type the count, then the %1  ·  Enter accepts": "wpisz liczbę, potem %1  ·  Enter zatwierdza",
+  "%1: set the count and the %2 in the panel  ·  Enter accepts": "%1: ustaw liczbę i %2 w panelu  ·  Enter zatwierdza",
   "angle": "kąt", "spacing": "odstęp",
-  "%1: tap the bodies to repeat (or pick a feature in the history: Pattern…)":
-      "%1: dotknij brył do powtórzenia (albo wybierz operację w historii: Szyk…)",
+  "%1: tap a face of the cut or boss to repeat (or bodies)":
+      "%1: dotknij ściany wycięcia albo występu do powtórzenia (albo brył)",
+  "%1: change the values in the panel  ·  Enter accepts  ·  Esc puts it back":
+      "%1: zmień wartości w panelu  ·  Enter zatwierdza  ·  Esc przywraca",
+  "Bodies: %1": "Bryły: %1", "An edge": "Krawędź", "A sketch line": "Linia szkicu",
+  "The X axis": "Oś X", "The Y axis": "Oś Y", "The Z axis": "Oś Z", "A construction axis": "Oś konstrukcyjna",
   "%1: tap the axis: a round or straight edge, an axis or a sketch line":
       "%1: dotknij osi: okrągłej albo prostej krawędzi, osi albo linii szkicu",
   "%1: tap the direction: a straight edge, an axis or a sketch line":
@@ -472,6 +476,22 @@ PL = {
   "Image: tap the second point  ·  %1 now": "Obraz: dotknij drugiego punktu  ·  teraz %1",
   "Image: drag it to move it  ·  tap two points a known distance apart to scale it":
       "Obraz: przeciągnij, by przesunąć  ·  dotknij dwóch punktów o znanej odległości, by przeskalować",
+ },
+ "PatternPanel": {
+  "Circular Pattern": "Szyk kołowy", "Linear Pattern": "Szyk liniowy", "Repeats:": "Powtarza:",
+  "Axis:": "Oś:", "Direction:": "Kierunek:", "Count:": "Liczba:",
+  "How many in all, the original included": "Ile w sumie, razem z oryginałem",
+  "Angle:": "Kąt:", "Spacing:": "Odstęp:",
+  "The angle from the first instance to the last": "Kąt od pierwszego wystąpienia do ostatniego",
+  "The distance from one instance to the next": "Odległość od jednego wystąpienia do następnego",
+  "Full circle (spread evenly)": "Pełny okrąg (równo rozłożone)", "Reverse direction": "Odwróć kierunek",
+  "Accept": "Zatwierdź", "Applies the pattern (Enter)": "Tworzy szyk (Enter)", "Cancel": "Anuluj",
+  "Drops the pattern (a changed one goes back as it was)": "Porzuca szyk (zmieniany wraca do poprzedniej postaci)",
+  "tap a face of a cut or boss, or bodies": "dotknij ściany wycięcia albo występu, albo brył",
+  "tap a round or straight edge, an axis or a sketch line": "dotknij okrągłej albo prostej krawędzi, osi albo linii szkicu",
+  "tap a straight edge, an axis or a sketch line": "dotknij prostej krawędzi, osi albo linii szkicu",
+  "%1° between instances": "%1° między wystąpieniami",
+  "%1 from the first to the last": "%1 od pierwszego do ostatniego",
  },
  "ValueEditor": {"Accept (Enter)": "Zatwierdź (Enter)", "Cancel (Esc)": "Anuluj (Esc)"},
 }

@@ -3,3 +3,8 @@ build/
 compile_commands.json
 build-flatpak/
 .flatpak-builder/
+# makepkg output
+packaging/aur/src/
+packaging/aur/pkg/
+packaging/aur/*.tar.gz
+packaging/aur/*.pkg.tar.*

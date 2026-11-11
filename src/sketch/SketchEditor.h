@@ -213,6 +213,26 @@ public:
     // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
     bool canPattern(int index) const;
     void patternFeature(int index, bool circular);
+
+    // --- The pattern panel ----------------------------------------------------------------
+    // A pattern being set up with the Linear / Circular Pattern tool (a tap on a face of a
+    // cut or boss picks the feature that made it, other faces pick bodies), or one from the
+    // history being changed. Its values are typed in the panel and previewed live.
+    struct PatternState
+    {
+        bool circular = false;
+        bool editing = false; // a pattern from the history
+        bool ready = false;   // what to repeat and the direction are picked: Accept applies
+        int count = 2;        // instances, with the original
+        double value = 0.0;   // spacing (mm, linear) or the angle covered (degrees, circular)
+        QString source;       // what is repeated ("Extrude 2", "2 bodies"); empty: nothing yet
+        QString axis;         // the direction / axis picked; empty: not yet
+        QString error;        // why the preview doesn't apply
+    };
+    std::optional<PatternState> patternState() const; // empty: no pattern being set up
+    void setPatternValues(int count, double value);
+    void acceptPattern();
+    void cancelPattern(); // drops the picks and leaves the tool, or puts an edited pattern back
     ProjectData project() const;
     void loadProject(ProjectData project); // replaces everything; undo starts empty
     void newProject();
@@ -250,6 +270,7 @@ signals:
     void bodiesChanged();          // count, names, visibility or colors
     void sectionChanged(bool on);
     void drawingsChanged();
+    void patternChanged(); // the pattern panel's state (see patternState())
 
 private:
     struct Slot
@@ -409,6 +430,19 @@ private:
     void previewNewFeature(const Feature& feature);
     void editFeature(int index);
     int nextFeatureId() const;
+    // Patterns: the preview of a new one with the current values, and an edited one.
+    bool patternTool() const;
+    bool patternReady() const;
+    void previewPattern();
+    void clearFeaturePreview();
+    void startPatternEdit(int index);
+    void endPatternEdit(bool keep);
+    struct PatternEdit
+    {
+        int index = -1;
+        Feature draft;
+    };
+    std::optional<PatternEdit> m_patternEdit;
     std::optional<AxisRef> axisOf(const Hit& hit) const;
     std::optional<PlaneRef> planeOf(const Hit& hit) const;
     // Where a tap on a flat face puts a hole: on a sketch point or a round edge's center

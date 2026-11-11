@@ -258,10 +258,6 @@
         <translation>Stwórz szkic</translation>
     </message>
     <message>
-        <source>New Sketch (K): on the selected flat face, otherwise on the ground; the arrow next to it picks the plane</source>
-        <translation>Stwórz szkic (K) – na zaznaczonej płaskiej ścianie, inaczej na podłożu; strzałka obok: wybór płaszczyzny</translation>
-    </message>
-    <message>
         <source>On the Selected Face</source>
         <translation>Na zaznaczonej ścianie</translation>
     </message>
@@ -290,6 +286,14 @@
         <translation>Wyciągnij</translation>
     </message>
     <message>
+        <source>Sweep (W): tap the profile region, then a curve of the path sketch</source>
+        <translation>Przeciągnij (W): dotknij obszaru profilu, potem krzywej szkicu ścieżki</translation>
+    </message>
+    <message>
+        <source>Loft (L): tap profile regions on different planes in order, then Enter</source>
+        <translation>Wyciągnij przez profile (L): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter</translation>
+    </message>
+    <message>
         <source>Fillet</source>
         <translation>Zaokrąglij</translation>
     </message>
@@ -300,6 +304,26 @@
     <message>
         <source>Shell</source>
         <translation>Skorupa</translation>
+    </message>
+    <message>
+        <source>Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)</source>
+        <translation>Przesuń (M): dotknij brył, potem przeciągnij strzałki i pierścienie albo dotknij ich narożnika, okrągłej krawędzi lub ściany, a potem miejsca docelowego; Enter pozwala wpisać przesunięcie i zatwierdza (albo kopiuje)</translation>
+    </message>
+    <message>
+        <source>Measure (Ctrl+Shift+M): tap a face, edge or corner, and a second one to measure between them; the body's volume and mass properties too</source>
+        <translation>Zmierz (Ctrl+Shift+M): dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi; pokazuje też objętość i właściwości masowe bryły</translation>
+    </message>
+    <message>
+        <source>Mirror (Shift+M): tap bodies, Enter, then the mirror plane (a flat face or a plane)</source>
+        <translation>Lustro (Shift+M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)</translation>
+    </message>
+    <message>
+        <source>Linear Pattern (Shift+L): tap a face of the cut, boss or hole to repeat (or bodies), then the direction (an edge, axis or sketch line); the count and spacing go in the panel</source>
+        <translation>Szyk liniowy (Shift+L): dotknij ściany wycięcia, występu albo otworu do powtórzenia (albo brył), potem kierunku (krawędzi, osi albo linii szkicu); liczbę i odstęp podaj w panelu</translation>
+    </message>
+    <message>
+        <source>Circular Pattern (Ctrl+Shift+C): tap a face of the cut, boss or hole to repeat (or bodies), then the axis (a round or straight edge, an axis); the count and angle go in the panel</source>
+        <translation>Szyk kołowy (Ctrl+Shift+C): dotknij ściany wycięcia, występu albo otworu do powtórzenia (albo brył), potem osi (okrągłej albo prostej krawędzi, osi); liczbę i kąt podaj w panelu</translation>
     </message>
     <message>
         <source> Operation: </source>
@@ -332,6 +356,10 @@ a z dala od brył powstaje nowa bryła</translation>
         <translation>Linia</translation>
     </message>
     <message>
+        <source>Freehand (Ctrl+Shift+F): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it</source>
+        <translation>Odręcznie (Ctrl+Shift+F): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); zamaż coś, by to usunąć</translation>
+    </message>
+    <message>
         <source>Rectangle</source>
         <translation>Prostokąt</translation>
     </message>
@@ -350,6 +378,14 @@ a z dala od brył powstaje nowa bryła</translation>
     <message>
         <source>Offset</source>
         <translation>Odsunięcie</translation>
+    </message>
+    <message>
+        <source>Circular Pattern (Ctrl+Shift+C): select curves, then pick the center and the count (a full turn)</source>
+        <translation>Szyk kołowy (Ctrl+Shift+C) – zaznacz krzywe, potem wskaż środek i liczbę (na pełnym obrocie)</translation>
+    </message>
+    <message>
+        <source>Project (Ctrl+Shift+P): tap body edges or faces to copy them into the sketch, pinned in place</source>
+        <translation>Rzutuj (Ctrl+Shift+P) – dotykaj krawędzi albo ścian brył, by skopiować je do szkicu, unieruchomione</translation>
     </message>
     <message>
         <source>Construction</source>
@@ -570,14 +606,6 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Obrót (R): dotknij obszarów szkicu, potem osi (linii szkicu, krawędzi albo osi)</translation>
     </message>
     <message>
-        <source>Sweep (Shift+W): tap the profile region, then a curve of the path sketch</source>
-        <translation>Przeciągnij (Shift+W): dotknij obszaru profilu, potem krzywej szkicu ścieżki</translation>
-    </message>
-    <message>
-        <source>Loft (Shift+F): tap profile regions on different planes in order, then Enter</source>
-        <translation>Wyciągnij przez profile (Shift+F): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter</translation>
-    </message>
-    <message>
         <source>Hole</source>
         <translation>Otwór</translation>
     </message>
@@ -590,20 +618,12 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Przesuń</translation>
     </message>
     <message>
-        <source>Move (T): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)</source>
-        <translation>Przesuń (T): dotknij brył, potem przeciągnij strzałki i pierścienie albo dotknij ich narożnika, okrągłej krawędzi lub ściany, a potem miejsca docelowego; Enter pozwala wpisać przesunięcie i zatwierdza (albo kopiuje)</translation>
-    </message>
-    <message>
         <source>Measure</source>
         <translation>Zmierz</translation>
     </message>
     <message>
         <source>Section</source>
         <translation>Przekrój</translation>
-    </message>
-    <message>
-        <source>Measure (I): tap a face, edge or corner, and a second one to measure between them; the body's volume and mass properties too</source>
-        <translation>Zmierz (I): dotknij ściany, krawędzi albo narożnika, a potem drugiego, by zmierzyć między nimi; pokazuje też objętość i właściwości masowe bryły</translation>
     </message>
     <message>
         <source>Section: tap a flat face or a plane to cut the view open along it; View → Section View turns it off</source>
@@ -616,18 +636,6 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Circular Pattern</source>
         <translation>Szyk kołowy</translation>
-    </message>
-    <message>
-        <source>Mirror (M): tap bodies, Enter, then the mirror plane (a flat face or a plane)</source>
-        <translation>Lustro (M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)</translation>
-    </message>
-    <message>
-        <source>Linear Pattern (Shift+L): tap bodies, then the direction (an edge, axis or sketch line). To repeat a feature (a hole, a boss), use Pattern in its history menu</source>
-        <translation>Szyk liniowy (Shift+L): dotknij brył, potem kierunku (krawędzi, osi albo linii szkicu). Żeby powtórzyć operację (otwór, występ), użyj Szyku w jej menu w historii</translation>
-    </message>
-    <message>
-        <source>Circular Pattern (Shift+O): tap bodies, then the axis (a round or straight edge, an axis). To repeat a feature, use Pattern in its history menu</source>
-        <translation>Szyk kołowy (Shift+O): dotknij brył, potem osi (okrągłej albo prostej krawędzi, osi). Żeby powtórzyć operację, użyj Szyku w jej menu w historii</translation>
     </message>
     <message>
         <source>Offset Plane</source>
@@ -662,10 +670,6 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Oś: wzdłuż prostej krawędzi, przez środek okrągłej albo przez dwa narożniki</translation>
     </message>
     <message>
-        <source>Freehand (W): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); scribble over something to delete it</source>
-        <translation>Odręcznie (W): narysuj z grubsza, a powstanie czysty kształt (linia, łamana, prostokąt, okrąg, łuk); zamaż coś, by to usunąć</translation>
-    </message>
-    <message>
         <source>Mirror (Shift+M): select curves, then tap the line to mirror them about; the copy stays symmetric</source>
         <translation>Lustro (Shift+M) – zaznacz krzywe, potem dotknij linii, względem której je odbić; kopia pozostaje symetryczna</translation>
     </message>
@@ -674,16 +678,8 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Szyk liniowy (Shift+L) – zaznacz krzywe, potem wskaż odstęp między kopiami i ich liczbę</translation>
     </message>
     <message>
-        <source>Circular Pattern (Shift+O): select curves, then pick the center and the count (a full turn)</source>
-        <translation>Szyk kołowy (Shift+O) – zaznacz krzywe, potem wskaż środek i liczbę (na pełnym obrocie)</translation>
-    </message>
-    <message>
         <source>Project</source>
         <translation>Rzutuj</translation>
-    </message>
-    <message>
-        <source>Project (Shift+K): tap body edges or faces to copy them into the sketch, pinned in place</source>
-        <translation>Rzutuj (Shift+K) – dotykaj krawędzi albo ścian brył, by skopiować je do szkicu, unieruchomione</translation>
     </message>
     <message>
         <source>Reference Image</source>
@@ -1040,6 +1036,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Dimension</source>
         <translation>Wymiar</translation>
+    </message>
+    <message>
+        <source>New Sketch (Shift+S): on the selected flat face, otherwise on the ground; the arrow next to it picks the plane</source>
+        <translation>Stwórz szkic (Shift+S) – na zaznaczonej płaskiej ścianie, inaczej na podłożu; strzałka obok: wybór płaszczyzny</translation>
     </message>
     <message>
         <source>Horizontal Dimension</source>
@@ -1581,6 +1581,97 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     </message>
 </context>
 <context>
+    <name>PatternPanel</name>
+    <message>
+        <source>Circular Pattern</source>
+        <translation>Szyk kołowy</translation>
+    </message>
+    <message>
+        <source>Linear Pattern</source>
+        <translation>Szyk liniowy</translation>
+    </message>
+    <message>
+        <source>Repeats:</source>
+        <translation>Powtarza:</translation>
+    </message>
+    <message>
+        <source>Axis:</source>
+        <translation>Oś:</translation>
+    </message>
+    <message>
+        <source>Direction:</source>
+        <translation>Kierunek:</translation>
+    </message>
+    <message>
+        <source>Count:</source>
+        <translation>Liczba:</translation>
+    </message>
+    <message>
+        <source>How many in all, the original included</source>
+        <translation>Ile w sumie, razem z oryginałem</translation>
+    </message>
+    <message>
+        <source>Angle:</source>
+        <translation>Kąt:</translation>
+    </message>
+    <message>
+        <source>Spacing:</source>
+        <translation>Odstęp:</translation>
+    </message>
+    <message>
+        <source>The angle from the first instance to the last</source>
+        <translation>Kąt od pierwszego wystąpienia do ostatniego</translation>
+    </message>
+    <message>
+        <source>The distance from one instance to the next</source>
+        <translation>Odległość od jednego wystąpienia do następnego</translation>
+    </message>
+    <message>
+        <source>Full circle (spread evenly)</source>
+        <translation>Pełny okrąg (równo rozłożone)</translation>
+    </message>
+    <message>
+        <source>Reverse direction</source>
+        <translation>Odwróć kierunek</translation>
+    </message>
+    <message>
+        <source>Accept</source>
+        <translation>Zatwierdź</translation>
+    </message>
+    <message>
+        <source>Applies the pattern (Enter)</source>
+        <translation>Tworzy szyk (Enter)</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
+    </message>
+    <message>
+        <source>Drops the pattern (a changed one goes back as it was)</source>
+        <translation>Porzuca szyk (zmieniany wraca do poprzedniej postaci)</translation>
+    </message>
+    <message>
+        <source>tap a face of a cut or boss, or bodies</source>
+        <translation>dotknij ściany wycięcia albo występu, albo brył</translation>
+    </message>
+    <message>
+        <source>tap a round or straight edge, an axis or a sketch line</source>
+        <translation>dotknij okrągłej albo prostej krawędzi, osi albo linii szkicu</translation>
+    </message>
+    <message>
+        <source>tap a straight edge, an axis or a sketch line</source>
+        <translation>dotknij prostej krawędzi, osi albo linii szkicu</translation>
+    </message>
+    <message>
+        <source>%1° between instances</source>
+        <translation>%1° między wystąpieniami</translation>
+    </message>
+    <message>
+        <source>%1 from the first to the last</source>
+        <translation>%1 od pierwszego do ostatniego</translation>
+    </message>
+</context>
+<context>
     <name>ProjectFile</name>
     <message>
         <source>Unknown curve kind: %1</source>
@@ -1711,6 +1802,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Scribbled out</source>
         <translation>Zamazane – usunięto</translation>
+    </message>
+    <message>
+        <source>%1: change the values in the panel  ·  Enter accepts  ·  Esc puts it back</source>
+        <translation>%1: zmień wartości w panelu  ·  Enter zatwierdza  ·  Esc przywraca</translation>
     </message>
     <message>
         <source>Move: type the offset or the turn  ·  Enter goes on</source>
@@ -2105,6 +2200,38 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Lustro: dotknij płaszczyzny odbicia: płaskiej ściany albo płaszczyzny</translation>
     </message>
     <message>
+        <source>%1: set the count and the %2 in the panel  ·  Enter accepts</source>
+        <translation>%1: ustaw liczbę i %2 w panelu  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>%1: tap a face of the cut or boss to repeat (or bodies)</source>
+        <translation>%1: dotknij ściany wycięcia albo występu do powtórzenia (albo brył)</translation>
+    </message>
+    <message>
+        <source>An edge</source>
+        <translation>Krawędź</translation>
+    </message>
+    <message>
+        <source>A sketch line</source>
+        <translation>Linia szkicu</translation>
+    </message>
+    <message>
+        <source>The X axis</source>
+        <translation>Oś X</translation>
+    </message>
+    <message>
+        <source>The Y axis</source>
+        <translation>Oś Y</translation>
+    </message>
+    <message>
+        <source>The Z axis</source>
+        <translation>Oś Z</translation>
+    </message>
+    <message>
+        <source>A construction axis</source>
+        <translation>Oś konstrukcyjna</translation>
+    </message>
+    <message>
         <source>Circular pattern</source>
         <translation>Szyk kołowy</translation>
     </message>
@@ -2113,20 +2240,12 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Szyk liniowy</translation>
     </message>
     <message>
-        <source>type the count, then the %1  ·  Enter accepts</source>
-        <translation>wpisz liczbę, potem %1  ·  Enter zatwierdza</translation>
-    </message>
-    <message>
         <source>angle</source>
         <translation>kąt</translation>
     </message>
     <message>
         <source>spacing</source>
         <translation>odstęp</translation>
-    </message>
-    <message>
-        <source>%1: tap the bodies to repeat (or pick a feature in the history: Pattern…)</source>
-        <translation>%1: dotknij brył do powtórzenia (albo wybierz operację w historii: Szyk…)</translation>
     </message>
     <message>
         <source>%1: tap the axis: a round or straight edge, an axis or a sketch line</source>

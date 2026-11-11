@@ -3,6 +3,7 @@
 #include "app/Icons.h"
 #include "app/Language.h"
 #include "app/DrawingWidget.h"
+#include "app/PatternPanel.h"
 #include "app/RadialMenu.h"
 #include "app/ShortcutsDialog.h"
 #include "viewer/UnitText.h"
@@ -141,6 +142,7 @@ MainWindow::MainWindow(QWidget* parent)
     setLengthUnit(QSettings().value(QStringLiteral("units")).toString() == QLatin1String("in") ? LengthUnit::Inch
                                                                                                 : LengthUnit::Millimetre);
     buildBodyList();
+    buildPatternPanel();
 
     m_hintLabel = new QLabel(this);
     m_dofLabel = new QLabel(this);
@@ -490,6 +492,33 @@ void MainWindow::updateBodyList()
     }
 }
 
+void MainWindow::buildPatternPanel()
+{
+    m_patternDock = new QDockWidget(this);
+    m_patternDock->setObjectName(QStringLiteral("patternDock"));
+    m_patternDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable); // goes with the tool
+    m_patternPanel = new PatternPanel(m_editor, m_patternDock);
+    m_patternDock->setWidget(m_patternPanel);
+    addDockWidget(Qt::RightDockWidgetArea, m_patternDock);
+    m_patternDock->hide();
+    connect(m_patternPanel, &PatternPanel::titleChanged, m_patternDock, &QDockWidget::setWindowTitle);
+    connect(m_editor, &SketchEditor::patternChanged, this, &MainWindow::updatePatternPanel);
+}
+
+void MainWindow::updatePatternPanel()
+{
+    if (!m_patternPanel)
+        return;
+    const bool shown = !m_drawingMode && m_patternPanel->sync();
+    m_patternDock->setWindowTitle(m_patternPanel->title());
+    if (shown != m_patternDock->isVisible()) {
+        // Typing in its fields takes the keys; once it goes, the shortcuts work again.
+        if (!shown && m_patternPanel->isAncestorOf(QApplication::focusWidget()))
+            m_viewer->setFocus();
+        m_patternDock->setVisible(shown);
+    }
+}
+
 void MainWindow::onFingerTap(int fingers)
 {
     QAction* action = fingers == 2 ? m_undoAction : fingers == 3 ? m_redoAction : nullptr;
@@ -700,10 +729,10 @@ void MainWindow::buildActions()
     m_modelBar->addAction(select);
     m_modelBar->addSeparator();
     m_newSketchAction = new QAction(tr("New Sketch"), m_uiRoot);
-    m_newSketchAction->setShortcut(QKeySequence(Qt::Key_K));
+    m_newSketchAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_S));
     bindable(m_newSketchAction, QStringLiteral("model.newSketch"), tr("Model"), "model");
     iconize(m_newSketchAction, Icon::NewSketch);
-    m_newSketchAction->setToolTip(tr("New Sketch (K): on the selected flat face, otherwise on the ground; "
+    m_newSketchAction->setToolTip(tr("New Sketch (Shift+S): on the selected flat face, otherwise on the ground; "
                                      "the arrow next to it picks the plane"));
     connect(m_newSketchAction, &QAction::triggered, this, [this] {
         if (m_editor->canSketchOnFace())
@@ -754,44 +783,44 @@ void MainWindow::buildActions()
     };
     auto tip = [this](ToolKind kind, const QString& text) { m_toolActions[kind]->setToolTip(text); };
     m_modelBar->addAction(
-        makeTool(ToolKind::PushPull, tr("Extrude"), QKeySequence(Qt::Key_W), Icon::Extrude));
+        makeTool(ToolKind::PushPull, tr("Extrude"), QKeySequence(Qt::Key_E), Icon::Extrude));
     modelGroup({makeTool(ToolKind::Revolve, tr("Revolve"), QKeySequence(Qt::Key_R), Icon::Revolve),
-                makeTool(ToolKind::Sweep, tr("Sweep"), QKeySequence(Qt::SHIFT | Qt::Key_W), Icon::Sweep),
-                makeTool(ToolKind::Loft, tr("Loft"), QKeySequence(Qt::SHIFT | Qt::Key_F), Icon::Loft)});
+                makeTool(ToolKind::Sweep, tr("Sweep"), QKeySequence(Qt::Key_W), Icon::Sweep),
+                makeTool(ToolKind::Loft, tr("Loft"), QKeySequence(Qt::Key_L), Icon::Loft)});
     tip(ToolKind::Revolve, tr("Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)"));
-    tip(ToolKind::Sweep, tr("Sweep (Shift+W): tap the profile region, then a curve of the path sketch"));
-    tip(ToolKind::Loft, tr("Loft (Shift+F): tap profile regions on different planes in order, then Enter"));
+    tip(ToolKind::Sweep, tr("Sweep (W): tap the profile region, then a curve of the path sketch"));
+    tip(ToolKind::Loft, tr("Loft (L): tap profile regions on different planes in order, then Enter"));
     m_modelBar->addAction(makeTool(ToolKind::Hole, tr("Hole"), QKeySequence(Qt::Key_H), Icon::Hole));
     tip(ToolKind::Hole, tr("Hole (H): tap a flat face where it goes (sketch points and round edges' centers "
                            "snap); through, blind, counterbored or countersunk"));
     m_modelBar->addAction(
-        makeTool(ToolKind::Fillet, tr("Fillet"), QKeySequence(Qt::Key_G), Icon::Fillet));
+        makeTool(ToolKind::Fillet, tr("Fillet"), QKeySequence(Qt::SHIFT | Qt::Key_F), Icon::Fillet));
     m_modelBar->addAction(
-        makeTool(ToolKind::Chamfer, tr("Chamfer"), QKeySequence(Qt::Key_B), Icon::Chamfer));
+        makeTool(ToolKind::Chamfer, tr("Chamfer"), QKeySequence(Qt::SHIFT | Qt::Key_C), Icon::Chamfer));
     m_modelBar->addAction(
-        makeTool(ToolKind::Shell, tr("Shell"), QKeySequence(Qt::Key_J), Icon::Shell));
+        makeTool(ToolKind::Shell, tr("Shell"), QKeySequence(Qt::SHIFT | Qt::Key_H), Icon::Shell));
     m_modelBar->addSeparator();
-    m_modelBar->addAction(makeTool(ToolKind::Move, tr("Move"), QKeySequence(Qt::Key_T), Icon::Move));
-    tip(ToolKind::Move, tr("Move (T): tap bodies, then drag the arrows and rings, or tap a corner, round edge or "
+    m_modelBar->addAction(makeTool(ToolKind::Move, tr("Move"), QKeySequence(Qt::Key_M), Icon::Move));
+    tip(ToolKind::Move, tr("Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or "
                            "face of them and then where it goes; Enter types offsets and applies (or copies)"));
-    modelGroup({makeTool(ToolKind::Measure, tr("Measure"), QKeySequence(Qt::Key_I), Icon::Measure),
+    modelGroup({makeTool(ToolKind::Measure, tr("Measure"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M), Icon::Measure),
                 makeTool(ToolKind::Section, tr("Section"), QKeySequence(), Icon::Section)});
-    tip(ToolKind::Measure, tr("Measure (I): tap a face, edge or corner, and a second one to measure between them; "
+    tip(ToolKind::Measure, tr("Measure (Ctrl+Shift+M): tap a face, edge or corner, and a second one to measure between them; "
                               "the body's volume and mass properties too"));
     tip(ToolKind::Section, tr("Section: tap a flat face or a plane to cut the view open along it; "
                               "View → Section View turns it off"));
-    modelGroup({makeTool(ToolKind::BodyMirror, tr("Mirror"), QKeySequence(Qt::Key_M), Icon::BodyMirror),
+    modelGroup({makeTool(ToolKind::BodyMirror, tr("Mirror"), QKeySequence(Qt::SHIFT | Qt::Key_M), Icon::BodyMirror),
                 makeTool(ToolKind::BodyLinearPattern, tr("Linear Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_L),
                          Icon::LinearPattern),
-                makeTool(ToolKind::BodyCircularPattern, tr("Circular Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_O),
-                         Icon::CircularPattern)});
-    tip(ToolKind::BodyMirror, tr("Mirror (M): tap bodies, Enter, then the mirror plane (a flat face or a plane)"));
+                makeTool(ToolKind::BodyCircularPattern, tr("Circular Pattern"),
+                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), Icon::CircularPattern)});
+    tip(ToolKind::BodyMirror, tr("Mirror (Shift+M): tap bodies, Enter, then the mirror plane (a flat face or a plane)"));
     tip(ToolKind::BodyLinearPattern,
-        tr("Linear Pattern (Shift+L): tap bodies, then the direction (an edge, axis or sketch line). "
-           "To repeat a feature (a hole, a boss), use Pattern in its history menu"));
+        tr("Linear Pattern (Shift+L): tap a face of the cut, boss or hole to repeat (or bodies), then the direction "
+           "(an edge, axis or sketch line); the count and spacing go in the panel"));
     tip(ToolKind::BodyCircularPattern,
-        tr("Circular Pattern (Shift+O): tap bodies, then the axis (a round or straight edge, an axis). "
-           "To repeat a feature, use Pattern in its history menu"));
+        tr("Circular Pattern (Ctrl+Shift+C): tap a face of the cut, boss or hole to repeat (or bodies), then the axis "
+           "(a round or straight edge, an axis); the count and angle go in the panel"));
     modelGroup({makeTool(ToolKind::OffsetPlane, tr("Offset Plane"), QKeySequence(), Icon::Plane),
                 makeTool(ToolKind::AnglePlane, tr("Plane at Angle"), QKeySequence(), Icon::Plane),
                 makeTool(ToolKind::ThreePointPlane, tr("Plane Through 3 Points"), QKeySequence(), Icon::Plane),
@@ -852,9 +881,9 @@ void MainWindow::buildActions()
     m_sketchBar->addAction(select);
     m_sketchBar->addSeparator();
     m_sketchBar->addAction(tool(ToolKind::Line, tr("Line"), QKeySequence(Qt::Key_L), Icon::Line));
-    m_sketchBar->addAction(tool(ToolKind::Freehand, tr("Freehand"), QKeySequence(Qt::Key_W), Icon::Freehand));
+    m_sketchBar->addAction(tool(ToolKind::Freehand, tr("Freehand"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F), Icon::Freehand));
     m_toolActions[ToolKind::Freehand]->setToolTip(
-        tr("Freehand (W): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); "
+        tr("Freehand (Ctrl+Shift+F): draw roughly and get the clean shape (line, corners, rectangle, circle, arc); "
            "scribble over something to delete it"));
     group({tool(ToolKind::Rectangle, tr("Rectangle"), QKeySequence(Qt::Key_R), Icon::Rectangle),
            tool(ToolKind::Polygon, tr("Polygon"), QKeySequence(Qt::SHIFT | Qt::Key_P), Icon::Polygon),
@@ -862,26 +891,26 @@ void MainWindow::buildActions()
     group({tool(ToolKind::Circle, tr("Circle"), QKeySequence(Qt::Key_C), Icon::Circle),
            tool(ToolKind::Ellipse, tr("Ellipse"), QKeySequence(Qt::SHIFT | Qt::Key_E), Icon::Ellipse)});
     group({tool(ToolKind::Arc, tr("Arc"), QKeySequence(Qt::Key_A), Icon::Arc),
-           tool(ToolKind::Spline, tr("Spline"), QKeySequence(Qt::SHIFT | Qt::Key_C), Icon::Spline)});
+           tool(ToolKind::Spline, tr("Spline"), QKeySequence(Qt::SHIFT | Qt::Key_N), Icon::Spline)});
     sketchMenu->addSeparator();
     m_sketchBar->addSeparator();
-    m_sketchBar->addAction(tool(ToolKind::Trim, tr("Trim"), QKeySequence(Qt::Key_X), Icon::Trim));
-    m_sketchBar->addAction(tool(ToolKind::Offset, tr("Offset"), QKeySequence(Qt::Key_U), Icon::Offset));
-    group({tool(ToolKind::SketchFillet, tr("Fillet"), QKeySequence(Qt::Key_G), Icon::SketchFillet),
-           tool(ToolKind::SketchChamfer, tr("Chamfer"), QKeySequence(Qt::Key_B), Icon::SketchChamfer)});
+    m_sketchBar->addAction(tool(ToolKind::Trim, tr("Trim"), QKeySequence(Qt::Key_T), Icon::Trim));
+    m_sketchBar->addAction(tool(ToolKind::Offset, tr("Offset"), QKeySequence(Qt::Key_O), Icon::Offset));
+    group({tool(ToolKind::SketchFillet, tr("Fillet"), QKeySequence(Qt::SHIFT | Qt::Key_F), Icon::SketchFillet),
+           tool(ToolKind::SketchChamfer, tr("Chamfer"), QKeySequence(Qt::SHIFT | Qt::Key_C), Icon::SketchChamfer)});
     group({tool(ToolKind::Mirror, tr("Mirror"), QKeySequence(Qt::SHIFT | Qt::Key_M), Icon::Mirror),
            tool(ToolKind::LinearPattern, tr("Linear Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_L), Icon::LinearPattern),
-           tool(ToolKind::CircularPattern, tr("Circular Pattern"), QKeySequence(Qt::SHIFT | Qt::Key_O),
+           tool(ToolKind::CircularPattern, tr("Circular Pattern"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C),
                 Icon::CircularPattern)});
     m_toolActions[ToolKind::Mirror]->setToolTip(
         tr("Mirror (Shift+M): select curves, then tap the line to mirror them about; the copy stays symmetric"));
     m_toolActions[ToolKind::LinearPattern]->setToolTip(
         tr("Linear Pattern (Shift+L): select curves, then pick the step between copies and their count"));
     m_toolActions[ToolKind::CircularPattern]->setToolTip(
-        tr("Circular Pattern (Shift+O): select curves, then pick the center and the count (a full turn)"));
-    m_sketchBar->addAction(tool(ToolKind::Project, tr("Project"), QKeySequence(Qt::SHIFT | Qt::Key_K), Icon::Project));
+        tr("Circular Pattern (Ctrl+Shift+C): select curves, then pick the center and the count (a full turn)"));
+    m_sketchBar->addAction(tool(ToolKind::Project, tr("Project"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), Icon::Project));
     m_toolActions[ToolKind::Project]->setToolTip(
-        tr("Project (Shift+K): tap body edges or faces to copy them into the sketch, pinned in place"));
+        tr("Project (Ctrl+Shift+P): tap body edges or faces to copy them into the sketch, pinned in place"));
     m_constructionAction = m_sketchBar->addAction(tr("Construction"), m_editor,
                                                   &SketchEditor::toggleConstruction);
     sketchMenu->addAction(m_constructionAction);
@@ -1278,9 +1307,9 @@ void MainWindow::buildActions()
                   tr("2 lines"));
     addConstraint(ConstraintCommand::Equal, tr("Equal"), Qt::Key_E,
                   tr("2+ lines (length) or 2+ circles/arcs (radius)"));
-    addConstraint(ConstraintCommand::Tangent, tr("Tangent"), Qt::Key_T,
+    addConstraint(ConstraintCommand::Tangent, tr("Tangent"), QKeySequence(Qt::SHIFT | Qt::Key_T),
                   tr("A line and a circle/arc, or 2 circles/arcs"));
-    addConstraint(ConstraintCommand::Concentric, tr("Concentric"), Qt::Key_O,
+    addConstraint(ConstraintCommand::Concentric, tr("Concentric"), QKeySequence(Qt::SHIFT | Qt::Key_O),
                   tr("2+ circles/arcs"));
     addConstraint(ConstraintCommand::Coincident, tr("Coincident"), Qt::Key_I,
                   tr("2 points (merges them) or a point and a curve (point on the curve)"));

@@ -7,7 +7,11 @@
 #include "model/Profiles.h"
 
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepGProp.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
+#include <GProp_GProps.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
 
 #include <cmath>
 #include <map>
@@ -334,6 +338,68 @@ void testLinearPatternOfAFeatureAndOfBodies()
     CHECK(near(totalVolume(three.bodies), 3000.0, 1e-3));
 }
 
+// The face of the model nearest `p` (its middle).
+TopoDS_Face faceNear(const std::vector<TopoDS_Shape>& bodies, const gp_Pnt& p)
+{
+    TopoDS_Face best;
+    double bestDistance = 1e300;
+    for (const TopoDS_Shape& b : bodies) {
+        for (TopExp_Explorer it(b, TopAbs_FACE); it.More(); it.Next()) {
+            const TopoDS_Face face = TopoDS::Face(it.Current());
+            GProp_GProps props;
+            BRepGProp::SurfaceProperties(face, props);
+            const double d = props.CentreOfMass().Distance(p);
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = face;
+            }
+        }
+    }
+    return best;
+}
+
+void testPickingWhatAFeatureMade()
+{
+    // A square pocket cut from a sketch on the plate's top, and a round boss joined on it.
+    Model m;
+    plate(m);
+    m.sketches.emplace(2, Sketch(gp_Ax3(gp_Pnt(0, 0, 10), gp::DZ(), gp::DX())));
+    rectangle(m.sketches.at(2), 10, -2, 14, 2);
+    m.sketches.at(2).addCircle(m.sketches.at(2).addPoint({-12, 0}), 3.0);
+    Feature pocket = extrudeAt(2, {12, 0}, -4.0);
+    pocket.operation = BodyOperation::Cut;
+    const int pocketId = m.add(pocket).id;
+    Feature boss = extrudeAt(2, {-12, 0}, 5.0);
+    boss.operation = BodyOperation::Join;
+    const int bossId = m.add(boss).id;
+    RebuildResult r = m.build();
+    CHECK(r.errors.at(1).empty() && r.errors.at(2).empty());
+
+    // The pocket's floor and walls, the boss' side and top; the plate's faces are no feature's.
+    CHECK(featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(12, 0, 6))) == pocketId);
+    CHECK(featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(14, 0, 8))) == pocketId);
+    CHECK(featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(-12, 0, 15))) == bossId);
+    CHECK(featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(-12, 0, 12.5))) == bossId);
+    CHECK(!featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(0, -20, 5))));
+    CHECK(!featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(0, 0, 0))));
+    // The pocket shows as its five faces.
+    CHECK(facesOnTool(r.bodies, r.context.tools.at(pocketId).shape).size() == 5);
+
+    // Picked so, a circular pattern of the pocket: four of them around Z.
+    Feature pattern;
+    pattern.kind = Feature::Kind::Pattern;
+    pattern.pattern = Feature::PatternKind::Circular;
+    pattern.source = *featureOfFace(m.history, r.context, faceNear(r.bodies, gp_Pnt(12, 0, 6)));
+    pattern.axis = datumAxis(kBaseZ);
+    pattern.count = 4;
+    pattern.value = 360.0;
+    m.add(pattern);
+    RebuildResult four = m.build();
+    CHECK(four.errors.at(3).empty());
+    CHECK(allValid(four.bodies));
+    CHECK(near(totalVolume(four.bodies), 16000.0 + kPi * 9.0 * 5.0 - 4.0 * 4.0 * 4.0 * 4.0, 1e-2));
+}
+
 void testMirror()
 {
     // A block touching the right plane joins its mirror image; one apart stays apart.
@@ -447,6 +513,7 @@ int main()
         {"hole on a sketch point follows it", testHoleOnASketchPointFollowsIt},
         {"bolt circle", testBoltCircle},
         {"linear pattern of a feature and of bodies", testLinearPatternOfAFeatureAndOfBodies},
+        {"picking what a feature made", testPickingWhatAFeatureMade},
         {"mirror", testMirror},
         {"construction planes and axes", testConstructionPlanesAndAxes},
         {"old histories get ids", testOldHistoriesGetIds},

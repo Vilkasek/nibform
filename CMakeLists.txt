@@ -89,6 +89,8 @@ add_executable(nibform
   src/app/DrawingSheet.h
   src/app/DrawingWidget.cpp
   src/app/DrawingWidget.h
+  src/app/PatternPanel.cpp
+  src/app/PatternPanel.h
   src/app/RadialMenu.cpp
   src/app/ShortcutsDialog.cpp
   src/app/ShortcutsDialog.h

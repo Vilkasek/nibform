@@ -31,6 +31,7 @@ class DrawingWidget;
 class QDockWidget;
 class QTreeWidget;
 class RadialMenu;
+class PatternPanel;
 struct PenSample;
 
 class MainWindow : public QMainWindow
@@ -61,6 +62,9 @@ private:
     void onFingerTap(int fingers);
     // The Bodies panel: names, visibility and colors of the bodies.
     void buildBodyList();
+    // The Pattern panel: shown while a pattern is set up or changed.
+    void buildPatternPanel();
+    void updatePatternPanel();
     void updateBodyList();
     void setUnits(LengthUnit unit);
     // Keyboard shortcuts the user can change: actions get a stable id (and a group for the
@@ -175,6 +179,8 @@ private:
     QPointer<RadialMenu> m_radialMenu;
     QDockWidget* m_bodyDock = nullptr;
     QTreeWidget* m_bodyList = nullptr;
+    QDockWidget* m_patternDock = nullptr;
+    PatternPanel* m_patternPanel = nullptr;
     bool m_fillingBodyList = false;
     QAction* m_sectionAction = nullptr;
     std::map<QString, QList<QKeySequence>> m_defaultShortcuts; // by id, as built
