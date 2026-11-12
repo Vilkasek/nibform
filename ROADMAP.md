@@ -1,6 +1,7 @@
 # Roadmap
 
-M0–M14 and i18n are done (see the README).
+M0–M14 and i18n are done (see the README). Next: parameters, then the bigger features from
+*Later*.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -108,7 +109,94 @@ Staying smooth as models grow.
 
 **Done when:** a model with 100+ features stays interactive while editing an early one.
 
+## M15 – Parameters
+
+Driving a model by named values.
+
+- A parameter table: names, values with units, comments
+- Expressions anywhere a value is typed (`width / 2 + 3 mm`), with parameters, arithmetic
+  and functions; the field shows the result and keeps the expression
+- Dimensions and features follow when a parameter changes; cycles and unknown names are
+  shown as errors, not crashes
+- Configurations: named sets of parameter values to switch between (sizes of one part)
+- Parameters and configurations saved in the project, exported to and imported from CSV
+
+**Done when:** a box with a lid is resized for a new board by changing three parameters,
+and *Small* / *Large* configurations switch in one tap.
+
+## M16 – Details
+
+The finishing features a part for real use needs.
+
+- Threads: cosmetic (shown, and as a callout in drawings) or modelled, metric and UNC /
+  UNF, on holes and cylinders; the hole tool gets tapped holes
+- Text in sketches (system fonts), to extrude, emboss or engrave on flat and curved faces
+- Draft on faces, ribs from an open sketch line
+- Variable-radius fillets and setback corners
+- All of them in the history, editable, following parameters
+
+**Done when:** a 3D-printed enclosure gets its screw bosses with threads, a ribbed wall,
+draft and an engraved label, all editable afterwards.
+
+## M17 – Assemblies
+
+Several parts that fit and move together.
+
+- Components: a body or a whole project inserted as an instance, many times, updated when
+  the source changes
+- Joints: rigid, revolute, slider, cylindrical, ball, planar; picked from faces, edges and
+  points, with limits; drag a part to move it as the joints allow
+- Interference and clearance check between components
+- Exploded views, also as drawing views; a parts list (BOM) on the drawing sheet
+- STEP export keeps the assembly structure
+
+**Done when:** a hinge with two leaves and a pin can be put together, opened through its
+range without collisions, and gets an exploded drawing with a parts list.
+
+## M18 – Sheet metal
+
+Parts bent from a flat sheet.
+
+- Sheet metal rules: thickness, bend radius, K-factor (from parameters)
+- Base flange from a sketch, edge flanges, hems, tabs; bend reliefs and corner reliefs
+- Convert a shelled solid to sheet metal
+- Flat pattern with bend lines, kept up to date; DXF export of it for the laser cutter
+- Flat pattern drawing views with bend notes
+
+**Done when:** a bent bracket with flanges and holes unfolds to a DXF that a laser shop
+can cut and bend to the right size.
+
+## M19 – Scripting
+
+Automating what the UI does.
+
+- A Python API to the project: sketches, constraints, features, parameters, export
+- A script console in the app and a headless `nibform --run script.py` for batch jobs
+- Macros: record a sequence of operations as a script
+- Plugins: scripts in a folder add commands to the toolbar and the radial menu
+- API docs and examples (a gear generator, batch export of configurations)
+
+**Done when:** a script generates a spur gear from module and tooth count as an editable
+feature, and a batch job exports every configuration to STEP.
+
+## M20 – Versions and sharing
+
+Working on a project over time and with others.
+
+- Named versions inside the project, with a timeline to go back to and compare (a visual
+  diff of bodies and of the history)
+- Branch from a version, merge history changes where they don't collide
+- Comments pinned to faces, edges and drawing views
+- Projects in a synced folder (Nextcloud, Syncthing, Git): conflicts detected and offered
+  as a merge, not lost
+- A read-only viewer mode and a web export (glTF with a small viewer page) to send to
+  people without nibform
+
+**Done when:** two people editing a copy of one project in a synced folder can merge their
+changes, and a client can look at the result in a browser.
+
 ## Later
 
-Ideas that need the above first: assemblies and joints, sheet metal, threads and
-cosmetic features, a plugin or scripting interface, collaboration on shared projects.
+Ideas that need the above first: CAM toolpaths for 3-axis milling and laser, simple FEA
+(static stress on a part), rendering with materials, direct editing of imported bodies
+(move and offset faces without a history).

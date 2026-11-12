@@ -371,6 +371,12 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export, copy and paste
 - [x] **M13** – drawings: views, sections, dimensions, notes, PDF / SVG export, printing
 - [x] **M14** – speed and robustness: background and incremental rebuild, large models
+- [ ] **M15** – parameters: a parameter table, expressions in values, configurations
+- [ ] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
+- [ ] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
+- [ ] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF
+- [ ] **M19** – scripting: Python API, console, headless runs, macros, plugins
+- [ ] **M20** – versions and sharing: named versions, branch and merge, comments, synced folders, web viewer
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).
 
