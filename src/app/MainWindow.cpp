@@ -287,6 +287,7 @@ void MainWindow::showRadialMenu(const QPointF& pos)
 
 void MainWindow::enterDrawing()
 {
+    settleModel();
     if (m_editor->bodyCount() == 0) {
         showMessage(tr("Make a body first: a drawing shows the bodies"));
         return;
@@ -1660,6 +1661,7 @@ void MainWindow::openPath(const QString& path)
         return;
     }
     m_editor->loadProject(std::move(*project));
+    settleModel(); // to frame what was opened
     m_path = path;
     m_recovery->clear();
     m_autosavedChanges = -1;
@@ -1800,8 +1802,18 @@ void MainWindow::showAbout()
                  website, source, QString::fromLatin1(qVersion()), QStringLiteral(OCC_VERSION_COMPLETE)));
 }
 
+void MainWindow::settleModel()
+{
+    if (!m_editor->rebuilding())
+        return;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    m_editor->settleModel();
+    QApplication::restoreOverrideCursor();
+}
+
 void MainWindow::exportBodies(ExportFormat format)
 {
+    settleModel(); // the bodies as the history has them now
     const QString filter = format == ExportFormat::Step  ? QStringLiteral("STEP (*.step *.stp)")
                          : format == ExportFormat::Iges  ? QStringLiteral("IGES (*.iges *.igs)")
                          : format == ExportFormat::Stl   ? QStringLiteral("STL (*.stl)")

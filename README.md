@@ -195,6 +195,10 @@ bar at the bottom. A tap selects an entry, a double tap edits it, the arrow next
 - an operation with values asks them again with a live preview of the whole model (`Esc` puts it
   back).
 
+Rebuilds replay only from the first entry that changed – every step's result is kept, so undo,
+redo and putting a value back are instant – and run in the background: on a long history the
+window stays usable, with a *Rebuilding…* bar at the top until the new model shows.
+
 An operation whose input is gone (a region after a sketch change) turns red with an explanation
 and is skipped. Inputs are remembered as geometry and found again on every rebuild: a region by a
 point inside it, a face by its middle and normal, an edge by its middle and direction, a body by a
@@ -257,7 +261,8 @@ title block. *Back to Model* returns.
 | `Shift+1`–`0`, `Ctrl+Shift+9` / `0` | the edges |
 | Corner cube | click a face, edge or corner |
 
-View changes glide. *View* also has:
+View changes glide. Zoomed in on a body, its round faces get a finer mesh once the view rests (as
+far as that stays quick: a very big body keeps its mesh). *View* also has:
 
 - **Scrolling**: *Zooms* (the default) or *Orbits, touchpad style* – then two-finger scrolling
   turns the model, `Shift` pans and `Ctrl` zooms. (A wheel can't be told from a touchpad
@@ -308,7 +313,10 @@ little as possible; degrees of freedom come from the Jacobian's null space (SVD)
 **Tests**: `ctest --test-dir build`, or one suite: `./build/test_sketch`, `test_solver`,
 `test_trim`, `test_offset`, `test_model`, `test_features`, `test_project`, `test_input`,
 `test_value_editor`, `test_toolkit`, `test_freehand`, `test_solid_features`, `test_inspect`,
-`test_interop`, `test_drawing`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
+`test_interop`, `test_drawing`, `test_rebuild`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
+`./build/bench_rebuild [pockets…]` times rebuilds of long histories (a plate with that many
+pockets and holes; 100 makes 227 features): a full replay, by kind of feature, and cached
+rebuilds after an edit early, midway and at the end.
 
 **Environment variables** (development aids):
 
@@ -362,7 +370,7 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M11** – transform and inspect: move / rotate gizmo, measure, section view, body list, units
 - [x] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export, copy and paste
 - [x] **M13** – drawings: views, sections, dimensions, notes, PDF / SVG export, printing
-- [ ] **M14** – speed and robustness: background and incremental rebuild, large models
+- [x] **M14** – speed and robustness: background and incremental rebuild, large models
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).
 

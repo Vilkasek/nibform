@@ -1964,6 +1964,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Szkic: %1 st. swobody</translation>
     </message>
     <message>
+        <source>Rebuilding… %1 / %2</source>
+        <translation>Przebudowa… %1 / %2</translation>
+    </message>
+    <message>
+        <source>Rebuilding…</source>
+        <translation>Przebudowa…</translation>
+    </message>
+    <message>
         <source>Automatic</source>
         <translation>Automatycznie</translation>
     </message>

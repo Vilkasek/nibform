@@ -12,6 +12,10 @@
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck_Shell.hxx>
+#include <BRep_Builder.hxx>
+#include <TopTools_MapOfShape.hxx>
+#include <TopoDS_Compound.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
@@ -57,6 +61,34 @@ TopoDS_Shape tidy(const TopoDS_Shape& shape)
     return unify.Shape();
 }
 
+// Whether a boolean's result is fit to build on. The faces it kept from its inputs were
+// checked when those were made, so only the new ones are (and that the shells still
+// close): on a body with hundreds of faces, checking all of them took as long as the
+// boolean itself.
+bool sound(const TopoDS_Shape& result, const TopTools_ListOfShape& inputs)
+{
+    TopTools_MapOfShape known;
+    for (const TopoDS_Shape& input : inputs) {
+        for (TopExp_Explorer f(input, TopAbs_FACE); f.More(); f.Next())
+            known.Add(f.Current());
+    }
+    TopoDS_Compound fresh;
+    BRep_Builder builder;
+    builder.MakeCompound(fresh);
+    for (TopExp_Explorer f(result, TopAbs_FACE); f.More(); f.Next()) {
+        if (!known.Contains(f.Current()))
+            builder.Add(fresh, f.Current());
+    }
+    if (!BRepCheck_Analyzer(fresh).IsValid())
+        return false;
+    for (TopExp_Explorer s(result, TopAbs_SHELL); s.More(); s.Next()) {
+        BRepCheck_Shell shell(TopoDS::Shell(s.Current()));
+        if (shell.Closed() != BRepCheck_NoError)
+            return false;
+    }
+    return true;
+}
+
 std::optional<TopoDS_Shape> boolean(BooleanKind kind, const TopoDS_Shape& a, const TopTools_ListOfShape& tools)
 {
     TopTools_ListOfShape args;
@@ -79,7 +111,9 @@ std::optional<TopoDS_Shape> boolean(BooleanKind kind, const TopoDS_Shape& a, con
     if (!op->IsDone() || op->HasErrors())
         return std::nullopt;
     TopoDS_Shape result = tidy(op->Shape());
-    if (!BRepCheck_Analyzer(result).IsValid())
+    TopTools_ListOfShape inputs = tools;
+    inputs.Append(a);
+    if (!sound(result, inputs))
         return std::nullopt;
     return result;
 }
@@ -94,20 +128,41 @@ std::optional<TopoDS_Shape> boolean(BooleanKind kind, const TopoDS_Shape& a, con
 // Each solid of `shape` as a body of its own.
 void appendSolids(std::vector<TopoDS_Shape>& out, const TopoDS_Shape& shape)
 {
+    // Slivers have a handful of faces; a body with many is no sliver, and measuring its
+    // volume to find that out costs as much as a boolean.
+    constexpr int kSliverFaces = 32;
     for (TopExp_Explorer it(shape, TopAbs_SOLID); it.More(); it.Next()) {
-        if (volumeOf(it.Current()) > kMinVolume)
+        int faces = 0;
+        for (TopExp_Explorer f(it.Current(), TopAbs_FACE); f.More() && faces <= kSliverFaces; f.Next())
+            ++faces;
+        if (faces > kSliverFaces || volumeOf(it.Current()) > kMinVolume)
             out.push_back(it.Current());
     }
 }
 
+// Whether two shapes are certainly apart (their boxes don't meet): then neither overlap()
+// nor touches() needs to run a boolean or a distance search on them.
+bool apart(const TopoDS_Shape& a, const TopoDS_Shape& b)
+{
+    Bnd_Box boxA, boxB;
+    BRepBndLib::Add(a, boxA, false);
+    BRepBndLib::Add(b, boxB, false);
+    boxA.Enlarge(1e-3);
+    return boxA.IsOut(boxB);
+}
+
 double overlap(const TopoDS_Shape& a, const TopoDS_Shape& b)
 {
+    if (apart(a, b))
+        return 0.0;
     const auto common = boolean(BooleanKind::Intersect, a, b);
     return common ? volumeOf(*common) : 0.0;
 }
 
 bool touches(const TopoDS_Shape& a, const TopoDS_Shape& b)
 {
+    if (apart(a, b))
+        return false;
     BRepExtrema_DistShapeShape distance(a, b);
     return distance.IsDone() && distance.Value() < 1e-6;
 }

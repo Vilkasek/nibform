@@ -3,6 +3,7 @@
 #include "io/ProjectFile.h"
 #include "model/Export.h"
 #include "model/Features.h"
+#include "model/Rebuild.h"
 #include "model/Solids.h"
 #include "sketch/ConstraintCommands.h"
 #include "sketch/Sketch.h"
@@ -34,6 +35,7 @@
 #include <vector>
 
 class OcctViewerWidget;
+class QTimer;
 class ValueEditor;
 
 enum class SketchPlane { XY, XZ, YZ };
@@ -162,6 +164,10 @@ public:
     // lie on can be picked), e.g. to extrude one again.
     void setShowUsedRegions(bool on);
     const std::vector<TopoDS_Shape>& bodies() const { return m_bodies; }
+    // Rebuilds run in the background; this waits for the one in progress (before the
+    // bodies are exported, say). The window shows the last finished one meanwhile.
+    void settleModel();
+    bool rebuilding() const { return m_buildTicket != m_shownTicket; }
 
     // --- History and project ----------------------------------------------------------
     std::vector<TimelineItem> timeline() const;
@@ -538,6 +544,22 @@ private:
     // if it doesn't apply.
     bool commitFeature(const Feature& feature);
     void rebuildModel(); // replays the history (up to the rollback point while a sketch is edited)
+    // Rebuilds `features` from the current sketches on the builder's thread (from the first
+    // feature that changed), then `show`s the result. A newer request replaces an older
+    // one. One done within `quickMs` shows before this returns, as if there were no thread;
+    // otherwise the window gets on without it. Previews wait less: they come one after the
+    // other as a value is dragged, and each wait holds up the pointer.
+    static constexpr int kQuickRebuildMs = 60;
+    static constexpr int kQuickPreviewMs = 15;
+    void requestBuild(std::vector<Feature> features, std::function<void(RebuildResult&)> show,
+                      int quickMs = kQuickRebuildMs);
+    void takeBuilt(); // the builder finished: show it, if it is the latest request
+    // Tessellation that follows the zoom: bodies are meshed finer when seen up close (once
+    // the view rests), so round edges stay round, as far as a short time allows.
+    int meshLevel(const TopoDS_Shape& body) const; // 0: OCCT's default, each one twice as fine
+    static void setMeshLevel(const Handle(AIS_Shape)& prs, int level);
+    void refineMeshes();
+    void paintRebuilding(QPainter& painter) const;
     Bnd_Box sketchBox(int slot) const;
     Bnd_Box bodiesBox() const;
     SketchLookup sketchLookup() const;
@@ -612,6 +634,19 @@ private:
     int m_changes = 0;      // counts edits, for the unsaved-changes mark
     int m_savedChanges = 0;
     std::vector<TopoDS_Shape> m_bodies; // built from m_features
+    std::unique_ptr<BackgroundRebuilder> m_builder;
+    int m_buildTicket = 0; // the latest rebuild requested
+    int m_shownTicket = 0; // and the latest shown
+    std::function<void(RebuildResult&)> m_buildShow;
+    std::pair<std::size_t, std::size_t> m_buildProgress; // features replayed, of how many
+    QTimer* m_meshTimer = nullptr;
+    double m_meshScale = 0.0; // model units per pixel when the meshes were last refined
+    struct MeshState
+    {
+        int level = 0;
+        double cost = 0.0; // milliseconds the last meshing took
+    };
+    std::map<const AIS_Shape*, MeshState> m_meshes; // of the body presentations
     std::vector<Handle(AIS_Shape)> m_bodyPrs;
     std::set<RegionRef> m_regionSelection;
     std::vector<BodyPick> m_bodySelection; // faces, or edges in the fillet / chamfer tools

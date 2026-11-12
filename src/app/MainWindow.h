@@ -101,6 +101,8 @@ private:
     bool saveAs();
     enum class ExportFormat { Step, Iges, Stl, ThreeMf };
     void exportBodies(ExportFormat format);
+    // Waits (with a busy cursor) for a rebuild in progress.
+    void settleModel();
     void importModel();
     // A STEP / IGES / STL opened as a new, unsaved project.
     bool openModel(const QString& path);

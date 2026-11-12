@@ -30,7 +30,9 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 
+#include <QElapsedTimer>
 #include <QFile>
+#include <QTimer>
 #include <QImage>
 #include <QLineF>
 #include <QRegularExpression>
@@ -145,23 +147,164 @@ void SketchEditor::rebuildModel()
 {
     const bool rolledBack = m_active >= 0 && m_rollback >= 0;
     const std::size_t count = rolledBack ? static_cast<std::size_t>(m_rollback) : m_features.size();
-    RebuildResult result =
-        rebuild(sketchLookup(), std::vector<Feature>(m_features.begin(), m_features.begin() + static_cast<long>(count)));
-    m_bodies = std::move(result.bodies);
-    m_context = std::move(result.context);
-    // Features past the rollback point keep what they reported last time.
-    m_featureErrors.resize(m_features.size());
-    std::copy(result.errors.begin(), result.errors.end(), m_featureErrors.begin());
-    refreshBodies();
-    showRegions(); // what is extruded now hides, what failed shows
-    showDatums();
-    showReferences();
-    updateStatus();
+    requestBuild(std::vector<Feature>(m_features.begin(), m_features.begin() + static_cast<long>(count)),
+                 [this](RebuildResult& result) {
+                     m_bodies = std::move(result.bodies);
+                     m_context = std::move(result.context);
+                     // Features past the rollback point keep what they reported last time.
+                     m_featureErrors.resize(m_features.size());
+                     const bool errorsChanged =
+                         !std::equal(result.errors.begin(), result.errors.end(), m_featureErrors.begin());
+                     std::copy(result.errors.begin(), result.errors.end(), m_featureErrors.begin());
+                     refreshBodies();
+                     showRegions(); // what is extruded now hides, what failed shows
+                     showDatums();
+                     showReferences();
+                     updateStatus();
+                     if (errorsChanged)
+                         emit historyChanged(); // the timeline marks what failed
+                     m_viewer->update();
+                 });
+}
+
+void SketchEditor::requestBuild(std::vector<Feature> features, std::function<void(RebuildResult&)> show, int quickMs)
+{
+    BackgroundRebuilder::Job job;
+    job.sketches.reserve(m_slots.size());
+    for (const Slot& slot : m_slots)
+        job.sketches.emplace_back(slot.id, slot.sketch);
+    job.features = std::move(features);
+    const std::size_t total = job.features.size();
+    m_buildShow = std::move(show);
+    m_buildTicket = m_builder->request(std::move(job));
+    if (m_builder->wait(m_buildTicket, quickMs)) {
+        takeBuilt();
+        return;
+    }
+    m_buildProgress = {0, total};
+    m_viewer->update(); // the progress hint
+}
+
+void SketchEditor::takeBuilt()
+{
+    std::optional<BackgroundRebuilder::Done> done = m_builder->take();
+    if (!done || done->ticket != m_buildTicket || m_shownTicket == m_buildTicket)
+        return; // superseded (the newer one is coming), or shown already
+    m_shownTicket = done->ticket;
+    m_buildProgress = {};
+    if (m_buildShow)
+        m_buildShow(done->result);
     m_viewer->update();
+}
+
+void SketchEditor::settleModel()
+{
+    if (!rebuilding())
+        return;
+    m_builder->wait(m_buildTicket, -1);
+    takeBuilt();
+}
+
+// OCCT meshes a body to a chordal deviation of 0.004 × its size and 20° between facets.
+constexpr double kBaseDeviation = 0.001;
+constexpr double kBaseAngle = 20.0 * M_PI / 180.0;
+constexpr double kFinestAngle = 2.0 * M_PI / 180.0;
+constexpr int kFinestLevel = 6; // 64 times finer: enough for a hole seen across the screen
+
+int SketchEditor::meshLevel(const TopoDS_Shape& body) const
+{
+    Bnd_Box box;
+    BRepBndLib::Add(body, box);
+    if (box.IsVoid())
+        return 0;
+    const gp_XYZ size = box.CornerMax().XYZ() - box.CornerMin().XYZ();
+    const double chord = 4.0 * kBaseDeviation * std::max({size.X(), size.Y(), size.Z()});
+    const double wanted = 0.5 * pixelsToModel(1.0); // half a pixel
+    if (wanted <= 0.0 || chord <= wanted)
+        return 0;
+    return std::min(kFinestLevel, static_cast<int>(std::ceil(std::log2(chord / wanted))));
+}
+
+void SketchEditor::setMeshLevel(const Handle(AIS_Shape)& prs, int level)
+{
+    const double factor = std::ldexp(1.0, -level);
+    prs->SetOwnDeviationCoefficient(kBaseDeviation * factor);
+    prs->SetOwnDeviationAngle(std::max(kBaseAngle * factor, kFinestAngle));
+}
+
+void SketchEditor::refineMeshes()
+{
+    // Meshing writes into the shapes, which the builder's thread may be reading: not
+    // while it works.
+    if (m_builder->busy()) {
+        m_meshTimer->start();
+        return;
+    }
+    m_meshScale = pixelsToModel(1.0);
+    // Meshing runs here, in the window's thread: only as much as keeps it responsive. Each
+    // level takes about this much longer than the one before (measured on bodies with
+    // many holes), so a big body may stay as it is; small parts get round.
+    constexpr double kGrowth = 2.7;
+    double budget = 150.0; // ms
+    const auto& ctx = m_viewer->aisContext();
+    bool changed = false;
+    for (std::size_t i = 0; i < m_bodyPrs.size() && i < m_bodies.size(); ++i) {
+        const Handle(AIS_Shape)& prs = m_bodyPrs[i];
+        MeshState& mesh = m_meshes[prs.get()];
+        // Only ever finer: a finer mesh serves a farther view as well.
+        const int wanted = meshLevel(m_bodies[i]);
+        int level = mesh.level;
+        double expected = std::max(mesh.cost, 1.0);
+        while (level < wanted && expected * kGrowth <= budget) {
+            expected *= kGrowth;
+            ++level;
+        }
+        if (level == mesh.level)
+            continue;
+        QElapsedTimer meshing;
+        meshing.start();
+        setMeshLevel(prs, level);
+        ctx->Redisplay(prs, false);
+        ctx->RecomputeSelectionOnly(prs);
+        mesh = {level, static_cast<double>(meshing.nsecsElapsed()) / 1e6};
+        budget -= mesh.cost;
+        changed = true;
+    }
+    if (changed)
+        m_viewer->update();
+}
+
+void SketchEditor::paintRebuilding(QPainter& p) const
+{
+    if (!rebuilding())
+        return;
+    const auto [done, total] = m_buildProgress;
+    const QString text = total > 0 ? tr("Rebuilding… %1 / %2").arg(done).arg(total) : tr("Rebuilding…");
+    QFont font = p.font();
+    font.setPointSizeF(10.0);
+    p.setFont(font);
+    const QFontMetricsF metrics(font);
+    const QSizeF size(metrics.horizontalAdvance(text) + 24.0, metrics.height() + 10.0);
+    const QRectF pill(QPointF((m_viewer->width() - size.width()) / 2.0, 12.0), size);
+    p.setPen(Qt::NoPen);
+    p.setBrush(m_colors.overlayAccent);
+    p.drawRoundedRect(pill, size.height() / 2.0, size.height() / 2.0);
+    if (total > 0) {
+        // The part done, a shade lighter.
+        QColor lighter = m_colors.overlayAccent.lighter(130);
+        p.setBrush(lighter);
+        p.save();
+        p.setClipRect(QRectF(pill.topLeft(), QSizeF(pill.width() * double(done) / double(total), pill.height())));
+        p.drawRoundedRect(pill, size.height() / 2.0, size.height() / 2.0);
+        p.restore();
+    }
+    p.setPen(Qt::white);
+    p.drawText(pill, Qt::AlignCenter, text);
 }
 
 bool SketchEditor::commitFeature(const Feature& made)
 {
+    settleModel(); // it goes on top of the bodies as they are now
     Feature feature = made;
     feature.id = nextFeatureId();
     // Applied on top of the current bodies: the same as a full rebuild, without replaying.
@@ -227,13 +370,35 @@ void SketchEditor::refreshBodies()
     // Picked faces / edges belong to the old presentations.
     ctx->ClearSelected(false);
     m_bodySelection.clear();
-    for (const Handle(AIS_Shape)& prs : m_bodyPrs)
-        ctx->Remove(prs, false);
-    m_bodyPrs.clear();
 
+    // Bodies a rebuild left as they were keep their presentations: meshing and computing
+    // the selection of a big body again would cost more than the rebuild did.
+    std::vector<Handle(AIS_Shape)> old = std::move(m_bodyPrs);
+    m_bodyPrs.clear();
     matchStyles();
     for (int index = 0; index < static_cast<int>(m_bodies.size()); ++index) {
         const TopoDS_Shape& body = m_bodies[index];
+        const bool hidden = m_styleOf[index] >= 0 && m_bodyStyles[m_styleOf[index]].hidden;
+        const auto same = std::find_if(old.begin(), old.end(), [&](const Handle(AIS_Shape)& prs) {
+            return !prs.IsNull() && prs->Shape().IsEqual(body);
+        });
+        if (same != old.end()) {
+            Handle(AIS_Shape) prs = *same;
+            same->Nullify();
+            // As a new one would be: the body's own color, not faded behind a preview.
+            Quantity_Color color;
+            prs->Color(color);
+            if (!(color == bodyColor(index)))
+                ctx->SetColor(prs, bodyColor(index), false);
+            if (prs->IsTransparent())
+                ctx->UnsetTransparency(prs, false);
+            if (hidden && ctx->IsDisplayed(prs))
+                ctx->Erase(prs, false);
+            else if (!hidden && !ctx->IsDisplayed(prs))
+                ctx->Display(prs, AIS_Shaded, AIS_Shape::SelectionMode(TopAbs_FACE), false);
+            m_bodyPrs.push_back(prs);
+            continue;
+        }
         Handle(AIS_Shape) prs = new AIS_Shape(body);
         // Matte: with the light coming from the camera, a glossy face seen head-on burns to white.
         Graphic3d_MaterialAspect material(Graphic3d_NameOfMaterial_Plastified);
@@ -242,11 +407,21 @@ void SketchEditor::refreshBodies()
         prs->SetColor(bodyColor(index));
         // Displayed with a real selection mode: shown with -1 ("not selectable"), OCCT
         // ignores any later Activate() and the body can never be picked.
+        QElapsedTimer meshing;
+        meshing.start();
         ctx->Display(prs, AIS_Shaded, AIS_Shape::SelectionMode(TopAbs_FACE), false);
-        if (m_styleOf[index] >= 0 && m_bodyStyles[m_styleOf[index]].hidden)
+        m_meshes[prs.get()] = {0, static_cast<double>(meshing.nsecsElapsed()) / 1e6};
+        if (hidden)
             ctx->Erase(prs, false);
         m_bodyPrs.push_back(prs);
     }
+    for (const Handle(AIS_Shape)& prs : old) {
+        if (!prs.IsNull()) {
+            m_meshes.erase(prs.get());
+            ctx->Remove(prs, false);
+        }
+    }
+    m_meshTimer->start(); // new bodies seen up close get finer meshes too
     if (!m_move.bodies.empty())
         endMove(); // the bodies it held are rebuilt
     updateSelectionModes();
@@ -875,6 +1050,7 @@ std::optional<BodyOperation> SketchEditor::sessionAutoOperation()
 
 void SketchEditor::syncValueSession()
 {
+    settleModel(); // the session previews on top of the current bodies
     using Kind = ValueSession::Kind;
     Kind want = Kind::None;
     if (m_toolKind == ToolKind::Shell && !selectedFaces().empty())
@@ -1285,10 +1461,15 @@ void SketchEditor::activateTimelineItem(int index)
         std::vector<Feature> features = m_features;
         features[index].value = value;
         features[index].operation = *operation;
-        RebuildResult result = rebuild(sketchLookup(), features);
-        m_bodies = std::move(result.bodies);
-        refreshBodies();
-        m_viewer->update();
+        requestBuild(
+            std::move(features),
+            [this](RebuildResult& result) {
+                m_bodies = std::move(result.bodies);
+                m_context = std::move(result.context);
+                refreshBodies();
+                m_viewer->update();
+            },
+            kQuickPreviewMs);
     };
     auto label = [extrusion, kind = feature.kind] {
         return extrusion                    ? tr("Distance [mm]")

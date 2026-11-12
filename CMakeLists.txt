@@ -19,6 +19,7 @@ if(NIBFORM_BUILD_TESTS)
 endif()
 find_package(OpenCASCADE REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(Threads REQUIRED)
 
 set(NIBFORM_WARNINGS -Wall -Wextra -Wno-unused-parameter)
 
@@ -38,6 +39,8 @@ add_library(nibform_core STATIC
   src/model/Measure.h
   src/model/Profiles.cpp
   src/model/Profiles.h
+  src/model/Rebuild.cpp
+  src/model/Rebuild.h
   src/model/Solids.cpp
   src/model/Solids.h
   src/model/Units.cpp
@@ -69,7 +72,7 @@ target_compile_options(nibform_core PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_core PUBLIC
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet TKOffset
   TKMesh TKXSBase TKDESTEP TKDESTL TKDEIGES TKHLR
-  Eigen3::Eigen)
+  Eigen3::Eigen Threads::Threads)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
 add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h src/io/Recovery.cpp src/io/Recovery.h
@@ -161,12 +164,17 @@ if(NOT NIBFORM_BUILD_TESTS)
 endif()
 
 enable_testing()
-foreach(name sketch solver trim offset model features input toolkit freehand solid_features inspect drawing)
+foreach(name sketch solver trim offset model features input toolkit freehand solid_features inspect drawing rebuild)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
   target_link_libraries(test_${name} PRIVATE nibform_core)
   add_test(NAME ${name} COMMAND test_${name})
 endforeach()
+
+# Rebuild timings on long histories (not run by ctest).
+add_executable(bench_rebuild tests/bench_rebuild.cpp tests/LongModel.h)
+target_compile_options(bench_rebuild PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(bench_rebuild PRIVATE nibform_core)
 
 add_executable(test_project tests/test_project.cpp tests/Check.h)
 target_compile_options(test_project PRIVATE ${NIBFORM_WARNINGS})

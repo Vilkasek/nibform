@@ -11,6 +11,7 @@
 #include <QLineF>
 #include <QPainter>
 #include <QPainterPath>
+#include <QTimer>
 
 #include <gp_Vec.hxx>
 
@@ -83,6 +84,26 @@ SketchEditor::SketchEditor(OcctViewerWidget* viewer, QObject* parent)
     , m_valueEditor(new ValueEditor(viewer))
     , m_colors(kLightColors)
 {
+    // The builder reports from its own thread: queued on to this one.
+    m_builder = std::make_unique<BackgroundRebuilder>(
+        [this] { QMetaObject::invokeMethod(this, [this] { takeBuilt(); }, Qt::QueuedConnection); },
+        [this](int ticket, std::size_t done, std::size_t total) {
+            QMetaObject::invokeMethod(
+                this,
+                [this, ticket, done, total] {
+                    if (ticket == m_buildTicket && rebuilding()) {
+                        m_buildProgress = {done, total};
+                        m_viewer->update();
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+
+    m_meshTimer = new QTimer(this);
+    m_meshTimer->setSingleShot(true);
+    m_meshTimer->setInterval(300); // the view has come to rest
+    connect(m_meshTimer, &QTimer::timeout, this, &SketchEditor::refineMeshes);
+
     const double dpr = viewer->devicePixelRatioF();
     const auto& ctx = viewer->aisContext();
     // Body edges are thin targets for a pen.
@@ -99,7 +120,10 @@ SketchEditor::SketchEditor(OcctViewerWidget* viewer, QObject* parent)
     updateStatus();
 }
 
-SketchEditor::~SketchEditor() = default;
+SketchEditor::~SketchEditor()
+{
+    m_builder.reset(); // stops its thread before anything it reports to goes away
+}
 
 void SketchEditor::setDark(bool dark)
 {
@@ -1524,6 +1548,11 @@ void SketchEditor::updateStatus()
 void SketchEditor::paintOverlay(QPainter& p)
 {
     m_labels.clear();
+    paintRebuilding(p);
+    // Painted after every camera change: zoomed far enough in or out, the meshes follow.
+    const double scale = pixelsToModel(1.0);
+    if (m_meshScale <= 0.0 || scale < m_meshScale / 1.5 || scale > m_meshScale * 1.5)
+        m_meshTimer->start();
     if (m_active < 0) {
         paintArrow(p);
         if (m_toolKind == ToolKind::Measure)

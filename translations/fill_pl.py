@@ -412,6 +412,7 @@ PL = {
   "Scribbled out": "Zamazane – usunięto",
   "Bodies: %1": "Bryły: %1", "Sketch: empty": "Szkic pusty", "Sketch: conflicting constraints": "Szkic: sprzeczne więzy",
   "Sketch: fully defined": "Szkic w pełni określony", "Sketch: %1 DOF": "Szkic: %1 st. swobody",
+  "Rebuilding… %1 / %2": "Przebudowa… %1 / %2", "Rebuilding…": "Przebudowa…",
   "Wall thickness [mm]": "Grubość [mm]", "Chamfer [mm]": "Faza [mm]",
   "Couldn't record the picks": "Nie udało się zapamiętać zaznaczenia",
   "Sketch": "Szkic", "Extrude": "Wyciągnięcie", "Fillet": "Zaokrąglenie", "Chamfer": "Faza", "Union": "Połączenie",

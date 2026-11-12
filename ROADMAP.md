@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M13 and i18n are done (see the README). Next: make big models fast.
+M0–M14 and i18n are done (see the README).
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -97,7 +97,7 @@ Getting models in and out.
 
 **Done when:** a part from M10 gets a dimensioned drawing a workshop can use.
 
-## M14 – Speed and robustness
+## M14 – Speed and robustness ✓
 
 Staying smooth as models grow.
 

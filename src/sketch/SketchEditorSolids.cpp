@@ -746,6 +746,7 @@ void SketchEditor::configure(std::shared_ptr<Feature> draft, std::vector<Feature
 
 void SketchEditor::previewNewFeature(const Feature& feature)
 {
+    settleModel(); // shown on top of the bodies as they are now
     const auto& ctx = m_viewer->aisContext();
     const FeatureResult result = applyFeature(sketchLookup(), m_bodies, feature, m_context);
     m_solidError = result.error;
@@ -867,14 +868,18 @@ void SketchEditor::editFeature(int index)
     auto preview = [this, index](const Feature& f) {
         std::vector<Feature> features = m_features;
         features[index] = f;
-        RebuildResult result = rebuild(sketchLookup(), features);
-        m_bodies = std::move(result.bodies);
-        m_context = std::move(result.context);
-        m_solidError = index < static_cast<int>(result.errors.size()) ? result.errors[index] : std::string();
-        refreshBodies();
-        showDatums();
-        updateHint();
-        m_viewer->update();
+        requestBuild(
+            std::move(features),
+            [this, index](RebuildResult& result) {
+                m_bodies = std::move(result.bodies);
+                m_context = std::move(result.context);
+                m_solidError = index < static_cast<int>(result.errors.size()) ? result.errors[index] : std::string();
+                refreshBodies();
+                showDatums();
+                updateHint();
+                m_viewer->update();
+            },
+            kQuickPreviewMs);
     };
     configure(std::make_shared<Feature>(original), prompts, 0, preview,
               [this, index](const Feature& f) {
@@ -1085,16 +1090,20 @@ void SketchEditor::setPatternValues(int count, double value)
         m_patternEdit->draft.value = value;
         // The whole model follows, as when other features are edited.
         std::vector<Feature> features = m_features;
-        features[m_patternEdit->index] = m_patternEdit->draft;
-        RebuildResult result = rebuild(sketchLookup(), features);
-        m_bodies = std::move(result.bodies);
-        m_context = std::move(result.context);
         const auto index = static_cast<std::size_t>(m_patternEdit->index);
-        m_solidError = index < result.errors.size() ? result.errors[index] : std::string();
-        refreshBodies();
-        showDatums();
-        updateHint();
-        m_viewer->update();
+        features[index] = m_patternEdit->draft;
+        requestBuild(
+            std::move(features),
+            [this, index](RebuildResult& result) {
+                m_bodies = std::move(result.bodies);
+                m_context = std::move(result.context);
+                m_solidError = index < result.errors.size() ? result.errors[index] : std::string();
+                refreshBodies();
+                showDatums();
+                updateHint();
+                m_viewer->update();
+            },
+            kQuickPreviewMs);
         return;
     }
     if (!patternTool())

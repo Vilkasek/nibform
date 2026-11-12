@@ -112,6 +112,7 @@ bool SketchEditor::canCopy() const
 
 void SketchEditor::copy()
 {
+    settleModel();
     auto* data = new QMimeData;
     if (mode() == EditorMode::Sketch) {
         if (m_selection.entities.empty())
