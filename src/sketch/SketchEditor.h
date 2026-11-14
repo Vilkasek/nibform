@@ -239,6 +239,18 @@ public:
     void setPatternValues(int count, double value);
     void acceptPattern();
     void cancelPattern(); // drops the picks and leaves the tool, or puts an edited pattern back
+    // --- Parameters (kept with the project, undone with the rest) ------------------------
+    const ParameterTable& parameters() const { return m_parameters; }
+    // Replaces the table (an undo step); every value typed as an expression follows it.
+    void setParameters(ParameterTable table);
+    // Renames a parameter and every use of it; false (with a message) if it can't be.
+    bool renameParameter(const std::string& from, const std::string& to);
+    ParameterUses parameterUses(const std::string& name) const;
+    // Values that couldn't follow their expressions (they keep their last value).
+    const std::vector<ParameterIssue>& parameterIssues() const { return m_parameterIssues; }
+    // An evaluation error in the current language.
+    static QString expressionText(const ExpressionError& error);
+
     ProjectData project() const;
     void loadProject(ProjectData project); // replaces everything; undo starts empty
     void newProject();
@@ -277,6 +289,7 @@ signals:
     void sectionChanged(bool on);
     void drawingsChanged();
     void patternChanged(); // the pattern panel's state (see patternState())
+    void parametersChanged();
 
 private:
     struct Slot
@@ -292,6 +305,7 @@ private:
         std::vector<ProjectData::SketchEntry> sketches;
         std::vector<Feature> features;
         std::vector<Drawing> drawings;
+        ParameterTable parameters;
     };
     // What is under the pointer. Sketch mode: points, curves, constraint labels.
     // Model mode: Region (`region`), Face / Edge of body `id` (picked through AIS).
@@ -419,6 +433,7 @@ private:
         std::function<QStringList()> choices;         // a row of choices under the field
         std::function<int(const Feature&)> choice;
         std::function<void(Feature&, int)> choose;
+        std::string field; // the value's key for an expression (see featureField()); empty: none
     };
     // Asks the prompts in turn about `draft`, calling `preview` as it changes; `done` gets
     // the finished feature, `cancelled` runs when it is dropped.
@@ -504,6 +519,16 @@ private:
     void applySection();
 
     std::vector<Drawing> m_drawings;
+    ParameterTable m_parameters;
+    std::vector<ParameterIssue> m_parameterIssues; // from the last time values followed them
+    // Sets the values that have expressions from the parameters, then rebuilds.
+    void followParameters();
+    // What the value field evaluates; `name = value` is taken where `definitions` allows.
+    EvalResult evaluateTyped(const std::string& text, ValueKind kind, LengthUnit unit, bool definitions) const;
+    // A dimension typed as `width = 40` keeps `width`; and once it is committed (in the same
+    // undo step) the parameter gets its value, created if new.
+    static Expression dimensionBinding(const Expression& typed);
+    void defineFromDimension(const Expression& typed, const SketchConstraint& dimension);
     std::vector<BodyStyle> m_bodyStyles;
     std::vector<int> m_styleOf; // per body, index into m_bodyStyles or -1
     void matchStyles();         // after the bodies change
@@ -535,7 +560,7 @@ private:
     void endValueSession(bool restoreBodies);
     void showSessionPreview();
     void hideSessionPreview();
-    void applySession(double value);
+    void applySession(double value, const Expression& expression = {});
     std::optional<std::pair<QPointF, QPointF>> arrowOnScreen() const;
     bool hitsArrow(const QPointF& pos) const;
     double arrowParam(const Graphic3d_Vec2i& pixel) const;

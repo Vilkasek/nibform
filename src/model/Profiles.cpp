@@ -20,6 +20,7 @@
 #include <gp_Circ.hxx>
 #include <gp_Pln.hxx>
 #include <GeomAPI.hxx>
+#include <Standard_Failure.hxx>
 
 #include <algorithm>
 #include <limits>
@@ -57,9 +58,7 @@ TopoDS_Face withoutInternalEdges(const TopoDS_Face& face)
     return out;
 }
 
-} // namespace
-
-TopoDS_Edge toEdge(const Sketch& sketch, const SketchEntity& e)
+TopoDS_Edge makeEdge(const Sketch& sketch, const SketchEntity& e)
 {
     switch (e.kind) {
     case EntityKind::Line:
@@ -85,6 +84,20 @@ TopoDS_Edge toEdge(const Sketch& sketch, const SketchEntity& e)
     }
     }
     return {};
+}
+
+} // namespace
+
+// Curves the editor makes always have a shape, but a damaged file can hold a line from
+// a point to itself or a circle of negative radius, where OpenCASCADE throws. Such a
+// curve has no edge (and bounds nothing) instead of failing the caller.
+TopoDS_Edge toEdge(const Sketch& sketch, const SketchEntity& e)
+{
+    try {
+        return makeEdge(sketch, e);
+    } catch (const Standard_Failure&) {
+        return {};
+    }
 }
 
 std::vector<TopoDS_Face> findRegions(const Sketch& sketch)

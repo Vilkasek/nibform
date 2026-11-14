@@ -417,8 +417,12 @@ std::optional<TopoDS_Wire> sketchPath(const Sketch& sketch, int entity)
         }
     }
     TopTools_ListOfShape edges;
-    for (EntityId id : chain)
-        edges.Append(toEdge(sketch, *sketch.entity(id)));
+    for (EntityId id : chain) {
+        const TopoDS_Edge edge = toEdge(sketch, *sketch.entity(id));
+        if (edge.IsNull()) // a curve with no shape (from a damaged file) breaks the path
+            return std::nullopt;
+        edges.Append(edge);
+    }
     BRepBuilderAPI_MakeWire wire;
     wire.Add(edges);
     if (!wire.IsDone())
@@ -502,10 +506,8 @@ std::optional<TopoDS_Shape> importedShape(const std::shared_ptr<const std::strin
     return shape;
 }
 
-} // namespace
-
-FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies, const Feature& f,
-                           const ModelContext& context)
+FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies, const Feature& f,
+                             const ModelContext& context)
 {
     FeatureResult missing;
     missing.bodies = bodies;
@@ -803,6 +805,21 @@ FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoD
     }
     }
     return missing;
+}
+
+} // namespace
+
+FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies, const Feature& f,
+                           const ModelContext& context)
+{
+    // Values the editor never makes (a damaged file can extrude 1e308 mm) make
+    // OpenCASCADE throw deep inside its algorithms. The feature fails then, as any
+    // feature that doesn't apply, instead of taking the app down.
+    try {
+        return applyUnguarded(sketches, bodies, f, context);
+    } catch (const Standard_Failure&) {
+        return failed(bodies, QT_TRANSLATE_NOOP("Model", "This feature can't be built from its values"));
+    }
 }
 
 void remember(ModelContext& context, const Feature& feature, const FeatureResult& result)

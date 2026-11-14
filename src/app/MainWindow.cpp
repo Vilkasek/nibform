@@ -3,6 +3,7 @@
 #include "app/Icons.h"
 #include "app/Language.h"
 #include "app/DrawingWidget.h"
+#include "app/ParametersPanel.h"
 #include "app/PatternPanel.h"
 #include "app/RadialMenu.h"
 #include "app/ShortcutsDialog.h"
@@ -143,6 +144,7 @@ MainWindow::MainWindow(QWidget* parent)
                                                                                                 : LengthUnit::Millimetre);
     buildBodyList();
     buildPatternPanel();
+    buildParametersPanel();
 
     m_hintLabel = new QLabel(this);
     m_dofLabel = new QLabel(this);
@@ -491,6 +493,20 @@ void MainWindow::updateBodyList()
         swatch->setMenu(menu);
         m_bodyList->setItemWidget(item, 1, swatch);
     }
+}
+
+void MainWindow::buildParametersPanel()
+{
+    m_parametersDock = new QDockWidget(this);
+    m_parametersDock->setObjectName(QStringLiteral("parametersDock"));
+    m_parametersPanel = new ParametersPanel(m_editor, m_parametersDock);
+    m_parametersDock->setWidget(m_parametersPanel);
+    addDockWidget(Qt::RightDockWidgetArea, m_parametersDock);
+    m_parametersDock->setVisible(QSettings().value(QStringLiteral("parametersPanel"), false).toBool());
+    connect(m_parametersDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (!isMinimized())
+            QSettings().setValue(QStringLiteral("parametersPanel"), visible);
+    });
 }
 
 void MainWindow::buildPatternPanel()
@@ -1119,6 +1135,12 @@ void MainWindow::buildActions()
     QAction* bodyPanel = m_bodyDock->toggleViewAction();
     bodyPanel->setText(tr("Body List"));
     views->addAction(bodyPanel);
+    m_parametersDock->setWindowTitle(tr("Parameters"));
+    QAction* parametersPanel = m_parametersDock->toggleViewAction();
+    parametersPanel->setText(tr("Parameters"));
+    parametersPanel->setToolTip(tr("Named values to type into dimensions and features, and configurations"));
+    parametersPanel->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+    views->addAction(parametersPanel);
     views->addSeparator();
 
     // Pen and touch: without a keyboard, and with a hand resting on the screen.

@@ -6,6 +6,9 @@ import xml.etree.ElementTree as ET
 
 PL = {
  "MainWindow": {
+  "Parameters": "Parametry",
+  "Named values to type into dimensions and features, and configurations":
+      "Nazwane wartości do wpisywania w wymiary i operacje oraz konfiguracje",
   "Keyboard shortcuts saved": "Zapisano skróty klawiszowe", "File": "Plik", "Keyboard Shortcuts…": "Skróty klawiszowe…",
   "Scrolling": "Przewijanie", "Zooms (Shift pans)": "Przybliża (Shift przesuwa)",
   "Orbits, touchpad style (Shift pans, Ctrl zooms)": "Obraca, jak na touchpadzie (Shift przesuwa, Ctrl przybliża)",
@@ -186,6 +189,35 @@ PL = {
       "2 punkty i linia: punkty są swoimi odbiciami względem linii",
  },
  "Model": {
+  "%1 is already taken": "Nazwa %1 jest już zajęta",
+  "Parameters are named in sketch dimensions or the Parameters panel":
+      "Parametry nazywa się w wymiarach szkicu albo w panelu Parametry",
+  "%1 is a length": "%1 to długość", "%1 is an angle": "%1 to kąt", "%1 is a plain number": "%1 to zwykła liczba", "Unexpected %1": "Nieoczekiwane %1",
+  "Empty expression": "Puste wyrażenie", "Not a number": "To nie jest liczba", "Unexpected end": "Nieoczekiwany koniec",
+  "Units don't match": "Jednostki się nie zgadzają", "Division by zero": "Dzielenie przez zero",
+  "Too deeply nested": "Zbyt głębokie zagnieżdżenie", "An exponent can't have a unit": "Wykładnik nie może mieć jednostki",
+  "A unit can only be raised to a whole power": "Jednostkę można podnieść tylko do potęgi całkowitej",
+  "%1 needs its values in parentheses": "%1 wymaga wartości w nawiasach", "Unknown name: %1": "Nieznana nazwa: %1",
+  "%1 needs values": "%1 wymaga wartości", "%1 takes one value": "%1 przyjmuje jedną wartość",
+  "Square root of a unit that isn't squared": "Pierwiastek z jednostki, która nie jest kwadratem",
+  "Square root of a negative value": "Pierwiastek z wartości ujemnej", "%1 takes an angle": "%1 przyjmuje kąt",
+  "%1 takes a plain number": "%1 przyjmuje zwykłą liczbę", "%1 takes a value from -1 to 1": "%1 przyjmuje wartość od -1 do 1",
+  "Expected a plain number": "Oczekiwano zwykłej liczby", "Expected a length": "Oczekiwano długości",
+  "Expected an angle": "Oczekiwano kąta", "A parameter needs a name": "Parametr musi mieć nazwę",
+  "The name is too long": "Nazwa jest za długa",
+  "A name is a letter, then letters, digits or _: %1": "Nazwa to litera, a po niej litery, cyfry albo _: %1",
+  "%1 is a unit or a function": "%1 to jednostka albo funkcja", "Circular reference through %1": "Zapętlone odwołanie przez %1",
+  "%1 has an error": "%1 zawiera błąd", "This value can't be an expression": "Ta wartość nie może być wyrażeniem",
+  "Expected a whole number": "Oczekiwano liczby całkowitej", "Out of range: %1": "Poza zakresem: %1",
+  "The sketch can't take this value": "Szkic nie może przyjąć tej wartości",
+  "Line %1: a quote isn't closed": "Wiersz %1: niezamknięty cudzysłów",
+  "Line %1: expected the columns name, unit, expression, comment":
+      "Wiersz %1: oczekiwano kolumn name, unit, expression, comment",
+  "Line %1: each configuration needs its own name": "Wiersz %1: każda konfiguracja musi mieć własną nazwę",
+  "Line %1: not a valid parameter name": "Wiersz %1: niepoprawna nazwa parametru",
+  "Line %1: the name is used twice": "Wiersz %1: nazwa występuje dwa razy",
+  "Line %1: unknown unit (mm, in, deg or none)": "Wiersz %1: nieznana jednostka (mm, in, deg albo brak)",
+  "Line %1: the expression is missing": "Wiersz %1: brak wyrażenia",
   "Could not prepare a body for IGES": "Nie udało się przygotować bryły do IGES",
   "Could not write the IGES file": "Nie udało się zapisać pliku IGES",
   "Could not mesh the bodies for 3MF": "Nie udało się utworzyć siatki brył do 3MF",
@@ -202,6 +234,7 @@ PL = {
   "The mirror plane is gone": "Płaszczyzna odbicia zniknęła", "Pick the bodies to mirror": "Wybierz bryły do odbicia",
   "The pattern's direction is gone": "Kierunek szyku zniknął",
   "A pattern needs two instances or more": "Szyk potrzebuje co najmniej dwóch wystąpień",
+  "This feature can't be built from its values": "Tej operacji nie da się zbudować z jej wartości",
   "The patterned feature didn't apply": "Powtarzana operacja się nie udała",
   "Pick the bodies to pattern": "Wybierz bryły do szyku", "Pick a flat face for the hole": "Wybierz płaską ścianę na otwór",
   "The face the hole was on is gone": "Ściana, na której był otwór, zniknęła",
@@ -251,6 +284,9 @@ PL = {
   "Unknown feature kind: %1": "Nieznany rodzaj operacji: %1",
   "Not a Nibform project file": "To nie jest plik projektu Nibform",
   "The project was saved by a newer version of the app": "Projekt zapisany nowszą wersją programu",
+  "A sketch in the file is damaged": "Szkic w pliku jest uszkodzony",
+  "The file holds numbers too large for a model": "Plik zawiera liczby za duże dla modelu",
+  "The feature history in the file is damaged": "Historia operacji w pliku jest uszkodzona",
   "Can't save %1: %2": "Nie można zapisać %1: %2", "Can't open %1: %2": "Nie można otworzyć %1: %2",
  },
  "SketchExchange": {
@@ -288,6 +324,8 @@ PL = {
   "Reset All": "Przywróć wszystkie", "Also the keys of: %1": "To też klawisze akcji: %1",
  },
  "SketchEditor": {
+  "Parameters: %1": "Parametry: %1", "Parameter %1 = %2": "Parametr %1 = %2",
+  "Some values can't follow the parameters: see the history": "Niektóre wartości nie mogą podążać za parametrami: zobacz historię",
   "Reference": "Odniesienie", "Import": "Import", "Imported %1 as a reference": "Zaimportowano %1 jako odniesienie",
   "Imported %1": "Zaimportowano %1", "Open a sketch to import a drawing into": "Otwórz szkic, do którego zaimportować rysunek",
   "Imported from %1: %2 curves": "Zaimportowano z %1 krzywe: %2", "Open a sketch to export": "Otwórz szkic do wyeksportowania",
@@ -494,7 +532,37 @@ PL = {
   "%1° between instances": "%1° między wystąpieniami",
   "%1 from the first to the last": "%1 od pierwszego do ostatniego",
  },
- "ValueEditor": {"Accept (Enter)": "Zatwierdź (Enter)", "Cancel (Esc)": "Anuluj (Esc)"},
+ "ParametersPanel": {
+  "Configurations": "Konfiguracje", "Save As…": "Zapisz jako…",
+  "Saves the current values as a configuration to switch back to": "Zapisuje bieżące wartości jako konfigurację, do której można wrócić",
+  "Name": "Nazwa", "Unit": "Jednostka", "Value": "Wartość", "Comment": "Komentarz", "Parameters": "Parametry",
+  "From %1; typing a value replaces it": "Z %1; wpisanie wartości je zastąpi", "Type a number: %1": "Wpisz liczbę: %1",
+  "Add a parameter": "Dodaj parametr", "Delete the selected parameters": "Usuń zaznaczone parametry", "CSV": "CSV",
+  "Import from CSV…": "Importuj z CSV…", "Export to CSV…": "Eksportuj do CSV…",
+  "Type the values here. In a sketch dimension, use the names (width / 2 + 3) or name the dimension (width = 40 makes the parameter); dimensions so are marked ƒ and follow the values.":
+      "Tu wpisujesz wartości. W wymiarze szkicu używaj nazw (width / 2 + 3) albo nazwij wymiar (width = 40 tworzy parametr); "
+      "takie wymiary są oznaczone ƒ i podążają za wartościami.",
+  "mm or in: a length (plain numbers in it); °: an angle; –: a plain number":
+      "mm albo in: długość (zwykłe liczby w tej jednostce); °: kąt; –: zwykła liczba",
+  "Switches the parameters to these values": "Przełącza parametry na te wartości",
+  "Changed since %1 was chosen; its menu updates it": "Zmienione od wybrania %1; jej menu pozwala ją zaktualizować",
+  "Update with Current Values": "Zaktualizuj bieżącymi wartościami", "Rename…": "Zmień nazwę…",
+  "Rename Configuration": "Zmień nazwę konfiguracji", "Name:": "Nazwa:",
+  "There is a configuration %1 already.": "Konfiguracja %1 już istnieje.", "Delete": "Usuń", "values: %1": "wartości: %1",
+  "Delete Parameters": "Usuń parametry",
+  "Still used: %1.\n\nWhat uses them keeps its last value and shows an error until it is changed. Delete anyway?":
+      "Nadal używane: %1.\n\nTo, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zostanie zmienione. Usunąć mimo to?",
+  "Configuration %1": "Konfiguracja %1", "Save Configuration": "Zapisz konfigurację",
+  "Name of this set of values (e.g. Small, Large):": "Nazwa tego zestawu wartości (np. Mały, Duży):",
+  "Replace the values of %1 with the current ones?": "Zastąpić wartości %1 bieżącymi?",
+  "Import Parameters": "Importuj parametry", "CSV files (*.csv);;All files (*)": "Pliki CSV (*.csv);;Wszystkie pliki (*)",
+  "Can't read %1: %2": "Nie można odczytać %1: %2", "Can't import %1: %2": "Nie można zaimportować %1: %2",
+  "Replace the parameters and configurations with those from the file?": "Zastąpić parametry i konfiguracje tymi z pliku?",
+  "Export Parameters": "Eksportuj parametry", "parameters.csv": "parametry.csv", "CSV files (*.csv)": "Pliki CSV (*.csv)",
+  "Can't save %1: %2": "Nie można zapisać %1: %2",
+ },
+ "ValueEditor": {"Accept (Enter)": "Zatwierdź (Enter)", "Cancel (Esc)": "Anuluj (Esc)",
+                 "Out of range: %1 … %2": "Poza zakresem: %1 … %2"},
 }
 
 path = sys.argv[1] if len(sys.argv) > 1 else "translations/nibform_pl.ts"

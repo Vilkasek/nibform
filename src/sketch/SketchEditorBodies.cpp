@@ -92,11 +92,18 @@ SketchEditor::Snapshot SketchEditor::snapshot() const
         s.sketches.push_back({slot.id, slot.sketch});
     s.features = m_features;
     s.drawings = m_drawings;
+    s.parameters = m_parameters;
     return s;
 }
 
 void SketchEditor::restore(Snapshot snapshot)
 {
+    // The values as the parameters have them (they agree, unless a file was edited by hand
+    // or saved by an older version), and what can't follow them.
+    std::vector<std::pair<int, Sketch*>> sketches;
+    for (auto& entry : snapshot.sketches)
+        sketches.emplace_back(entry.id, &entry.sketch);
+    m_parameterIssues = applyParameters(snapshot.parameters, snapshot.features, sketches).issues;
     const auto& ctx = m_viewer->aisContext();
     while (m_slots.size() > snapshot.sketches.size()) {
         ctx->Remove(m_slots.back().prs, false);
@@ -119,6 +126,10 @@ void SketchEditor::restore(Snapshot snapshot)
     m_regionSelection.clear();
     m_features = std::move(snapshot.features);
     m_drawings = std::move(snapshot.drawings);
+    const bool parameters = m_parameters != snapshot.parameters;
+    m_parameters = std::move(snapshot.parameters);
+    if (parameters)
+        emit parametersChanged();
     emit drawingsChanged();
     rebuildModel();
     refreshSketches();
@@ -1113,7 +1124,8 @@ void SketchEditor::syncValueSession()
                                        : tr("Distance [mm]");
     };
     m_valueEditor->open(
-        label, m_session.value, min, 1e5, anchor, [this](double value) { applySession(value); },
+        label, m_session.value, min, 1e5, anchor,
+        [this](double value) { applySession(value, m_valueEditor->expression()); },
         [this] {
             // Esc / ✕: drop the operation and what was picked for it.
             if (m_session.kind != ValueSession::Kind::None) {
@@ -1247,11 +1259,13 @@ void SketchEditor::hideSessionPreview()
     m_viewer->update();
 }
 
-void SketchEditor::applySession(double value)
+void SketchEditor::applySession(double value, const Expression& expression)
 {
     if (m_session.kind == ValueSession::Kind::None)
         return;
-    const std::optional<Feature> feature = featureFromSession(value);
+    std::optional<Feature> feature = featureFromSession(value);
+    if (feature && !expression.empty())
+        feature->expressions["value"] = expression;
     endValueSession(true);
     if (!feature) {
         emit message(tr("Couldn't record the picks"));
@@ -1392,8 +1406,18 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             break;
         }
         item.name = QStringLiteral("%1 %2").arg(base).arg(++counts[base]);
+        if (!f.expressions.empty() && !item.detail.isEmpty())
+            item.detail = QStringLiteral("ƒ ") + item.detail; // follows the parameters
         if (i < m_featureErrors.size())
             item.error = modelText(m_featureErrors[i]);
+        // A value that doesn't follow its expression: the feature's, or a dimension's of its sketch.
+        for (const ParameterIssue& issue : m_parameterIssues) {
+            if (!item.error.isEmpty())
+                break;
+            if (issue.feature == static_cast<int>(i)
+                || (f.kind == Feature::Kind::Sketch && issue.sketch >= 0 && issue.sketch == f.sketch))
+                item.error = tr("Parameters: %1").arg(expressionText(issue.error));
+        }
         item.rolledBack = m_active >= 0 && m_rollback >= 0 && static_cast<int>(i) > m_rollback;
         // Values and sketches can be changed from here; imports, moves and the like can't.
         item.editable = item.sketch || f.kind == Feature::Kind::Extrude || f.kind == Feature::Kind::Fillet
@@ -1481,12 +1505,19 @@ void SketchEditor::activateTimelineItem(int index)
                         QPointF(m_viewer->width() / 2.0, m_viewer->height() - 60.0),
                         [this, index, operation](double value) {
                             pushUndo();
-                            m_features[index].value = value;
-                            m_features[index].operation = *operation;
+                            Feature& f = m_features[index];
+                            f.value = value;
+                            f.operation = *operation;
+                            if (const Expression& e = m_valueEditor->expression(); e.empty())
+                                f.expressions.erase("value");
+                            else
+                                f.expressions["value"] = e;
                             rebuildModel();
                             emit historyChanged();
                         },
                         [this] { rebuildModel(); }, preview);
+    if (const auto it = feature.expressions.find("value"); it != feature.expressions.end())
+        m_valueEditor->setExpression(it->second);
     if (extrusion) {
         m_valueEditor->setChoices([] { return operationLabels(std::nullopt); }, operationIndex(*operation),
                                   [operation, typed, preview](int choice) {
@@ -1561,6 +1592,7 @@ ProjectData SketchEditor::project() const
     data.features = m_features;
     data.bodyStyles = m_bodyStyles;
     data.drawings = m_drawings;
+    data.parameters = m_parameters;
     return data;
 }
 
@@ -1579,7 +1611,8 @@ void SketchEditor::loadProject(ProjectData project)
     m_slots.clear();
     m_nextSketchId = 1;
     m_bodyStyles = std::move(project.bodyStyles);
-    Snapshot loaded{std::move(project.sketches), std::move(project.features), std::move(project.drawings)};
+    Snapshot loaded{std::move(project.sketches), std::move(project.features), std::move(project.drawings),
+                    std::move(project.parameters)};
     restore(std::move(loaded));
     m_undo.clear();
     m_redo.clear();

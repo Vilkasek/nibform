@@ -5,6 +5,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QTest>
@@ -54,6 +55,76 @@ private slots:
         type("7.25");
         QTest::keyClick(field(), Qt::Key_Enter);
         QCOMPARE(m_accepted, std::optional<double>(7.25));
+    }
+
+    void expressionsAreEvaluatedAndKept()
+    {
+        // As the editor sets it: a parameter `width` of 40 mm.
+        m_editor->setEvaluator([](const std::string& text, ValueKind kind, LengthUnit unit, bool) {
+            return evaluate(text, kind, unit, [](const std::string& name, ExpressionError&) -> std::optional<Quantity> {
+                if (name == "width")
+                    return Quantity{40.0, 1, 0};
+                return std::nullopt;
+            });
+        });
+        open(10.0);
+        type("width / 2 + 3");
+        auto* result = m_editor->findChild<QLabel*>(QStringLiteral("valueResult"));
+        QVERIFY(result && result->isVisible());
+        QCOMPARE(result->text(), QStringLiteral("= 23 mm"));
+        QTest::keyClick(field(), Qt::Key_Return);
+        QCOMPARE(m_accepted, std::optional<double>(23.0));
+        QCOMPARE(m_editor->expression().text, std::string("width / 2 + 3"));
+
+        // A plain number is no expression.
+        open(10.0);
+        type("12");
+        QVERIFY(!result->isVisible());
+        QTest::keyClick(field(), Qt::Key_Return);
+        QVERIFY(m_editor->expression().empty());
+
+        // An unknown name keeps the field open and says why.
+        open(10.0);
+        type("height * 2");
+        QVERIFY(result->property("error").toBool());
+        QVERIFY(result->text().contains(QStringLiteral("height")));
+        m_accepted.reset();
+        QTest::keyClick(field(), Qt::Key_Return);
+        QVERIFY(!m_accepted);
+        QVERIFY(m_editor->isOpen());
+
+        // `name = value` names it (where the evaluator takes it): the result says so.
+        m_editor->setEvaluator([](const std::string& text, ValueKind kind, LengthUnit unit, bool definitions) {
+            const auto d = definitionIn(text);
+            if (d && !definitions)
+                return EvalResult{std::nullopt, {"no", {}}};
+            return evaluate(d ? d->expression : text, kind, unit,
+                            [](const std::string& name, ExpressionError&) -> std::optional<Quantity> {
+                                if (name == "width")
+                                    return Quantity{40.0, 1, 0};
+                                return std::nullopt;
+                            });
+        });
+        open(10.0);
+        type("depth = 30");
+        QVERIFY(result->property("error").toBool());
+        m_editor->allowDefinitions();
+        type("depth = 30");
+        QCOMPARE(result->text(), QStringLiteral("depth = 30 mm"));
+        QTest::keyClick(field(), Qt::Key_Return);
+        QCOMPARE(m_accepted, std::optional<double>(30.0));
+        QCOMPARE(m_editor->expression().text, std::string("depth = 30"));
+        open(10.0);
+        type("depth = 30");
+        QVERIFY(result->property("error").toBool()); // opening again forgets it
+
+        // Shown again as typed, with the unit it was typed in.
+        m_editor->cancel();
+        open(23.0);
+        m_editor->setExpression({"width / 2 + 3", LengthUnit::Millimetre});
+        QCOMPARE(field()->text(), QStringLiteral("width / 2 + 3"));
+        QTest::keyClick(field(), Qt::Key_Return);
+        QCOMPARE(m_accepted, std::optional<double>(23.0));
     }
 
     void escapeCancels()

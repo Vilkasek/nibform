@@ -310,6 +310,41 @@ void testDrawingsRoundTrip()
     CHECK(e.notes.size() == 1 && e.notes[0].text == "Ostre krawędzie stępić\nR0.5" && e.notes[0].height == 5.0);
 }
 
+void testParametersRoundTrip()
+{
+    ProjectData project = sample();
+    ParameterTable& table = project.parameters;
+    table.parameters = {{"width", {"40", LengthUnit::Millimetre}, ValueKind::Length, "outside"},
+                        {"t", {"1/8", LengthUnit::Inch}, ValueKind::Length, ""},
+                        {"n", {"4", LengthUnit::Millimetre}, ValueKind::Number, ""},
+                        {"a", {"30", LengthUnit::Millimetre}, ValueKind::Angle, ""}};
+    saveConfiguration(table, "Small");
+    table.parameters[0].expression.text = "80";
+    saveConfiguration(table, "Large");
+    project.features.back().expressions["value"] = {"width / 4 + 2", LengthUnit::Inch};
+    Sketch& sketch = project.sketches.front().sketch;
+    const ConstraintId dimension = sketch.constraints().back().id;
+    sketch.constraint(dimension)->expression = {"width", LengthUnit::Millimetre};
+
+    const auto loaded = projectFromJson(projectToJson(project));
+    CHECK(loaded.has_value());
+    if (!loaded)
+        return;
+    CHECK(loaded->parameters == project.parameters);
+    CHECK(loaded->parameters.active == "Large");
+    CHECK(loaded->features.back().expressions == project.features.back().expressions);
+    CHECK(loaded->sketches.front().sketch.constraint(dimension)->expression == (Expression{"width", LengthUnit::Millimetre}));
+
+    // Without parameters nothing is written, so files stay as they were.
+    CHECK(!projectToJson(sample()).contains("parameters"));
+    // Broken or repeated names (a hand-edited file) are dropped, not left ambiguous.
+    QByteArray json = projectToJson(project);
+    json.replace("\"name\": \"n\"", "\"name\": \"width\"");
+    json.replace("\"name\": \"a\"", "\"name\": \"2a\"");
+    const auto edited = projectFromJson(json);
+    CHECK(edited && edited->parameters.parameters.size() == 2);
+}
+
 void testSavedProjectRebuildsTheSameModel()
 {
     QTemporaryDir dir;
@@ -415,6 +450,7 @@ int main()
         {"solid features round trip", testSolidFeaturesRoundTrip},
         {"moves and body styles round trip", testMovesAndBodyStylesRoundTrip},
         {"drawings round trip", testDrawingsRoundTrip},
+        {"parameters round trip", testParametersRoundTrip},
         {"saved project rebuilds the same model", testSavedProjectRebuildsTheSameModel},
         {"rejects other files", testRejectsOtherFiles},
         {"opens projects from before the rename", testOpensProjectsFromBeforeTheRename},

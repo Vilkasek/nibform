@@ -25,7 +25,7 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 
 [Installing](#installing) · [Building](#building) · [Getting started](#getting-started) ·
 [Sketching](#sketching) · [Constraints and dimensions](#constraints-and-dimensions) ·
-[Bodies](#bodies) · [History and projects](#history-and-projects) ·
+[Bodies](#bodies) · [History and projects](#history-and-projects) · [Parameters](#parameters) ·
 [Import and export](#import-and-export) · [Drawings](#drawings) · [Controls](#controls) ·
 [Pen, touch and tablet](#pen-touch-and-tablet) · [Language](#language) ·
 [Development](#development) · [Plan](#plan)
@@ -210,6 +210,31 @@ and body names / colors. `nibform file.nibform` opens one; *Open Recent* lists t
 recovery file (`~/.local/share/Nibform/Nibform/recovery`); after a crash the next start offers to
 restore it. Saving writes a temporary file and renames it, so a failed save never breaks a project.
 
+## Parameters
+
+*View → Parameters* (`Ctrl+Shift+E`) opens a table of named values: a name, a unit (`mm` or `in`
+for a length, `°` for an angle, `–` for a plain number), the value – typed in by hand – and a
+comment. `+` adds one, `−` deletes the selected ones (what still uses them keeps its value and
+shows an error), and renaming one renames it everywhere it is used.
+
+The **expressions** go into the sketch's dimensions. A dimension's field takes the names –
+`width / 2 + 3`, `2 * wall + 0.5 mm`, `max(t; 1.5)` – and shows the result as it is typed; the
+dimension keeps the expression (it shows `ƒ`) and follows when a value in the table changes.
+`width = 40` names the dimension: the parameter `width` is made (or set to 40) and the dimension
+follows it from then on. Feature values – an extrusion, a fillet, a hole, a pattern's count and
+spacing – take expressions the same way. Units: `mm`, `cm`, `m`, `in`, `ft`, `deg` or `°`, `rad`; a
+plain number takes the unit it is added to, or the field's (`width + 3` adds 3 mm). Also `sqrt`,
+`abs`, `round`, `floor`, `ceil`, `min`, `max`, `sin`, `cos`, `tan` (of degrees), `asin`, `acos`,
+`atan` and `pi`; arguments go between `;` or `,`. A value that can't follow (an unknown name, out
+of range, a sketch that can't take it) keeps its last value and its history entry turns red,
+saying why.
+
+**Configurations** are named sets of the parameters' values – *Small*, *Large* – above the table:
+*Save As…* keeps the current ones, a tap on one switches the model to it, and its menu updates,
+renames or deletes it. The table and configurations go to and from **CSV** (one column per
+configuration; a spreadsheet's `;` and decimal commas are fine). All of it is saved with the project
+and undone like any other change.
+
 ## Import and export
 
 - **Open** a STEP, IGES or STL file (or `nibform part.step`): it becomes a new project whose history
@@ -311,9 +336,9 @@ OpenCASCADE view) and `app/` (the window, the drawing sheet). The solver
 little as possible; degrees of freedom come from the Jacobian's null space (SVD).
 
 **Tests**: `ctest --test-dir build`, or one suite: `./build/test_sketch`, `test_solver`,
-`test_trim`, `test_offset`, `test_model`, `test_features`, `test_project`, `test_input`,
-`test_value_editor`, `test_toolkit`, `test_freehand`, `test_solid_features`, `test_inspect`,
-`test_interop`, `test_drawing`, `test_rebuild`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
+`test_trim`, `test_offset`, `test_model`, `test_features`, `test_project`, `test_project_fuzz`,
+`test_input`, `test_value_editor`, `test_toolkit`, `test_freehand`, `test_solid_features`,
+`test_inspect`, `test_interop`, `test_drawing`, `test_rebuild`, `test_parameters`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
 `./build/bench_rebuild [pockets…]` times rebuilds of long histories (a plate with that many
 pockets and holes; 100 makes 227 features): a full replay, by kind of feature, and cached
 rebuilds after an edit early, midway and at the end.
@@ -371,7 +396,7 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M12** – interop: STEP / IGES / STL import, DXF / SVG sketches, 3MF export, copy and paste
 - [x] **M13** – drawings: views, sections, dimensions, notes, PDF / SVG export, printing
 - [x] **M14** – speed and robustness: background and incremental rebuild, large models
-- [ ] **M15** – parameters: a parameter table, expressions in values, configurations
+- [x] **M15** – parameters: a parameter table, expressions in values, configurations
 - [ ] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
 - [ ] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
 - [ ] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF

@@ -7,7 +7,12 @@
 #include <QJsonObject>
 #include <QSaveFile>
 
+#include <Standard_Failure.hxx>
+
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <limits>
 
 namespace {
 
@@ -75,6 +80,63 @@ gp_Pnt2d toXY(const QJsonValue& v)
     return {a.at(0).toDouble(), a.at(1).toDouble()};
 }
 
+// An expression with the length unit its plain numbers were typed in.
+QJsonObject expressionToJson(const Expression& e)
+{
+    return {{"text", QString::fromStdString(e.text)},
+            {"unit", e.unit == LengthUnit::Inch ? QStringLiteral("in") : QStringLiteral("mm")}};
+}
+
+Expression expressionFromJson(const QJsonValue& v)
+{
+    const QJsonObject o = v.toObject();
+    return {o.value("text").toString().toStdString(),
+            o.value("unit").toString() == QStringLiteral("in") ? LengthUnit::Inch : LengthUnit::Millimetre};
+}
+
+constexpr std::array<const char*, 3> kValueKinds = {"number", "length", "angle"};
+
+// A direction, if the file holds one (gp_Dir throws on a zero vector).
+std::optional<gp_Dir> toDir(const QJsonValue& v)
+{
+    const gp_XYZ d = toXYZ(v);
+    if (d.Modulus() <= 1e-12)
+        return std::nullopt;
+    return gp_Dir(d);
+}
+
+gp_Dir toDir(const QJsonValue& v, const gp_Dir& fallback)
+{
+    return toDir(v).value_or(fallback);
+}
+
+void sketchError(QString* error)
+{
+    if (error)
+        *error = QCoreApplication::translate("ProjectFile", "A sketch in the file is damaged");
+}
+
+// No number in a project gets anywhere near this: ten thousand kilometres in millimetres
+// (ids stay below it too, being ints). Geometry far beyond it crashes OpenCASCADE
+// outright (a hole at 1e17 mm does, in a boolean), so files holding such numbers are
+// refused.
+constexpr double kMaxMagnitude = 1e10;
+
+bool numbersInRange(const QJsonValue& v)
+{
+    if (v.isDouble())
+        return std::abs(v.toDouble()) <= kMaxMagnitude;
+    if (v.isArray()) {
+        const QJsonArray a = v.toArray();
+        return std::all_of(a.begin(), a.end(), [](const QJsonValue& w) { return numbersInRange(w); });
+    }
+    if (v.isObject()) {
+        const QJsonObject o = v.toObject();
+        return std::all_of(o.begin(), o.end(), [](const QJsonValue& w) { return numbersInRange(w); });
+    }
+    return true;
+}
+
 QJsonObject sketchToJson(int id, const Sketch& sketch)
 {
     const gp_Ax3& plane = sketch.plane();
@@ -100,15 +162,18 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
         entities.append(o);
     }
     for (const SketchConstraint& k : c.constraints) {
-        constraints.append(QJsonObject{{"id", k.id},
-                                       {"kind", nameOf(k.kind, kConstraintKinds)},
-                                       {"p1", k.p1},
-                                       {"p2", k.p2},
-                                       {"e1", k.e1},
-                                       {"e2", k.e2},
-                                       {"value", k.value},
-                                       {"target", xy(k.target)},
-                                       {"offset", k.offset}});
+        QJsonObject o{{"id", k.id},
+                      {"kind", nameOf(k.kind, kConstraintKinds)},
+                      {"p1", k.p1},
+                      {"p2", k.p2},
+                      {"e1", k.e1},
+                      {"e2", k.e2},
+                      {"value", k.value},
+                      {"target", xy(k.target)},
+                      {"offset", k.offset}};
+        if (!k.expression.empty())
+            o.insert("expression", expressionToJson(k.expression));
+        constraints.append(o);
     }
     QJsonObject out{
         {"id", id},
@@ -135,9 +200,21 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
 
 std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QString* error)
 {
+    // A sketch without a plane has no place in the model: refused rather than guessed.
     const QJsonObject plane = o.value("plane").toObject();
-    const gp_Ax3 axes(gp_Pnt(toXYZ(plane.value("origin"))), gp_Dir(toXYZ(plane.value("normal"))),
-                      gp_Dir(toXYZ(plane.value("xDirection"))));
+    const auto normal = toDir(plane.value("normal"));
+    const auto xDirection = toDir(plane.value("xDirection"));
+    if (!normal || !xDirection) {
+        sketchError(error);
+        return std::nullopt;
+    }
+    gp_Ax3 axes;
+    try { // throws when the two directions are parallel
+        axes = gp_Ax3(gp_Pnt(toXYZ(plane.value("origin"))), *normal, *xDirection);
+    } catch (const Standard_Failure&) {
+        sketchError(error);
+        return std::nullopt;
+    }
     Sketch::Contents c;
     for (const auto& v : o.value("points").toArray()) {
         const QJsonObject p = v.toObject();
@@ -182,9 +259,23 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
         sc.value = k.value("value").toDouble();
         sc.target = toXY(k.value("target"));
         sc.offset = k.value("offset").toDouble();
+        sc.expression = expressionFromJson(k.value("expression"));
         c.constraints.push_back(sc);
     }
-    c.nextId = o.value("nextId").toInt(1);
+    // New ids go after every id in use, or a curve added later would share one; ids
+    // at the end of int would leave none to count up to (the next would overflow).
+    long long next = o.value("nextId").toInt(1);
+    for (const SketchPoint& p : c.points)
+        next = std::max(next, p.id + 1LL);
+    for (const SketchEntity& e : c.entities)
+        next = std::max(next, e.id + 1LL);
+    for (const SketchConstraint& k : c.constraints)
+        next = std::max(next, k.id + 1LL);
+    if (next >= std::numeric_limits<int>::max()) {
+        sketchError(error);
+        return std::nullopt;
+    }
+    c.nextId = static_cast<int>(next);
     if (o.contains("image")) {
         const QJsonObject i = o.value("image").toObject();
         const QByteArray bytes = QByteArray::fromBase64(i.value("data").toString().toLatin1());
@@ -217,7 +308,7 @@ QJsonObject featureToJson(const Feature& f)
         holeAt.append(QJsonObject{{"sketch", r.sketch}, {"point", r.point}});
     for (const gp_Pnt& p : f.points)
         points.append(xyz(p.XYZ()));
-    return QJsonObject{
+    QJsonObject out{
         {"kind", nameOf(f.kind, kFeatureKinds)},
         {"id", f.id},
         {"axis", QJsonObject{{"kind", nameOf(f.axis.kind, kAxisKinds)},
@@ -262,6 +353,13 @@ QJsonObject featureToJson(const Feature& f)
         {"edges", edges},
         {"bodies", bodies},
     };
+    if (!f.expressions.empty()) {
+        QJsonObject expressions;
+        for (const auto& [key, e] : f.expressions)
+            expressions.insert(QString::fromStdString(key), expressionToJson(e));
+        out.insert("expressions", expressions);
+    }
+    return out;
 }
 
 std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
@@ -282,24 +380,20 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
         f.regions.push_back({v.toObject().value("sketch").toInt(-1), toXY(v.toObject().value("inside"))});
     for (const auto& v : o.value("faces").toArray()) {
         f.faces.push_back({gp_Pnt(toXYZ(v.toObject().value("middle"))),
-                           gp_Dir(toXYZ(v.toObject().value("normal")))});
+                           toDir(v.toObject().value("normal"), gp::DZ())});
     }
     for (const auto& v : o.value("edges").toArray()) {
         f.edges.push_back({gp_Pnt(toXYZ(v.toObject().value("middle"))),
-                           gp_Dir(toXYZ(v.toObject().value("direction")))});
+                           toDir(v.toObject().value("direction"), gp::DX())});
     }
     for (const auto& v : o.value("bodies").toArray())
         f.bodies.push_back(gp_Pnt(toXYZ(v)));
     // Added with solid features (M10); older files have none of these.
     f.id = o.value("id").toInt(0);
-    auto direction = [](const QJsonValue& v, const gp_Dir& fallback) {
-        const gp_XYZ d = toXYZ(v);
-        return d.Modulus() > 1e-12 ? gp_Dir(d) : fallback;
-    };
     if (o.contains("axis")) {
         const QJsonObject a = o.value("axis").toObject();
         f.axis.kind = fromName<AxisRef::Kind>(a.value("kind").toString(), kAxisKinds).value_or(AxisRef::Kind::None);
-        f.axis.edge = {gp_Pnt(toXYZ(a.value("middle"))), direction(a.value("direction"), gp::DX())};
+        f.axis.edge = {gp_Pnt(toXYZ(a.value("middle"))), toDir(a.value("direction"), gp::DX())};
         f.axis.sketch = a.value("sketch").toInt(-1);
         f.axis.entity = a.value("entity").toInt(-1);
         f.axis.datum = a.value("datum").toInt(0);
@@ -307,14 +401,16 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
     if (o.contains("plane")) {
         const QJsonObject p = o.value("plane").toObject();
         f.plane.kind = fromName<PlaneRef::Kind>(p.value("kind").toString(), kPlaneKinds).value_or(PlaneRef::Kind::None);
-        f.plane.face = {gp_Pnt(toXYZ(p.value("middle"))), direction(p.value("normal"), gp::DZ())};
+        f.plane.face = {gp_Pnt(toXYZ(p.value("middle"))), toDir(p.value("normal"), gp::DZ())};
         f.plane.datum = p.value("datum").toInt(0);
     }
     f.pathSketch = o.value("pathSketch").toInt(-1);
     f.pathEntity = o.value("pathEntity").toInt(-1);
     f.pattern = fromName<Feature::PatternKind>(o.value("pattern").toString(), kPatternKinds)
                     .value_or(Feature::PatternKind::Linear);
-    f.count = o.value("count").toInt(2);
+    // Every instance is a solid to build and combine: a damaged count must not ask for
+    // millions of them.
+    f.count = std::min(o.value("count").toInt(2), kMaxPatternCount);
     f.source = o.value("source").toInt(0);
     if (o.contains("hole")) {
         const QJsonObject h = o.value("hole").toObject();
@@ -330,13 +426,22 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
         f.points.push_back(gp_Pnt(toXYZ(v)));
     f.datum = fromName<Feature::DatumKind>(o.value("datum").toString(), kDatumKinds)
                   .value_or(Feature::DatumKind::OffsetPlane);
-    for (const auto& v : o.value("matrix").toArray())
-        f.matrix.push_back(v.toDouble());
+    // A motion is 12 numbers or none at all (a Move without one doesn't apply).
+    if (const QJsonArray m = o.value("matrix").toArray(); m.size() == 12) {
+        for (const auto& v : m)
+            f.matrix.push_back(v.toDouble());
+    }
     f.copy = o.value("copy").toBool(false);
     if (const QString shape = o.value("shape").toString(); !shape.isEmpty())
         f.shape = std::make_shared<const std::string>(shape.toStdString());
     f.label = o.value("label").toString().toStdString();
     f.reference = o.value("reference").toBool(false);
+    const QJsonObject expressions = o.value("expressions").toObject();
+    for (auto it = expressions.begin(); it != expressions.end(); ++it) {
+        Expression e = expressionFromJson(it.value());
+        if (!e.empty())
+            f.expressions[it.key().toStdString()] = std::move(e);
+    }
     return f;
 }
 
@@ -374,8 +479,28 @@ QByteArray projectToJson(const ProjectData& project)
         drawings.append(QJsonObject{{"title", QString::fromStdString(d.title)}, {"width", d.width}, {"height", d.height},
                                     {"views", views}, {"dimensions", dimensions}, {"notes", notes}});
     }
-    const QJsonObject root{{"format", kFormat},     {"version", kVersion}, {"sketches", sketches},
-                           {"features", features}, {"bodies", styles},    {"drawings", drawings}};
+    QJsonObject root{{"format", kFormat},     {"version", kVersion}, {"sketches", sketches},
+                     {"features", features}, {"bodies", styles},    {"drawings", drawings}};
+    if (!project.parameters.empty()) {
+        // Older versions of the app skip these and keep the values as they were last set.
+        const ParameterTable& table = project.parameters;
+        QJsonArray parameters, configurations;
+        for (const Parameter& p : table.parameters) {
+            parameters.append(QJsonObject{{"name", QString::fromStdString(p.name)},
+                                          {"kind", nameOf(p.kind, kValueKinds)},
+                                          {"expression", expressionToJson(p.expression)},
+                                          {"comment", QString::fromStdString(p.comment)}});
+        }
+        for (const Configuration& c : table.configurations) {
+            QJsonObject values;
+            for (const auto& [name, text] : c.values)
+                values.insert(QString::fromStdString(name), QString::fromStdString(text));
+            configurations.append(QJsonObject{{"name", QString::fromStdString(c.name)}, {"values", values}});
+        }
+        root.insert("parameters", parameters);
+        root.insert("configurations", configurations);
+        root.insert("activeConfiguration", QString::fromStdString(table.active));
+    }
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -393,6 +518,11 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
     if (root.value("version").toInt() > kVersion) {
         if (error)
             *error = QCoreApplication::translate("ProjectFile", "The project was saved by a newer version of the app");
+        return std::nullopt;
+    }
+    if (!numbersInRange(root)) {
+        if (error)
+            *error = QCoreApplication::translate("ProjectFile", "The file holds numbers too large for a model");
         return std::nullopt;
     }
     ProjectData project;
@@ -458,7 +588,42 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
         }
         project.drawings.push_back(std::move(d));
     }
-    numberFeatures(project.features); // older files: ids in history order
+    for (const auto& v : root.value("parameters").toArray()) {
+        const QJsonObject o = v.toObject();
+        Parameter p;
+        p.name = o.value("name").toString().toStdString();
+        p.kind = fromName<ValueKind>(o.value("kind").toString(), kValueKinds).value_or(ValueKind::Length);
+        p.expression = expressionFromJson(o.value("expression"));
+        p.comment = o.value("comment").toString().toStdString();
+        // Names are the parameters' identity in every expression: a broken or repeated one
+        // (only an edited file has them) would make them ambiguous.
+        if (isValidName(p.name) && project.parameters.indexOf(p.name) < 0)
+            project.parameters.parameters.push_back(std::move(p));
+    }
+    for (const auto& v : root.value("configurations").toArray()) {
+        const QJsonObject o = v.toObject();
+        Configuration c;
+        c.name = o.value("name").toString().toStdString();
+        const QJsonObject values = o.value("values").toObject();
+        for (auto it = values.begin(); it != values.end(); ++it)
+            c.values[it.key().toStdString()] = it.value().toString().toStdString();
+        if (!c.name.empty() && !project.parameters.configuration(c.name))
+            project.parameters.configurations.push_back(std::move(c));
+    }
+    project.parameters.active = root.value("activeConfiguration").toString().toStdString();
+    // Older files: ids in history order, after the highest one, which must leave room
+    // for them.
+    long long highest = 0, unnumbered = 0;
+    for (const Feature& f : project.features) {
+        highest = std::max<long long>(highest, f.id);
+        unnumbered += f.id <= 0 ? 1 : 0;
+    }
+    if (highest + unnumbered >= std::numeric_limits<int>::max()) {
+        if (error)
+            *error = QCoreApplication::translate("ProjectFile", "The feature history in the file is damaged");
+        return std::nullopt;
+    }
+    numberFeatures(project.features);
     return project;
 }
 
@@ -494,7 +659,8 @@ QByteArray sketchClipboard(const Sketch::Contents& part)
 std::optional<Sketch::Contents> sketchFromClipboard(const QByteArray& data)
 {
     const QJsonObject root = QJsonDocument::fromJson(data).object();
-    if (root.value("format").toString() != QLatin1String("nibform-clipboard") || root.value("kind").toString() != QLatin1String("sketch"))
+    if (root.value("format").toString() != QLatin1String("nibform-clipboard") || root.value("kind").toString() != QLatin1String("sketch")
+        || !numbersInRange(root))
         return std::nullopt;
     const auto entry = sketchFromJson(root.value("sketch").toObject(), nullptr);
     if (!entry)

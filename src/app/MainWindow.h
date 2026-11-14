@@ -31,6 +31,7 @@ class DrawingWidget;
 class QDockWidget;
 class QTreeWidget;
 class RadialMenu;
+class ParametersPanel;
 class PatternPanel;
 struct PenSample;
 
@@ -64,6 +65,7 @@ private:
     void buildBodyList();
     // The Pattern panel: shown while a pattern is set up or changed.
     void buildPatternPanel();
+    void buildParametersPanel();
     void updatePatternPanel();
     void updateBodyList();
     void setUnits(LengthUnit unit);
@@ -183,6 +185,8 @@ private:
     QTreeWidget* m_bodyList = nullptr;
     QDockWidget* m_patternDock = nullptr;
     PatternPanel* m_patternPanel = nullptr;
+    QDockWidget* m_parametersDock = nullptr;
+    ParametersPanel* m_parametersPanel = nullptr;
     bool m_fillingBodyList = false;
     QAction* m_sectionAction = nullptr;
     std::map<QString, QList<QKeySequence>> m_defaultShortcuts; // by id, as built

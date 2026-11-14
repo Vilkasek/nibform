@@ -33,10 +33,14 @@ add_library(nibform_core STATIC
   src/model/Drawing.h
   src/model/Export.cpp
   src/model/Export.h
+  src/model/Expression.cpp
+  src/model/Expression.h
   src/model/Features.cpp
   src/model/Features.h
   src/model/Measure.cpp
   src/model/Measure.h
+  src/model/Parameters.cpp
+  src/model/Parameters.h
   src/model/Profiles.cpp
   src/model/Profiles.h
   src/model/Rebuild.cpp
@@ -92,6 +96,8 @@ add_executable(nibform
   src/app/DrawingSheet.h
   src/app/DrawingWidget.cpp
   src/app/DrawingWidget.h
+  src/app/ParametersPanel.cpp
+  src/app/ParametersPanel.h
   src/app/PatternPanel.cpp
   src/app/PatternPanel.h
   src/app/RadialMenu.cpp
@@ -105,6 +111,7 @@ add_executable(nibform
   src/sketch/SketchEditorSolids.cpp
   src/sketch/SketchEditorInspect.cpp
   src/sketch/SketchEditorExchange.cpp
+  src/sketch/SketchEditorParameters.cpp
   src/viewer/UnitText.h
   src/sketch/SketchEditor.h
   src/sketch/SketchTools.cpp
@@ -164,7 +171,7 @@ if(NOT NIBFORM_BUILD_TESTS)
 endif()
 
 enable_testing()
-foreach(name sketch solver trim offset model features input toolkit freehand solid_features inspect drawing rebuild)
+foreach(name sketch solver trim offset model features input toolkit freehand solid_features inspect drawing rebuild parameters)
   add_executable(test_${name} tests/test_${name}.cpp tests/Check.h)
   target_compile_options(test_${name} PRIVATE ${NIBFORM_WARNINGS})
   target_link_libraries(test_${name} PRIVATE nibform_core)
@@ -181,6 +188,13 @@ target_compile_options(test_project PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_project PRIVATE nibform_io)
 add_test(NAME project COMMAND test_project)
 
+add_executable(test_project_fuzz tests/test_project_fuzz.cpp tests/Check.h)
+target_compile_options(test_project_fuzz PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(test_project_fuzz PRIVATE nibform_io)
+add_test(NAME project_fuzz COMMAND test_project_fuzz)
+# A file that makes the loader hang fails the test instead of stalling the run.
+set_tests_properties(project_fuzz PROPERTIES TIMEOUT 120)
+
 add_executable(test_interop tests/test_interop.cpp tests/Check.h)
 target_compile_options(test_interop PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_interop PRIVATE nibform_io)
@@ -188,7 +202,7 @@ add_test(NAME interop COMMAND test_interop)
 
 # The floating value field, on Qt's offscreen platform (no display needed).
 add_executable(test_value_editor tests/test_value_editor.cpp src/viewer/ValueEditor.cpp src/viewer/ValueEditor.h
-  src/model/Units.cpp src/model/Units.h)
+  src/model/Units.cpp src/model/Units.h src/model/Expression.cpp src/model/Expression.h)
 target_include_directories(test_value_editor PRIVATE src)
 target_compile_options(test_value_editor PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_value_editor PRIVATE Qt6::Widgets Qt6::Test)

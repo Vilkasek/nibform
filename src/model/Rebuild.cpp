@@ -84,9 +84,10 @@ std::uint64_t chainKey(std::uint64_t previous, const std::string& key)
 // Everything a feature holds goes into its key: a field left out would let a change of it
 // go unnoticed, and the old result be shown. A new field changes these sizes; then add it
 // to featureKey() (or sketchGeometryKey()) and update the numbers. (Checked where they
-// are known: 64-bit libstdc++, as on the development machine and in CI.)
+// are known: 64-bit libstdc++, as on the development machine and in CI.) A feature's
+// `expressions` are left out on purpose: they only set its values, which are in the key.
 #if defined(__GLIBCXX__) && __SIZEOF_POINTER__ == 8
-static_assert(sizeof(Feature) == 472, "Feature changed: is the new field in featureKey()?");
+static_assert(sizeof(Feature) == 520, "Feature changed: is the new field in featureKey()?");
 static_assert(sizeof(SketchEntity) == 72, "SketchEntity changed: is the new field in sketchGeometryKey()?");
 static_assert(sizeof(SketchPoint) == 24, "SketchPoint changed: is the new field in sketchGeometryKey()?");
 #endif

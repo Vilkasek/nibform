@@ -62,7 +62,7 @@ void drawArrow(QPainter& p, const QPointF& tip, const QPointF& from, const QColo
     p.fillPath(head, ink);
 }
 
-QString dimensionText(const SketchConstraint& c)
+QString dimensionValueText(const SketchConstraint& c)
 {
     switch (c.kind) {
     case ConstraintKind::Radius:
@@ -74,6 +74,12 @@ QString dimensionText(const SketchConstraint& c)
     default:
         return lengthText(std::abs(c.value), false);
     }
+}
+
+// A dimension driven by an expression is marked ƒ.
+QString dimensionText(const SketchConstraint& c)
+{
+    return c.expression.empty() ? dimensionValueText(c) : QStringLiteral("ƒ ") + dimensionValueText(c);
 }
 
 } // namespace
@@ -103,6 +109,10 @@ SketchEditor::SketchEditor(OcctViewerWidget* viewer, QObject* parent)
     m_meshTimer->setSingleShot(true);
     m_meshTimer->setInterval(300); // the view has come to rest
     connect(m_meshTimer, &QTimer::timeout, this, &SketchEditor::refineMeshes);
+    // Typed expressions use the project's parameters.
+    m_valueEditor->setEvaluator([this](const std::string& text, ValueKind kind, LengthUnit unit, bool definitions) {
+        return evaluateTyped(text, kind, unit, definitions);
+    });
 
     const double dpr = viewer->devicePixelRatioF();
     const auto& ctx = viewer->aisContext();
@@ -548,11 +558,12 @@ void SketchEditor::applyConstraint(ConstraintCommand command)
 
     auto apply = [this](Sketch& next) {
         if (!validate(next))
-            return;
+            return false;
         commit([&](Sketch& s) { s = std::move(next); });
         setSelection({});
         refreshSketches();
         m_viewer->update();
+        return true;
     };
     if (r.dimension == kNoId) {
         apply(candidate);
@@ -565,9 +576,12 @@ void SketchEditor::applyConstraint(ConstraintCommand command)
         return;
     const ConstraintId dimension = r.dimension;
     promptDimension(*candidate.constraint(dimension), m_pointerPos,
-                    [apply, candidate, dimension](double value) mutable {
+                    [this, apply, candidate, dimension](double value) mutable {
+                        const Expression typed = m_valueEditor->expression();
                         candidate.constraint(dimension)->value = value;
-                        apply(candidate);
+                        candidate.constraint(dimension)->expression = dimensionBinding(typed);
+                        if (apply(candidate))
+                            defineFromDimension(typed, *sketch().constraint(dimension));
                     },
                     [this] {
                         // The Dimension tool starts over, unless the field closed for a
@@ -657,10 +671,13 @@ void SketchEditor::editDimension(ConstraintId id)
             anchor = label.rect.center();
     }
     promptDimension(*c, anchor, [this, id](double value) {
+        const Expression typed = m_valueEditor->expression();
         Sketch candidate = sketch();
         candidate.constraint(id)->value = value;
+        candidate.constraint(id)->expression = dimensionBinding(typed);
         if (validate(candidate)) {
             commit([&](Sketch& s) { s = std::move(candidate); });
+            defineFromDimension(typed, *sketch().constraint(id));
             m_viewer->update();
         }
     });
@@ -733,6 +750,8 @@ void SketchEditor::promptDimension(const SketchConstraint& c, const QPointF& anc
                             m_viewer->update();
                         },
                         std::move(cancelled));
+    m_valueEditor->allowDefinitions(); // `width = 40` names the dimension's value
+    m_valueEditor->setExpression(c.expression);
 }
 
 std::optional<gp_Pnt2d> SketchEditor::toSketch(const Graphic3d_Vec2i& pixel) const

@@ -2,6 +2,7 @@
 
 #include "model/Units.h"
 
+#include <QCoreApplication>
 #include <QEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -10,6 +11,7 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QStyle>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -22,6 +24,7 @@ ValueEditor::ValueEditor(QWidget* parent)
     , m_edit(new QLineEdit(this))
     , m_keypad(new QWidget(this))
     , m_choices(new QWidget(this))
+    , m_result(new QLabel(this))
 {
     setObjectName(QStringLiteral("valueEditor")); // styled by the window's style sheet
     setFrameShape(QFrame::StyledPanel);
@@ -80,6 +83,10 @@ ValueEditor::ValueEditor(QWidget* parent)
     outer->setContentsMargins(6, 4, 4, 4);
     outer->setSpacing(4);
     outer->addLayout(row);
+    m_result->setObjectName(QStringLiteral("valueResult"));
+    m_result->setAlignment(Qt::AlignRight);
+    m_result->hide();
+    outer->addWidget(m_result);
     outer->addWidget(m_choices);
     outer->addWidget(m_keypad);
     hide();
@@ -93,7 +100,12 @@ void ValueEditor::open(std::function<QString()> label, double value, double min,
         this->cancel();
     clearChoices();
     m_labelText = std::move(label);
-    m_length = m_labelText().contains(QStringLiteral("[mm]"));
+    const QString labelText = m_labelText();
+    m_length = labelText.contains(QStringLiteral("[mm]"));
+    m_kind = m_length ? ValueKind::Length : labelText.contains(QStringLiteral("[°]")) ? ValueKind::Angle : ValueKind::Number;
+    m_expression = {};
+    m_opened = {};
+    m_definitions = false;
     m_label->setText(shownLabel());
     m_min = shown(min);
     m_max = shown(max);
@@ -104,6 +116,7 @@ void ValueEditor::open(std::function<QString()> label, double value, double min,
     m_edit->setText(format(shown(value)));
     m_edit->selectAll(); // right away: the first key or keypad tap replaces the value
     m_edit->setStyleSheet(QString());
+    m_result->hide();
 
     // Sized once shown: only then do the style sheet's fonts apply, sized before the label clips.
     show();
@@ -200,8 +213,32 @@ void ValueEditor::setKeypad(bool on)
 void ValueEditor::edited()
 {
     m_edit->setStyleSheet(QString());
+    showResult();
     if (const auto value = parsed(); value && m_changed)
         m_changed(taken(*value));
+}
+
+void ValueEditor::showResult()
+{
+    const bool expression = typedExpression();
+    if (expression) {
+        QString error;
+        const auto value = parsed(&error);
+        const QString unit = m_length ? QStringLiteral(" ") + QString::fromLatin1(lengthSymbol())
+                           : m_kind == ValueKind::Angle ? QStringLiteral("°")
+                                                        : QString();
+        // `width = 40` names the value: say so.
+        const auto definition = definitionIn(m_edit->text().trimmed().toStdString());
+        const QString named = definition ? QString::fromStdString(definition->name) + QLatin1Char(' ') : QString();
+        m_result->setText(value ? QStringLiteral("%1= %2%3").arg(named, format(*value), unit) : error);
+        m_result->setProperty("error", !value);
+        m_result->style()->unpolish(m_result);
+        m_result->style()->polish(m_result);
+    }
+    if (expression != m_result->isVisible()) {
+        m_result->setVisible(expression);
+        adjustSize();
+    }
 }
 
 QString ValueEditor::shownLabel() const
@@ -251,20 +288,61 @@ void ValueEditor::setValue(double value)
 {
     m_edit->setText(format(shown(value)));
     m_edit->setStyleSheet(QString());
+    showResult();
     if (m_edit->hasFocus())
         m_edit->selectAll();
 }
 
-std::optional<double> ValueEditor::parsed() const
+void ValueEditor::setExpression(const Expression& expression)
 {
-    // Accept both decimal separators, whatever the locale says.
-    QString text = m_edit->text().trimmed();
-    text.replace(QLatin1Char(','), QLatin1Char('.'));
-    bool ok = false;
-    const double value = QLocale::c().toDouble(text, &ok);
-    if (!ok || value < m_min || value > m_max)
+    if (expression.empty())
+        return;
+    m_opened = expression;
+    m_edit->setText(QString::fromStdString(expression.text));
+    m_edit->selectAll();
+    showResult();
+}
+
+bool ValueEditor::typedExpression() const
+{
+    const QString text = m_edit->text().trimmed();
+    return !text.isEmpty() && !isPlainNumber(text.toStdString());
+}
+
+std::optional<double> ValueEditor::parsed(QString* error) const
+{
+    const QString text = m_edit->text().trimmed();
+    double value = 0.0;
+    if (!typedExpression()) {
+        // Accept both decimal separators, whatever the locale says.
+        QString number = text;
+        number.replace(QLatin1Char(','), QLatin1Char('.'));
+        bool ok = false;
+        value = QLocale::c().toDouble(number, &ok);
+        if (!ok)
+            return std::nullopt;
+    } else {
+        // An expression unchanged since it was shown means what it meant then.
+        const std::string typed = text.toStdString();
+        const LengthUnit unit = typed == m_opened.text ? m_opened.unit : lengthUnit();
+        const EvalResult r = m_evaluator ? m_evaluator(typed, m_kind, unit, m_definitions)
+                                         : evaluate(typed, m_kind, unit, {});
+        if (!r.value) {
+            if (error) {
+                *error = QCoreApplication::translate("Model", r.error.message.c_str());
+                if (error->contains(QStringLiteral("%1")))
+                    *error = error->arg(QString::fromStdString(r.error.detail));
+            }
+            return std::nullopt;
+        }
+        value = shown(*r.value); // evaluated in mm; the field works in the unit shown
+    }
+    if (value < m_min - 1e-9 || value > m_max + 1e-9) {
+        if (error)
+            *error = tr("Out of range: %1 … %2").arg(format(m_min), format(m_max));
         return std::nullopt;
-    return value;
+    }
+    return std::clamp(value, m_min, m_max);
 }
 
 void ValueEditor::refocus()
@@ -300,6 +378,11 @@ void ValueEditor::accept()
         return;
     }
     hide();
+    m_expression = {};
+    if (typedExpression()) {
+        const std::string typed = m_edit->text().trimmed().toStdString();
+        m_expression = {typed, typed == m_opened.text ? m_opened.unit : lengthUnit()};
+    }
     auto done = std::move(m_accept);
     m_accept = nullptr;
     m_cancel = nullptr;

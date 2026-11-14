@@ -620,6 +620,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         angle.max = 360.0;
         angle.get = [](const Feature& f) { return f.value; };
         angle.set = [](Feature& f, double v) { f.value = v; };
+        angle.field = "value";
         operations(angle);
         prompts.push_back(angle);
         break;
@@ -631,6 +632,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         count.max = 500;
         count.get = [](const Feature& f) { return f.count; };
         count.set = [](Feature& f, double v) { f.count = static_cast<int>(std::lround(v)); };
+        count.field = "count";
         prompts.push_back(count);
         FeaturePrompt step;
         const bool circular = feature.pattern == Feature::PatternKind::Circular;
@@ -640,6 +642,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         step.max = circular ? 360.0 : 1e5;
         step.get = [](const Feature& f) { return f.value; };
         step.set = [](Feature& f, double v) { f.value = v; };
+        step.field = "value";
         prompts.push_back(step);
         break;
     }
@@ -649,6 +652,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         diameter.min = 0.01;
         diameter.get = [](const Feature& f) { return f.hole.diameter; };
         diameter.set = [](Feature& f, double v) { f.hole.diameter = v; };
+        diameter.field = "hole.diameter";
         diameter.choices = [] { return QStringList{tr("Through"), tr("Blind"), tr("Counterbore"), tr("Countersink")}; };
         diameter.choice = [](const Feature& f) {
             return f.hole.kind == HoleKind::Counterbore ? 2 : f.hole.kind == HoleKind::Countersink ? 3 : f.hole.depth > 0.0 ? 1 : 0;
@@ -671,6 +675,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         depth.min = 0.01;
         depth.get = [](const Feature& f) { return f.hole.depth; };
         depth.set = [](Feature& f, double v) { f.hole.depth = v; };
+        depth.field = "hole.depth";
         depth.applies = [](const Feature& f) { return f.hole.depth > 0.0; };
         prompts.push_back(depth);
         FeaturePrompt head;
@@ -678,6 +683,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         head.min = 0.01;
         head.get = [](const Feature& f) { return f.hole.headDiameter; };
         head.set = [](Feature& f, double v) { f.hole.headDiameter = v; };
+        head.field = "hole.headDiameter";
         head.applies = [](const Feature& f) { return f.hole.kind != HoleKind::Simple; };
         prompts.push_back(head);
         FeaturePrompt headDepth;
@@ -685,6 +691,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         headDepth.min = 0.01;
         headDepth.get = [](const Feature& f) { return f.hole.headDepth; };
         headDepth.set = [](Feature& f, double v) { f.hole.headDepth = v; };
+        headDepth.field = "hole.headDepth";
         headDepth.applies = [](const Feature& f) { return f.hole.kind == HoleKind::Counterbore; };
         prompts.push_back(headDepth);
         break;
@@ -699,6 +706,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
             value.max = offset ? 1e5 : 360.0;
             value.get = [](const Feature& f) { return f.value; };
             value.set = [](Feature& f, double v) { f.value = v; };
+            value.field = "value";
             prompts.push_back(value);
         }
         break;
@@ -712,8 +720,9 @@ void SketchEditor::configure(std::shared_ptr<Feature> draft, std::vector<Feature
                              std::function<void(const Feature&)> preview, std::function<void(const Feature&)> done,
                              std::function<void()> cancelled)
 {
+    // A value that isn't asked doesn't count (a through hole's depth): nor does its expression.
     while (index < prompts.size() && prompts[index].applies && !prompts[index].applies(*draft))
-        ++index;
+        draft->expressions.erase(prompts[index++].field);
     if (index >= prompts.size()) {
         done(*draft);
         return;
@@ -728,6 +737,12 @@ void SketchEditor::configure(std::shared_ptr<Feature> draft, std::vector<Feature
         prompt.label, prompt.get(*draft), prompt.min, prompt.max, anchor,
         [=, this](double value) {
             prompt.set(*draft, value);
+            if (!prompt.field.empty()) {
+                if (const Expression& e = m_valueEditor->expression(); e.empty())
+                    draft->expressions.erase(prompt.field);
+                else
+                    draft->expressions[prompt.field] = e;
+            }
             configure(draft, prompts, index + 1, preview, done, cancelled);
         },
         cancelled,
@@ -735,6 +750,8 @@ void SketchEditor::configure(std::shared_ptr<Feature> draft, std::vector<Feature
             prompt.set(*draft, value);
             preview(*draft);
         });
+    if (const auto it = draft->expressions.find(prompt.field); !prompt.field.empty() && it != draft->expressions.end())
+        m_valueEditor->setExpression(it->second);
     if (prompt.choices) {
         m_valueEditor->setChoices(prompt.choices, prompt.choice(*draft), [=](int choice) {
             prompt.choose(*draft, choice);
@@ -1169,7 +1186,14 @@ void SketchEditor::endPatternEdit(bool keep)
     m_solidError.clear();
     if (keep && edit.index < static_cast<int>(m_features.size())) {
         pushUndo();
-        m_features[edit.index] = edit.draft;
+        // Values changed in the panel are numbers now, no longer their expressions.
+        Feature kept = edit.draft;
+        const Feature& before = m_features[edit.index];
+        if (kept.count != before.count)
+            kept.expressions.erase("count");
+        if (kept.value != before.value)
+            kept.expressions.erase("value");
+        m_features[edit.index] = kept;
         rebuildModel();
         emit historyChanged();
     } else {

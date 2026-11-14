@@ -1,5 +1,7 @@
 #pragma once
 
+#include "model/Expression.h"
+
 #include <gp_Pnt2d.hxx>
 
 using PointId = int;
@@ -46,6 +48,7 @@ struct SketchConstraint
     double value = 0.0;
     gp_Pnt2d target;     // Fixed only
     double offset = 0.0; // dimensions: label placement, in sketch units
+    Expression expression; // dimensions: typed as an expression (following parameters); empty: a number
 };
 
 inline bool isDimension(ConstraintKind kind)

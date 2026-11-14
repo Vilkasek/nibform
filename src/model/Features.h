@@ -92,6 +92,10 @@ struct SketchPointRef
     int point = -1;
 };
 
+// The most instances a pattern makes, as the Pattern panel allows; project files are
+// held to it too.
+constexpr int kMaxPatternCount = 500;
+
 struct Feature
 {
     enum class Kind
@@ -150,6 +154,9 @@ struct Feature
     std::shared_ptr<const std::string> shape;
     std::string label;
     bool reference = false;
+    // Values typed as expressions, by field (see featureField() in Parameters.h): they
+    // follow the parameters. A value without one is a plain number.
+    std::map<std::string, Expression> expressions;
 };
 
 std::vector<double> matrixOf(const gp_Trsf& trsf);

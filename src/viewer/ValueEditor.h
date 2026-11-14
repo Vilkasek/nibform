@@ -1,5 +1,7 @@
 #pragma once
 
+#include "model/Expression.h"
+
 #include <QFrame>
 #include <QPointF>
 
@@ -34,6 +36,18 @@ public:
     void placeBeside(const QPointF& point);
     // Shows `value` as if typed (e.g. while an arrow is dragged), selected, without `changed`.
     void setValue(double value);
+    // Shows the expression the value came from instead of the number (after open()).
+    void setExpression(const Expression& expression);
+    // What was accepted, when it was an expression (read it in the accept callback):
+    // empty for a plain number. An expression accepted unchanged keeps its unit.
+    const Expression& expression() const { return m_expression; }
+    // Evaluates expressions: the text, what the field takes, the unit plain numbers are in,
+    // and whether `name = value` may name a parameter here.
+    using Evaluator =
+        std::function<EvalResult(const std::string& text, ValueKind kind, LengthUnit unit, bool definitions)>;
+    void setEvaluator(Evaluator evaluator) { m_evaluator = std::move(evaluator); }
+    // This edit (until the field closes) takes `name = value` too (a sketch dimension).
+    void allowDefinitions() { m_definitions = true; }
     void cancel();
     // Takes the typed value (what Enter does); an invalid one is marked and kept open.
     void accept();
@@ -58,13 +72,21 @@ private:
     void edited(); // typed or keyed in: clear the error mark, report the value
     void key(const QString& key);
     void moveClamped(double x, double y);
-    std::optional<double> parsed() const; // in the unit shown
+    // The typed value in the unit shown; `error` says why there is none (for an expression).
+    std::optional<double> parsed(QString* error = nullptr) const;
+    bool typedExpression() const; // the text is more than a number
+    void showResult();            // under the field, for an expression
     // A label with "[mm]" asks for a length: shown (and typed) in the current length unit,
     // always handed back in millimetres.
     QString shownLabel() const;
     double shown(double value) const;
     double taken(double value) const;
     bool m_length = false;
+    ValueKind m_kind = ValueKind::Number;
+    bool m_definitions = false;
+    Evaluator m_evaluator;
+    Expression m_expression; // accepted
+    Expression m_opened;     // shown by setExpression()
     static QString format(double value);
 
     QLabel* m_label;
@@ -72,6 +94,7 @@ private:
     QLineEdit* m_edit;
     QWidget* m_keypad;
     QWidget* m_choices;
+    QLabel* m_result; // an expression's value, or why it has none
     std::function<QStringList()> m_choiceLabels;
     void clearChoices();
     double m_min = 0.0;

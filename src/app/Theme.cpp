@@ -85,6 +85,8 @@ QFrame#valueEditor QLabel { color: @text; padding-left: 4px; }
 QFrame#valueEditor QLineEdit { border: 1px solid @accent; border-radius: 6px; padding: 3px 6px;
                                background: @base; color: @text; selection-background-color: @accent; }
 QToolButton#valueAccept { background: @accent; color: white; }
+QFrame#valueEditor QLabel#valueResult { color: @disabled; padding-right: 4px; }
+QFrame#valueEditor QLabel#valueResult[error="true"] { color: #e5484d; }
 QToolButton#valueChoice { border: 1px solid @border; border-radius: 6px; padding: 2px 8px; }
 QToolButton#valueChoice:checked { border-color: @accent; }
 QStatusBar { background: @bar; border-top: 1px solid @border; }

@@ -1,7 +1,6 @@
 # Roadmap
 
-M0–M14 and i18n are done (see the README). Next: parameters, then the bigger features from
-*Later*.
+M0–M15 and i18n are done (see the README). Next: the details a real part needs (M16).
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -109,7 +108,7 @@ Staying smooth as models grow.
 
 **Done when:** a model with 100+ features stays interactive while editing an early one.
 
-## M15 – Parameters
+## M15 – Parameters ✓
 
 Driving a model by named values.
 

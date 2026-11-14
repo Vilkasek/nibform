@@ -866,6 +866,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Lista brył</translation>
     </message>
     <message>
+        <source>Parameters</source>
+        <translation>Parametry</translation>
+    </message>
+    <message>
+        <source>Named values to type into dimensions and features, and configurations</source>
+        <translation>Nazwane wartości do wpisywania w wymiary i operacje oraz konfiguracje</translation>
+    </message>
+    <message>
         <source>Show Extruded Regions</source>
         <translation>Pokaż wyciągnięte obszary</translation>
     </message>
@@ -1489,6 +1497,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Wskaż dwa różne punkty</translation>
     </message>
     <message>
+        <source>This feature can't be built from its values</source>
+        <translation>Tej operacji nie da się zbudować z jej wartości</translation>
+    </message>
+    <message>
         <source>Pick edges of a body</source>
         <translation>Zaznacz krawędzie bryły</translation>
     </message>
@@ -1568,6 +1580,178 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <source>Can't loft through these profiles</source>
         <translation>Nie można wyciągnąć przez te profile</translation>
     </message>
+    <message>
+        <source>%1 is already taken</source>
+        <translation>Nazwa %1 jest już zajęta</translation>
+    </message>
+    <message>
+        <source>Parameters are named in sketch dimensions or the Parameters panel</source>
+        <translation>Parametry nazywa się w wymiarach szkicu albo w panelu Parametry</translation>
+    </message>
+    <message>
+        <source>Unexpected %1</source>
+        <translation>Nieoczekiwane %1</translation>
+    </message>
+    <message>
+        <source>Empty expression</source>
+        <translation>Puste wyrażenie</translation>
+    </message>
+    <message>
+        <source>Not a number</source>
+        <translation>To nie jest liczba</translation>
+    </message>
+    <message>
+        <source>Unexpected end</source>
+        <translation>Nieoczekiwany koniec</translation>
+    </message>
+    <message>
+        <source>Units don't match</source>
+        <translation>Jednostki się nie zgadzają</translation>
+    </message>
+    <message>
+        <source>Division by zero</source>
+        <translation>Dzielenie przez zero</translation>
+    </message>
+    <message>
+        <source>Too deeply nested</source>
+        <translation>Zbyt głębokie zagnieżdżenie</translation>
+    </message>
+    <message>
+        <source>An exponent can't have a unit</source>
+        <translation>Wykładnik nie może mieć jednostki</translation>
+    </message>
+    <message>
+        <source>A unit can only be raised to a whole power</source>
+        <translation>Jednostkę można podnieść tylko do potęgi całkowitej</translation>
+    </message>
+    <message>
+        <source>%1 needs its values in parentheses</source>
+        <translation>%1 wymaga wartości w nawiasach</translation>
+    </message>
+    <message>
+        <source>Unknown name: %1</source>
+        <translation>Nieznana nazwa: %1</translation>
+    </message>
+    <message>
+        <source>%1 needs values</source>
+        <translation>%1 wymaga wartości</translation>
+    </message>
+    <message>
+        <source>%1 takes one value</source>
+        <translation>%1 przyjmuje jedną wartość</translation>
+    </message>
+    <message>
+        <source>Square root of a unit that isn't squared</source>
+        <translation>Pierwiastek z jednostki, która nie jest kwadratem</translation>
+    </message>
+    <message>
+        <source>Square root of a negative value</source>
+        <translation>Pierwiastek z wartości ujemnej</translation>
+    </message>
+    <message>
+        <source>%1 takes an angle</source>
+        <translation>%1 przyjmuje kąt</translation>
+    </message>
+    <message>
+        <source>%1 takes a plain number</source>
+        <translation>%1 przyjmuje zwykłą liczbę</translation>
+    </message>
+    <message>
+        <source>%1 takes a value from -1 to 1</source>
+        <translation>%1 przyjmuje wartość od -1 do 1</translation>
+    </message>
+    <message>
+        <source>Expected a plain number</source>
+        <translation>Oczekiwano zwykłej liczby</translation>
+    </message>
+    <message>
+        <source>Expected a length</source>
+        <translation>Oczekiwano długości</translation>
+    </message>
+    <message>
+        <source>Expected an angle</source>
+        <translation>Oczekiwano kąta</translation>
+    </message>
+    <message>
+        <source>A parameter needs a name</source>
+        <translation>Parametr musi mieć nazwę</translation>
+    </message>
+    <message>
+        <source>The name is too long</source>
+        <translation>Nazwa jest za długa</translation>
+    </message>
+    <message>
+        <source>A name is a letter, then letters, digits or _: %1</source>
+        <translation>Nazwa to litera, a po niej litery, cyfry albo _: %1</translation>
+    </message>
+    <message>
+        <source>%1 is a unit or a function</source>
+        <translation>%1 to jednostka albo funkcja</translation>
+    </message>
+    <message>
+        <source>Circular reference through %1</source>
+        <translation>Zapętlone odwołanie przez %1</translation>
+    </message>
+    <message>
+        <source>%1 has an error</source>
+        <translation>%1 zawiera błąd</translation>
+    </message>
+    <message>
+        <source>%1 is a length</source>
+        <translation>%1 to długość</translation>
+    </message>
+    <message>
+        <source>%1 is an angle</source>
+        <translation>%1 to kąt</translation>
+    </message>
+    <message>
+        <source>%1 is a plain number</source>
+        <translation>%1 to zwykła liczba</translation>
+    </message>
+    <message>
+        <source>This value can't be an expression</source>
+        <translation>Ta wartość nie może być wyrażeniem</translation>
+    </message>
+    <message>
+        <source>Expected a whole number</source>
+        <translation>Oczekiwano liczby całkowitej</translation>
+    </message>
+    <message>
+        <source>Out of range: %1</source>
+        <translation>Poza zakresem: %1</translation>
+    </message>
+    <message>
+        <source>The sketch can't take this value</source>
+        <translation>Szkic nie może przyjąć tej wartości</translation>
+    </message>
+    <message>
+        <source>Line %1: a quote isn't closed</source>
+        <translation>Wiersz %1: niezamknięty cudzysłów</translation>
+    </message>
+    <message>
+        <source>Line %1: expected the columns name, unit, expression, comment</source>
+        <translation>Wiersz %1: oczekiwano kolumn name, unit, expression, comment</translation>
+    </message>
+    <message>
+        <source>Line %1: each configuration needs its own name</source>
+        <translation>Wiersz %1: każda konfiguracja musi mieć własną nazwę</translation>
+    </message>
+    <message>
+        <source>Line %1: not a valid parameter name</source>
+        <translation>Wiersz %1: niepoprawna nazwa parametru</translation>
+    </message>
+    <message>
+        <source>Line %1: the name is used twice</source>
+        <translation>Wiersz %1: nazwa występuje dwa razy</translation>
+    </message>
+    <message>
+        <source>Line %1: unknown unit (mm, in, deg or none)</source>
+        <translation>Wiersz %1: nieznana jednostka (mm, in, deg albo brak)</translation>
+    </message>
+    <message>
+        <source>Line %1: the expression is missing</source>
+        <translation>Wiersz %1: brak wyrażenia</translation>
+    </message>
 </context>
 <context>
     <name>OcctViewerWidget</name>
@@ -1578,6 +1762,177 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Could not wrap the Qt framebuffer.</source>
         <translation>Nie udało się opakować framebuffera Qt.</translation>
+    </message>
+</context>
+<context>
+    <name>ParametersPanel</name>
+    <message>
+        <source>Configurations</source>
+        <translation>Konfiguracje</translation>
+    </message>
+    <message>
+        <source>Save As…</source>
+        <translation>Zapisz jako…</translation>
+    </message>
+    <message>
+        <source>Saves the current values as a configuration to switch back to</source>
+        <translation>Zapisuje bieżące wartości jako konfigurację, do której można wrócić</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Nazwa</translation>
+    </message>
+    <message>
+        <source>Unit</source>
+        <translation>Jednostka</translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation>Wartość</translation>
+    </message>
+    <message>
+        <source>Comment</source>
+        <translation>Komentarz</translation>
+    </message>
+    <message>
+        <source>Add a parameter</source>
+        <translation>Dodaj parametr</translation>
+    </message>
+    <message>
+        <source>Delete the selected parameters</source>
+        <translation>Usuń zaznaczone parametry</translation>
+    </message>
+    <message>
+        <source>CSV</source>
+        <translation>CSV</translation>
+    </message>
+    <message>
+        <source>Import from CSV…</source>
+        <translation>Importuj z CSV…</translation>
+    </message>
+    <message>
+        <source>Export to CSV…</source>
+        <translation>Eksportuj do CSV…</translation>
+    </message>
+    <message>
+        <source>Type the values here. In a sketch dimension, use the names (width / 2 + 3) or name the dimension (width = 40 makes the parameter); dimensions so are marked ƒ and follow the values.</source>
+        <translation>Tu wpisujesz wartości. W wymiarze szkicu używaj nazw (width / 2 + 3) albo nazwij wymiar (width = 40 tworzy parametr); takie wymiary są oznaczone ƒ i podążają za wartościami.</translation>
+    </message>
+    <message>
+        <source>From %1; typing a value replaces it</source>
+        <translation>Z %1; wpisanie wartości je zastąpi</translation>
+    </message>
+    <message>
+        <source>mm or in: a length (plain numbers in it); °: an angle; –: a plain number</source>
+        <translation>mm albo in: długość (zwykłe liczby w tej jednostce); °: kąt; –: zwykła liczba</translation>
+    </message>
+    <message>
+        <source>Switches the parameters to these values</source>
+        <translation>Przełącza parametry na te wartości</translation>
+    </message>
+    <message>
+        <source>Changed since %1 was chosen; its menu updates it</source>
+        <translation>Zmienione od wybrania %1; jej menu pozwala ją zaktualizować</translation>
+    </message>
+    <message>
+        <source>Update with Current Values</source>
+        <translation>Zaktualizuj bieżącymi wartościami</translation>
+    </message>
+    <message>
+        <source>Rename…</source>
+        <translation>Zmień nazwę…</translation>
+    </message>
+    <message>
+        <source>Rename Configuration</source>
+        <translation>Zmień nazwę konfiguracji</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nazwa:</translation>
+    </message>
+    <message>
+        <source>There is a configuration %1 already.</source>
+        <translation>Konfiguracja %1 już istnieje.</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Usuń</translation>
+    </message>
+    <message>
+        <source>Parameters</source>
+        <translation>Parametry</translation>
+    </message>
+    <message>
+        <source>Type a number: %1</source>
+        <translation>Wpisz liczbę: %1</translation>
+    </message>
+    <message>
+        <source>values: %1</source>
+        <translation>wartości: %1</translation>
+    </message>
+    <message>
+        <source>Delete Parameters</source>
+        <translation>Usuń parametry</translation>
+    </message>
+    <message>
+        <source>Still used: %1.
+
+What uses them keeps its last value and shows an error until it is changed. Delete anyway?</source>
+        <translation>Nadal używane: %1.
+
+To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zostanie zmienione. Usunąć mimo to?</translation>
+    </message>
+    <message>
+        <source>Configuration %1</source>
+        <translation>Konfiguracja %1</translation>
+    </message>
+    <message>
+        <source>Save Configuration</source>
+        <translation>Zapisz konfigurację</translation>
+    </message>
+    <message>
+        <source>Name of this set of values (e.g. Small, Large):</source>
+        <translation>Nazwa tego zestawu wartości (np. Mały, Duży):</translation>
+    </message>
+    <message>
+        <source>Replace the values of %1 with the current ones?</source>
+        <translation>Zastąpić wartości %1 bieżącymi?</translation>
+    </message>
+    <message>
+        <source>Import Parameters</source>
+        <translation>Importuj parametry</translation>
+    </message>
+    <message>
+        <source>CSV files (*.csv);;All files (*)</source>
+        <translation>Pliki CSV (*.csv);;Wszystkie pliki (*)</translation>
+    </message>
+    <message>
+        <source>Can't read %1: %2</source>
+        <translation>Nie można odczytać %1: %2</translation>
+    </message>
+    <message>
+        <source>Can't import %1: %2</source>
+        <translation>Nie można zaimportować %1: %2</translation>
+    </message>
+    <message>
+        <source>Replace the parameters and configurations with those from the file?</source>
+        <translation>Zastąpić parametry i konfiguracje tymi z pliku?</translation>
+    </message>
+    <message>
+        <source>Export Parameters</source>
+        <translation>Eksportuj parametry</translation>
+    </message>
+    <message>
+        <source>parameters.csv</source>
+        <translation>parametry.csv</translation>
+    </message>
+    <message>
+        <source>CSV files (*.csv)</source>
+        <translation>Pliki CSV (*.csv)</translation>
+    </message>
+    <message>
+        <source>Can't save %1: %2</source>
+        <translation>Nie można zapisać %1: %2</translation>
     </message>
 </context>
 <context>
@@ -1674,6 +2029,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
 <context>
     <name>ProjectFile</name>
     <message>
+        <source>A sketch in the file is damaged</source>
+        <translation>Szkic w pliku jest uszkodzony</translation>
+    </message>
+    <message>
         <source>Unknown curve kind: %1</source>
         <translation>Nieznany rodzaj krzywej: %1</translation>
     </message>
@@ -1692,6 +2051,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>The project was saved by a newer version of the app</source>
         <translation>Projekt zapisany nowszą wersją programu</translation>
+    </message>
+    <message>
+        <source>The file holds numbers too large for a model</source>
+        <translation>Plik zawiera liczby za duże dla modelu</translation>
+    </message>
+    <message>
+        <source>The feature history in the file is damaged</source>
+        <translation>Historia operacji w pliku jest uszkodzona</translation>
     </message>
     <message>
         <source>Can't save %1: %2</source>
@@ -2096,6 +2463,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Płaszczyzna</translation>
     </message>
     <message>
+        <source>Parameters: %1</source>
+        <translation>Parametry: %1</translation>
+    </message>
+    <message>
         <source>Tap an edge or a face of a body</source>
         <translation>Dotknij krawędzi albo ściany bryły</translation>
     </message>
@@ -2423,6 +2794,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <source>Nothing to paste: copy curves or bodies first</source>
         <translation>Nie ma czego wkleić: najpierw skopiuj krzywe albo bryły</translation>
     </message>
+    <message>
+        <source>Some values can't follow the parameters: see the history</source>
+        <translation>Niektóre wartości nie mogą podążać za parametrami: zobacz historię</translation>
+    </message>
+    <message>
+        <source>Parameter %1 = %2</source>
+        <translation>Parametr %1 = %2</translation>
+    </message>
 </context>
 <context>
     <name>SketchExchange</name>
@@ -2683,6 +3062,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Cancel (Esc)</source>
         <translation>Anuluj (Esc)</translation>
+    </message>
+    <message>
+        <source>Out of range: %1 … %2</source>
+        <translation>Poza zakresem: %1 … %2</translation>
     </message>
 </context>
 </TS>

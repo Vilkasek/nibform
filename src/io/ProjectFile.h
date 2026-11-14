@@ -2,6 +2,7 @@
 
 #include "model/Drawing.h"
 #include "model/Features.h"
+#include "model/Parameters.h"
 #include "sketch/Sketch.h"
 
 #include <QByteArray>
@@ -23,6 +24,7 @@ struct ProjectData
     std::vector<Feature> features;
     std::vector<BodyStyle> bodyStyles; // names, visibility, colors of bodies
     std::vector<Drawing> drawings;
+    ParameterTable parameters; // and the configurations
 };
 
 QByteArray projectToJson(const ProjectData& project);
