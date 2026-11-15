@@ -1,5 +1,6 @@
 #include "model/Profiles.h"
 
+#include "model/TextShapes.h"
 #include "sketch/Geometry.h"
 
 #include <BRepAdaptor_Curve.hxx>
@@ -103,7 +104,8 @@ TopoDS_Edge toEdge(const Sketch& sketch, const SketchEntity& e)
 std::vector<TopoDS_Face> findRegions(const Sketch& sketch)
 {
     if (std::none_of(sketch.entities().begin(), sketch.entities().end(),
-                     [](const SketchEntity& e) { return !e.construction; }))
+                     [](const SketchEntity& e) { return !e.construction; })
+        && sketch.texts().empty())
         return {};
 
     // Split a sheet larger than the sketch by every curve; each piece is a region,
@@ -125,6 +127,20 @@ std::vector<TopoDS_Face> findRegions(const Sketch& sketch)
             vmax = std::max(vmax, q.Y());
         }
     }
+    // Letters bound regions as curves do.
+    for (const SketchText& text : sketch.texts()) {
+        const auto box = textBounds(sketch, text);
+        if (!box)
+            continue;
+        for (const TopoDS_Edge& edge : textEdges(sketch, text))
+            tools.Append(edge);
+        umin = std::min(umin, box->first.X());
+        vmin = std::min(vmin, box->first.Y());
+        umax = std::max(umax, box->second.X());
+        vmax = std::max(vmax, box->second.Y());
+    }
+    if (tools.IsEmpty())
+        return {};
     const double margin = std::max({umax - umin, vmax - vmin, 1.0});
     const gp_Pln plane(sketch.plane());
     TopTools_ListOfShape sheet;

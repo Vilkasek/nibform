@@ -155,7 +155,8 @@ gp_Pnt2d projectPoint(ViewKind kind, const gp_Pnt& p)
     return gp_Pnt2d(v.Dot(gp_Vec(axes.XDirection())), v.Dot(gp_Vec(axes.YDirection())));
 }
 
-ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetView& view)
+ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetView& view,
+                         const std::vector<ThreadMark>& threads)
 {
     ViewGeometry g;
     const ViewKind kind = view.kind == ViewKind::Section ? view.base : view.kind;
@@ -257,8 +258,38 @@ ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetVie
             const bool known = std::any_of(g.circles.begin(), g.circles.end(), [&](const ViewGeometry::Circle& o) {
                 return o.center.Distance(c.center) < 1e-6 && std::abs(o.radius - c.radius) < 1e-6;
             });
-            if (!known)
+            if (!known) {
+                if (const ThreadMark* t = threadAt(threads, c.center, c.radius))
+                    c.thread = threadCallout(t->spec);
                 g.circles.push_back(c);
+            }
+        }
+    }
+
+    // Threads: the other diameter, thin.
+    if (view.kind != ViewKind::Section && kind != ViewKind::Iso) {
+        for (const ThreadMark& t : threads) {
+            const double r = t.internal ? t.spec.diameter / 2.0 : minorDiameter(t.spec) / 2.0;
+            const gp_Dir along = t.axis.Direction();
+            const double facing = along.Dot(axes.Direction());
+            const gp_Pnt2d start = projectPoint(kind, t.axis.Location());
+            if (std::abs(facing) > 0.999) {
+                // End on: three quarters of a circle (ISO 6410), from the right going round.
+                Polyline2d arc;
+                for (int i = 0; i <= 54; ++i) {
+                    const double a = 1.5 * kPi * i / 54.0;
+                    arc.emplace_back(start.X() + r * std::cos(a), start.Y() + r * std::sin(a));
+                }
+                g.threads.push_back(arc);
+            } else if (std::abs(facing) < 1e-3) {
+                const gp_Pnt2d end = projectPoint(kind, t.axis.Location().Translated(gp_Vec(along) * t.length));
+                gp_Vec2d side(start, end);
+                if (side.Magnitude() < 1e-9)
+                    continue;
+                side = gp_Vec2d(-side.Y(), side.X()).Normalized() * r;
+                for (double s : {1.0, -1.0})
+                    g.threads.push_back({start.Translated(side * s), end.Translated(side * s)});
+            }
         }
     }
 

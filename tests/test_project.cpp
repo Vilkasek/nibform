@@ -345,6 +345,90 @@ void testParametersRoundTrip()
     CHECK(edited && edited->parameters.parameters.size() == 2);
 }
 
+void testDetailsRoundTrip()
+{
+    // Threads, tapped holes, draft, ribs, emboss and varying fillets (M16).
+    ProjectData project;
+    Feature thread;
+    thread.kind = Feature::Kind::Thread;
+    thread.faces = {{gp_Pnt(3, 0, 20), gp::DX()}};
+    thread.thread = {ThreadStandard::UNC, 6.35, 1.27, 8.0, true};
+    Feature hole;
+    hole.kind = Feature::Kind::Hole;
+    hole.hole.tapped = true;
+    hole.hole.thread = {ThreadStandard::Metric, 8.0, 1.25, 0.0, false};
+    Feature draft;
+    draft.kind = Feature::Kind::Draft;
+    draft.value = -3.0;
+    draft.plane.kind = PlaneRef::Kind::Datum;
+    draft.plane.datum = kBaseXY;
+    Feature rib;
+    rib.kind = Feature::Kind::Rib;
+    rib.flip = true;
+    rib.value = 2.5;
+    Feature emboss;
+    emboss.kind = Feature::Kind::Emboss;
+    emboss.operation = BodyOperation::Cut;
+    Feature fillet;
+    fillet.kind = Feature::Kind::Fillet;
+    fillet.value = 1.0;
+    fillet.endValue = 3.0;
+    fillet.setback = 4.5;
+    Feature offset; // an extrusion starting off its sketch (M21)
+    offset.kind = Feature::Kind::Extrude;
+    offset.value = 10.0;
+    offset.startOffset = -7.5;
+    project.features = {thread, hole, draft, rib, emboss, fillet, offset};
+    numberFeatures(project.features);
+
+    QString error;
+    const QByteArray json = projectToJson(project);
+    const auto loaded = projectFromJson(json, &error);
+    CHECK(loaded.has_value());
+    if (!loaded)
+        return;
+    const auto& f = loaded->features;
+    CHECK(f.size() == 7);
+    CHECK(f[0].kind == Feature::Kind::Thread && f[0].thread.standard == ThreadStandard::UNC);
+    CHECK(f[0].thread.diameter == 6.35 && f[0].thread.pitch == 1.27 && f[0].thread.length == 8.0 && f[0].thread.modelled);
+    CHECK(f[1].hole.tapped && f[1].hole.thread.diameter == 8.0 && f[1].hole.thread.pitch == 1.25);
+    CHECK(f[2].kind == Feature::Kind::Draft && f[2].value == -3.0 && f[2].plane.datum == kBaseXY);
+    CHECK(f[3].kind == Feature::Kind::Rib && f[3].flip && f[3].value == 2.5);
+    CHECK(f[4].kind == Feature::Kind::Emboss && f[4].operation == BodyOperation::Cut);
+    CHECK(f[5].endValue == 3.0 && f[5].setback == 4.5);
+    CHECK(f.size() == 7 && f[6].startOffset == -7.5);
+    CHECK(projectToJson(*loaded) == json);
+
+    // Sketch text: its words, font and point.
+    ProjectData texts;
+    Sketch labelled(gp_Ax3(gp::Origin(), gp::DZ(), gp::DX()));
+    const PointId at = labelled.addPoint({2, 3});
+    labelled.addText(at, "Zażółć 8", 6.5, "FreeSans", true, false);
+    texts.sketches.push_back({1, labelled});
+    const QByteArray textJson = projectToJson(texts);
+    const auto textLoaded = projectFromJson(textJson, &error);
+    CHECK(textLoaded && textLoaded->sketches.size() == 1);
+    if (textLoaded && textLoaded->sketches.size() == 1) {
+        const Sketch& back = textLoaded->sketches[0].sketch;
+        CHECK(back.texts().size() == 1);
+        if (back.texts().size() == 1) {
+            CHECK(back.texts()[0] == labelled.texts()[0]);
+        }
+        CHECK(projectToJson(*textLoaded) == textJson);
+    }
+    // A text whose point is missing is left out.
+    QByteArray orphan = textJson;
+    orphan.replace(QByteArray("\"at\": ") + QByteArray::number(at), "\"at\": 999");
+    const auto withoutPoint = projectFromJson(orphan, &error);
+    CHECK(withoutPoint && withoutPoint->sketches[0].sketch.texts().empty());
+
+    // A thread with no pitch (a damaged file) keeps a sound default instead.
+    QByteArray damaged = json;
+    damaged.replace("\"pitch\": 1.27", "\"pitch\": 0");
+    const auto repaired = projectFromJson(damaged, &error);
+    CHECK(repaired && repaired->features[0].thread.pitch > 0.0);
+}
+
 void testSavedProjectRebuildsTheSameModel()
 {
     QTemporaryDir dir;
@@ -448,6 +532,7 @@ int main()
         {"round trip", testRoundTrip},
         {"toolkit geometry round trip", testToolkitGeometryRoundTrip},
         {"solid features round trip", testSolidFeaturesRoundTrip},
+        {"details round trip", testDetailsRoundTrip},
         {"moves and body styles round trip", testMovesAndBodyStylesRoundTrip},
         {"drawings round trip", testDrawingsRoundTrip},
         {"parameters round trip", testParametersRoundTrip},

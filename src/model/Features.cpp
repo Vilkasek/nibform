@@ -1,11 +1,15 @@
 #include "model/Features.h"
 #include "model/Tr.h"
 
+#include "model/Details.h"
 #include "model/Export.h"
 #include "model/Profiles.h"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <ShapeAnalysis_Surface.hxx>
+#include <BRep_Tool.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
@@ -30,6 +34,7 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <BRep_Builder.hxx>
+#include <gp_Pln.hxx>
 
 #include <algorithm>
 #include <cmath>
@@ -197,6 +202,63 @@ std::optional<int> findBody(const std::vector<TopoDS_Shape>& bodies, const gp_Pn
         }
     }
     return nearest;
+}
+
+FacePick surfacePick(const TopoDS_Face& face, const gp_Pnt& point)
+{
+    FacePick pick{point, gp::DZ()};
+    if (const auto flat = planarNormal(face)) {
+        pick.normal = *flat;
+        return pick;
+    }
+    const Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+    ShapeAnalysis_Surface analysis(surface);
+    const gp_Pnt2d uv = analysis.ValueOfUV(point, 1e-6);
+    BRepAdaptor_Surface adaptor(face);
+    BRepLProp_SLProps props(adaptor, uv.X(), uv.Y(), 1, 1e-9);
+    if (props.IsNormalDefined()) {
+        gp_Dir n = props.Normal();
+        if (face.Orientation() == TopAbs_REVERSED)
+            n.Reverse();
+        pick.normal = n;
+    }
+    pick.middle = surface->Value(uv.X(), uv.Y());
+    return pick;
+}
+
+std::optional<std::pair<TopoDS_Face, int>> findSurface(const std::vector<TopoDS_Shape>& bodies, const FacePick& pick)
+{
+    // The face nearest the point (it moved with the model a little at most), facing the
+    // same way there.
+    std::optional<std::pair<TopoDS_Face, int>> best;
+    double bestDistance = std::numeric_limits<double>::max();
+    const TopoDS_Shape at = BRepBuilderAPI_MakeVertex(pick.middle).Vertex();
+    for (int b = 0; b < static_cast<int>(bodies.size()); ++b) {
+        for (TopExp_Explorer it(bodies[b], TopAbs_FACE); it.More(); it.Next()) {
+            const TopoDS_Face face = TopoDS::Face(it.Current());
+            Bnd_Box box;
+            BRepBndLib::Add(face, box);
+            if (box.Distance(Bnd_Box(pick.middle, pick.middle)) > bestDistance)
+                continue;
+            BRepExtrema_DistShapeShape distance(face, at);
+            if (!distance.IsDone() || distance.Value() >= bestDistance)
+                continue;
+            const FacePick here = surfacePick(face, distance.PointOnShape1(1));
+            if (here.normal.Dot(pick.normal) < 0.9)
+                continue;
+            bestDistance = distance.Value();
+            best = std::pair(face, b);
+        }
+    }
+    return best;
+}
+
+std::vector<ThreadMark> ModelContext::allThreads() const
+{
+    std::vector<ThreadMark> all;
+    for (const auto& [id, marks] : threads)
+        all.insert(all.end(), marks.begin(), marks.end());
+    return all;
 }
 
 // --- What a feature made ------------------------------------------------------------
@@ -506,6 +568,68 @@ std::optional<TopoDS_Shape> importedShape(const std::shared_ptr<const std::strin
     return shape;
 }
 
+// Threads drilled holes (cut into `drilled`): each hole's wall, found again around its
+// axis, gets the thread from its mouth; a modelled one is cut, and the hole's tool
+// takes the grooves too (patterns repeat them).
+FeatureResult tapHoles(FeatureResult drilled, const std::vector<gp_Pnt>& mouths, const gp_Dir& into,
+                       const HoleSpec& spec)
+{
+    const double r = spec.diameter / 2.0;
+    ThreadSpec thread = spec.thread;
+    if (thread.length <= 0.0 && spec.depth > 0.0)
+        thread.length = spec.depth;
+    std::vector<ThreadMark> marks;
+    for (const gp_Pnt& mouth : mouths) {
+        // The wall: a cylinder of the drill's radius around this hole's axis.
+        std::optional<std::pair<TopoDS_Face, int>> wall;
+        double longest = 0.0;
+        for (int b = 0; b < static_cast<int>(drilled.bodies.size()); ++b) {
+            for (TopExp_Explorer it(drilled.bodies[b], TopAbs_FACE); it.More(); it.Next()) {
+                const TopoDS_Face face = TopoDS::Face(it.Current());
+                const BRepAdaptor_Surface surface(face);
+                if (surface.GetType() != GeomAbs_Cylinder || std::abs(surface.Cylinder().Radius() - r) > 1e-6)
+                    continue;
+                const gp_Ax1 axis = surface.Cylinder().Axis();
+                if (std::abs(axis.Direction().Dot(into)) < 1.0 - 1e-9
+                    || gp_Vec(axis.Location(), mouth).Crossed(gp_Vec(axis.Direction())).Magnitude() > 1e-6)
+                    continue;
+                double u0 = 0, u1 = 0, v0 = 0, v1 = 0;
+                BRepTools::UVBounds(face, u0, u1, v0, v1);
+                if (v1 - v0 > longest) {
+                    longest = v1 - v0;
+                    wall = std::pair(face, b);
+                }
+            }
+        }
+        if (!wall)
+            continue; // that hole missed the body
+        std::string error;
+        if (const auto mark = placeThread(drilled.bodies[wall->second], wall->first, thread, mouth, error))
+            marks.push_back(*mark);
+    }
+    if (thread.modelled && !marks.empty()) {
+        TopoDS_Compound grooves;
+        BRep_Builder().MakeCompound(grooves);
+        for (const ThreadMark& m : marks)
+            BRep_Builder().Add(grooves, threadGroove(m));
+        ModelResult cut = applyTool(drilled.bodies, grooves, BodyOperation::Cut);
+        if (!cut.ok()) {
+            drilled.error = QT_TRANSLATE_NOOP("Model", "Could not cut the thread");
+            return drilled;
+        }
+        drilled.bodies = std::move(cut.bodies);
+        if (drilled.tool) {
+            TopoDS_Compound both;
+            BRep_Builder().MakeCompound(both);
+            BRep_Builder().Add(both, drilled.tool->shape);
+            BRep_Builder().Add(both, grooves);
+            drilled.tool->shape = both;
+        }
+    }
+    drilled.threads = std::move(marks);
+    return drilled;
+}
+
 FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies, const Feature& f,
                              const ModelContext& context)
 {
@@ -541,7 +665,7 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
             }
             profiles.push_back({face->first, *planarNormal(face->first), face->second});
         }
-        return wrap(extrude(bodies, profiles, f.value, f.operation));
+        return wrap(extrude(bodies, offsetProfiles(std::move(profiles), f.startOffset), f.value, f.operation));
     }
     case Feature::Kind::Fillet:
     case Feature::Kind::Chamfer: {
@@ -554,8 +678,18 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
             }
             edges.push_back(*edge);
         }
-        return wrap(f.kind == Feature::Kind::Fillet ? filletEdges(bodies, edges, f.value)
-                                                    : chamferEdges(bodies, edges, f.value));
+        if (f.kind == Feature::Kind::Fillet && f.endValue > 0.0 && std::abs(f.endValue - f.value) > 1e-9) {
+            // `value` where each edge starts, `endValue` at the end it was picked toward.
+            std::vector<VaryingEdge> varying;
+            for (std::size_t i = 0; i < edges.size(); ++i) {
+                const EdgePick now = edgePick(edges[i].edge);
+                varying.push_back({edges[i], now.direction.Dot(f.edges[i].direction) < 0.0});
+            }
+            return wrap(setbackCorners(bodies, filletVarying(bodies, varying, f.value, f.endValue), edges, f.setback));
+        }
+        if (f.kind == Feature::Kind::Fillet)
+            return wrap(setbackCorners(bodies, filletEdges(bodies, edges, f.value), edges, f.setback));
+        return wrap(chamferEdges(bodies, edges, f.value));
     }
     case Feature::Kind::Shell: {
         std::vector<std::pair<int, TopoDS_Face>> open;
@@ -653,6 +787,7 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
             steps.push_back(t);
         }
         std::vector<TopoDS_Shape> copies;
+        std::vector<ThreadMark> threads;
         BodyOperation operation = f.operation;
         if (f.source != 0) {
             const auto it = context.tools.find(f.source);
@@ -661,6 +796,14 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
             for (const gp_Trsf& t : steps)
                 copies.push_back(transformed(it->second.shape, t));
             operation = it->second.operation;
+            if (const auto marks = context.threads.find(f.source); marks != context.threads.end()) {
+                for (const gp_Trsf& t : steps) {
+                    for (ThreadMark m : marks->second) {
+                        m.axis.Transform(t);
+                        threads.push_back(m);
+                    }
+                }
+            }
         } else {
             for (const gp_Pnt& p : f.bodies) {
                 const auto body = findBody(bodies, p);
@@ -672,7 +815,9 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
             if (copies.empty())
                 return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick the bodies to pattern"));
         }
-        return wrap(applyCopies(bodies, copies, operation));
+        FeatureResult result = wrap(applyCopies(bodies, copies, operation));
+        result.threads = std::move(threads);
+        return result;
     }
     case Feature::Kind::Hole: {
         if (f.faces.empty())
@@ -689,14 +834,22 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
                 return failed(bodies, QT_TRANSLATE_NOOP("Model", "The sketch point the hole was on is gone"));
             at.push_back(sketch->to3d(sketch->pos(ref.point)));
         }
-        if (at.empty() || f.hole.diameter <= 0.0)
+        HoleSpec spec = f.hole;
+        if (spec.tapped) {
+            spec.kind = HoleKind::Simple;
+            spec.thread = nearestThread(spec.thread.standard, spec.diameter, spec.thread);
+            spec.diameter = tapDrill(spec.thread);
+        }
+        if (at.empty() || spec.diameter <= 0.0)
             return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick where the hole goes"));
         const double through = reachOf(bodies);
         std::vector<TopoDS_Shape> cutters;
+        std::vector<gp_Pnt> mouths;
         for (const gp_Pnt& p : at) {
             // Onto the face's plane, then into the material.
             const gp_Pnt onFace = p.Translated(gp_Vec(normal) * -gp_Vec(origin, p).Dot(gp_Vec(normal)));
-            cutters.push_back(holeCutter(onFace, normal.Reversed(), f.hole, through));
+            cutters.push_back(holeCutter(onFace, normal.Reversed(), spec, through));
+            mouths.push_back(onFace);
         }
         TopoDS_Shape tool = cutters.front();
         if (cutters.size() > 1) {
@@ -707,8 +860,12 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
             tool = all;
         }
         FeatureResult result = wrap(applyTool(bodies, tool, BodyOperation::Cut));
-        if (!result.ok())
+        if (!result.ok()) {
             result.error = QT_TRANSLATE_NOOP("Model", "The hole doesn't reach any body");
+            return result;
+        }
+        if (spec.tapped)
+            return tapHoles(std::move(result), mouths, normal.Reversed(), spec);
         return result;
     }
     case Feature::Kind::Move: {
@@ -752,6 +909,64 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
         if (result.bodies.size() == before)
             return failed(bodies, QT_TRANSLATE_NOOP("Model", "The file has no closed solids; import it as a reference"));
         return result;
+    }
+    case Feature::Kind::Thread: {
+        if (f.faces.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick a round face for the thread"));
+        const auto face = findSurface(bodies, f.faces.front());
+        if (!face)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The face the thread was on is gone"));
+        std::string error;
+        const auto mark = placeThread(bodies[face->second], face->first, f.thread, f.faces.front().middle, error);
+        if (!mark) {
+            missing.error = error;
+            return missing;
+        }
+        FeatureResult result;
+        if (f.thread.modelled) {
+            result = wrap(applyTool(bodies, threadGroove(*mark), BodyOperation::Cut));
+            if (!result.ok()) {
+                result.error = QT_TRANSLATE_NOOP("Model", "Could not cut the thread");
+                return result;
+            }
+        } else {
+            result.bodies = bodies;
+        }
+        result.threads.push_back(*mark);
+        return result;
+    }
+    case Feature::Kind::Draft: {
+        const auto plane = resolvePlane(bodies, f.plane, context);
+        if (!plane)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The neutral plane is gone"));
+        std::vector<std::pair<int, TopoDS_Face>> faces;
+        for (const FacePick& p : f.faces) {
+            const auto face = findFace(bodies, p);
+            if (!face)
+                return failed(bodies, QT_TRANSLATE_NOOP("Model", "The face that was drafted is gone"));
+            faces.push_back({face->second, face->first});
+        }
+        return wrap(draftFaces(bodies, faces, gp_Pln(*plane), f.value));
+    }
+    case Feature::Kind::Rib: {
+        const Sketch* sketch = sketches(f.pathSketch);
+        const auto path = sketch ? sketchPath(*sketch, f.pathEntity) : std::nullopt;
+        if (!path)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The rib's line is gone"));
+        return wrap(ribFrom(bodies, *path, sketch->plane().Direction(), f.value, f.flip));
+    }
+    case Feature::Kind::Emboss: {
+        std::vector<TopoDS_Face> faces;
+        if (!profiles(faces) || f.regions.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The sketch region it was made from is gone"));
+        if (f.faces.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick the face to emboss on"));
+        const auto face = findSurface(bodies, f.faces.front());
+        if (!face)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The face it was on is gone"));
+        const gp_Dir along = sketches(f.regions.front().sketch)->plane().Direction();
+        return wrap(embossProfiles(bodies, face->second, face->first, f.faces.front().middle, faces, along, f.value,
+                                   f.operation == BodyOperation::Cut));
     }
     case Feature::Kind::Datum: {
         FeatureResult result;
@@ -832,6 +1047,10 @@ void remember(ModelContext& context, const Feature& feature, const FeatureResult
         context.tools[feature.id] = *result.tool;
     if (result.reference)
         context.references.push_back(*result.reference);
+    if (!result.threads.empty())
+        context.threads[feature.id] = result.threads;
+    else
+        context.threads.erase(feature.id);
 }
 
 std::vector<double> matrixOf(const gp_Trsf& trsf)

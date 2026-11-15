@@ -103,10 +103,19 @@ void DrawingWidget::reload()
 void DrawingWidget::regenerate()
 {
     const std::vector<TopoDS_Shape> bodies = m_editor->visibleBodies();
-    bool modelChanged = bodies.size() != m_bodies.size();
+    const std::vector<ThreadMark> threads = m_editor->threads();
+    bool modelChanged = bodies.size() != m_bodies.size() || threads.size() != m_threads.size();
     for (std::size_t i = 0; !modelChanged && i < bodies.size(); ++i)
         modelChanged = !bodies[i].IsSame(m_bodies[i]); // rebuilt bodies are new shapes
+    // A cosmetic thread changes no body, only what the drawing says.
+    for (std::size_t i = 0; !modelChanged && i < threads.size(); ++i) {
+        const ThreadMark &a = threads[i], &b = m_threads[i];
+        modelChanged = !a.axis.Location().IsEqual(b.axis.Location(), 0.0) || !a.axis.Direction().IsEqual(b.axis.Direction(), 0.0)
+                    || a.length != b.length || a.radius != b.radius || a.internal != b.internal
+                    || threadCallout(a.spec) != threadCallout(b.spec);
+    }
     m_bodies = bodies;
+    m_threads = threads;
     if (modelChanged) {
         Bnd_Box box;
         for (const TopoDS_Shape& b : bodies)
@@ -124,7 +133,7 @@ void DrawingWidget::regenerate()
             QGuiApplication::setOverrideCursor(Qt::WaitCursor);
             waiting = true;
         }
-        m_geometry[i] = projectView(bodies, m_drawing.views[i]);
+        m_geometry[i] = projectView(bodies, m_drawing.views[i], threads);
         m_keys[i] = key;
     }
     if (waiting)

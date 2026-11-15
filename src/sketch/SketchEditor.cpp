@@ -219,7 +219,7 @@ void SketchEditor::setTool(ToolKind kind)
             keepPicks(false, true, false);
         else if (isSolidTool(kind))
             clearModelSelection();
-        if (kind == ToolKind::Revolve || kind == ToolKind::Sweep || kind == ToolKind::Loft) {
+        if (kind == ToolKind::Revolve || kind == ToolKind::Sweep || kind == ToolKind::Loft || kind == ToolKind::Emboss) {
             m_solid.regions.assign(regions.begin(), regions.end());
             m_regionSelection = regions;
             showRegions();
@@ -478,12 +478,19 @@ void SketchEditor::deleteSelection()
             }
         }
     }
+    // A text goes with its point.
+    std::set<EntityId> texts;
+    for (const SketchText& t : sketch().texts()) {
+        if (doomed.points.count(t.at))
+            texts.insert(t.id);
+    }
     setSelection({});
     m_hover = {};
     commit([&](Sketch& s) {
         s.removeConstraints(doomed.constraints);
         for (const auto& [spline, point] : thinned)
             s.removeThroughPoint(spline, point);
+        s.removeTexts(texts);
         s.removeEntities(entities);
     });
     m_viewer->update();
@@ -903,6 +910,11 @@ bool SketchEditor::press(const PointerEvent& e)
         projectAt(e);
         return true;
     }
+    if (m_toolKind == ToolKind::Text) {
+        m_snap = snapAt(e);
+        refreshOverlay();
+        return true;
+    }
     if (m_toolKind == ToolKind::Freehand) {
         // Ink from wherever it starts; a tap (no stroke) picks like Select.
         m_pressHit = hitAt(e);
@@ -960,6 +972,12 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
             updateHint();
         return true;
     }
+    if (m_toolKind == ToolKind::Text) {
+        m_snap = snapAt(e);
+        refreshOverlay();
+        updateHint();
+        return true;
+    }
     if (m_toolKind == ToolKind::Freehand) {
         if (pressed && m_stroking) {
             strokeTo(e);
@@ -994,6 +1012,10 @@ bool SketchEditor::release(const PointerEvent& e)
         return modelRelease(e);
     if (m_toolKind == ToolKind::Project)
         return true;
+    if (m_toolKind == ToolKind::Text) {
+        textTap(snapAt(e));
+        return true;
+    }
     if (m_toolKind == ToolKind::Freehand) {
         if (m_stroking)
             strokeTo(e);
@@ -1481,8 +1503,11 @@ void SketchEditor::updateHint()
         const QString error = modelText(m_session.error);
         switch (m_toolKind) {
         case ToolKind::PushPull:
-            emit hintChanged(open ? tr("Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels")
-                                  : tr("Extrude: tap a sketch region or a flat face of a body"));
+            emit hintChanged(m_session.editingOffset
+                                 ? tr("Extrude: type how far from the profile it starts (negative: the other way)  ·  "
+                                      "Enter goes on to the distance")
+                             : open ? tr("Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels")
+                                    : tr("Extrude: tap a sketch region or a flat face of a body"));
             return;
         case ToolKind::Fillet:
             emit hintChanged(!error.isEmpty() ? tr("Fillet: %1").arg(error)
@@ -1500,7 +1525,10 @@ void SketchEditor::updateHint()
                                     : tr("Shell: tap the faces to open"));
             return;
         default:
-            emit hintChanged(open ? tr("Drag the arrow or type the distance  ·  Enter extrudes, Esc cancels")
+            emit hintChanged(m_session.editingOffset
+                                 ? tr("Extrude: type how far from the profile it starts (negative: the other way)  ·  "
+                                      "Enter goes on to the distance")
+                             : open ? tr("Drag the arrow or type the distance  ·  Enter extrudes, Esc cancels")
                                   : tr("Tap a sketch region to extrude it, or a face of a body  ·  "
                                        "New Sketch to draw"));
             return;
@@ -1536,6 +1564,11 @@ void SketchEditor::updateHint()
         else
             emit hintChanged(tr("Dimension: tap a line, circle or arc, or two points, a point and a line, two lines"
                                 "  ·  Esc goes back to Select"));
+        return;
+    }
+    if (m_toolKind == ToolKind::Text) {
+        emit hintChanged(tr("Text: tap where it starts (the left end of its baseline), or tap a text to change it  ·  "
+                            "drag its point in Select to move it"));
         return;
     }
     if (m_toolKind == ToolKind::Freehand) {

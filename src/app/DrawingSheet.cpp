@@ -177,6 +177,13 @@ std::optional<DimensionShape> shapeOf(const SheetContent& c, int index)
         return std::nullopt;
     DimensionShape s;
     s.label = dimensionLabel(m, dimensionValue(m, a2, b2, radius));
+    // A threaded hole or bolt is called out by its thread.
+    if (m.kind == SheetDimension::Kind::Diameter) {
+        for (const ViewGeometry::Circle& circle : g.circles) {
+            if (!circle.thread.empty() && circle.at.Distance(a2) < 1e-6 && std::abs(circle.radius - radius) < 1e-6)
+                s.label = QString::fromStdString(circle.thread);
+        }
+    }
     s.text.width = textWidth(s.label, kText);
     const Vec a = vec(toSheet(v, g, a2)), b = vec(toSheet(v, g, b2));
     using Kind = SheetDimension::Kind;
@@ -380,6 +387,9 @@ void paintSheet(QPainter& p, const SheetContent& content, const SheetHighlight& 
             p.drawLine(toPaint(d, toSheet(v, g, a)), toPaint(d, toSheet(v, g, b)));
         p.setPen(pen(color, kThin, Qt::DashLine));
         for (const Polyline2d& line : g.hidden)
+            polyline(p, d, v, g, line);
+        p.setPen(pen(color, kThin));
+        for (const Polyline2d& line : g.threads)
             polyline(p, d, v, g, line);
         p.setPen(pen(color, kThick));
         for (const Polyline2d& line : g.visible)

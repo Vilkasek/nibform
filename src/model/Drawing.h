@@ -1,5 +1,7 @@
 #pragma once
 
+#include "model/Threads.h"
+
 #include <TopoDS_Shape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Pnt.hxx>
@@ -81,8 +83,12 @@ struct ViewGeometry
         double radius = 0.0;
         bool full = true;  // a whole circle (else an arc: dimensioned by its radius)
         bool round = true; // seen face on (as a circle, not as a line or an ellipse)
+        std::string thread; // a threaded hole's or bolt's callout ("M8×1.25"), else empty
     };
     std::vector<Circle> circles;
+    // Cosmetic threads, drawn thin: a hole's major diameter or a bolt's minor one (three
+    // quarters of a circle seen end on, two lines seen from the side).
+    std::vector<Polyline2d> threads;
     gp_Pnt2d min, max; // extent, in view coordinates
     bool empty() const { return visible.empty() && hidden.empty() && cut.empty(); }
     gp_Pnt2d middle() const { return gp_Pnt2d((min.X() + max.X()) / 2.0, (min.Y() + max.Y()) / 2.0); }
@@ -93,8 +99,10 @@ gp_Ax2 viewAxes(ViewKind kind);
 // Where a model point lands in a view (view coordinates).
 gp_Pnt2d projectPoint(ViewKind kind, const gp_Pnt& p);
 
-// Projects the bodies as the view sees them, hidden edges apart; a section view cuts them first.
-ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetView& view);
+// Projects the bodies as the view sees them, hidden edges apart; a section view cuts them
+// first. The threads on them are drawn and called out (not in section or isometric views).
+ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetView& view,
+                         const std::vector<ThreadMark>& threads = {});
 
 // Lines across closed loops (even-odd: holes stay empty), `spacing` apart at `angleDeg`.
 std::vector<std::pair<gp_Pnt2d, gp_Pnt2d>> hatchLoops(const std::vector<Polyline2d>& loops, double spacing,

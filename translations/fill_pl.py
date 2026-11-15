@@ -60,9 +60,9 @@ PL = {
       "Przeciągnij (W): dotknij obszaru profilu, potem krzywej szkicu ścieżki",
   "Loft (L): tap profile regions on different planes in order, then Enter":
       "Wyciągnij przez profile (L): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter",
-  "Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored or countersunk":
+  "Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored, countersunk or tapped":
       "Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych "
-      "krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym",
+      "krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym, gwintowany",
   "Mirror (Shift+M): tap bodies, Enter, then the mirror plane (a flat face or a plane)":
       "Lustro (Shift+M): dotknij brył, Enter, potem płaszczyzny odbicia (płaskiej ściany albo płaszczyzny)",
   "Linear Pattern (Shift+L): tap a face of the cut, boss or hole to repeat (or bodies), then the direction (an edge, axis or sketch line); the count and spacing go in the panel":
@@ -362,9 +362,9 @@ PL = {
   "Circular Pattern": "Szyk kołowy", "Linear Pattern": "Szyk liniowy", "Hole": "Otwór", "Axis": "Oś",
   "Plane": "Płaszczyzna", "Hole: pick a flat face": "Otwór: wybierz płaską ścianę",
   "Count (with the original)": "Liczba (z oryginałem)", "Over [°] (360: a full turn)": "Na kącie [°] (360: pełny obrót)",
-  "Spacing [mm]": "Odstęp [mm]", "Hole diameter [mm]": "Średnica otworu [mm]", "Through": "Przelotowy",
+  "Spacing [mm]": "Odstęp [mm]", "Through": "Przelotowy",
   "Blind": "Nieprzelotowy", "Counterbore": "Pogłębienie walcowe", "Countersink": "Pogłębienie stożkowe",
-  "Depth [mm]": "Głębokość [mm]", "Head diameter [mm]": "Średnica pogłębienia [mm]",
+  "Head diameter [mm]": "Średnica pogłębienia [mm]",
   "Counterbore depth [mm]": "Głębokość pogłębienia [mm]", "Offset [mm]": "Odsunięcie [mm]",
   "type the angle  ·  Enter accepts": "wpisz kąt  ·  Enter zatwierdza",
   "Revolve: tap the sketch regions to turn": "Obrót: dotknij obszarów szkicu do obrócenia",
@@ -564,6 +564,107 @@ PL = {
  "ValueEditor": {"Accept (Enter)": "Zatwierdź (Enter)", "Cancel (Esc)": "Anuluj (Esc)",
                  "Out of range: %1 … %2": "Poza zakresem: %1 … %2"},
 }
+
+# Threads, draft, ribs, emboss, text, varying fillets (M16).
+PL["MainWindow"].update({
+  "Thread": "Gwint",
+  "Thread (T): tap a round face: a cylinder gets a bolt's thread, a hole's wall a tapped one; metric, UNC or UNF, cosmetic (shown and called out in drawings) or modelled":
+      "Gwint (T): dotknij okrągłej ściany: walec dostaje gwint zewnętrzny, ścianka otworu wewnętrzny; metryczny, "
+      "UNC albo UNF, umowny (pokazany i opisany na rysunku) albo zamodelowany",
+  "Draft": "Pochylenie", "Rib": "Żebro", "Emboss": "Wytłoczenie",
+  "Draft (D): tap the faces to tilt, Enter, then the neutral plane they turn about; the part comes out of a mold along its normal":
+      "Pochylenie (D): dotknij ścian do pochylenia, Enter, potem płaszczyzny neutralnej, wokół której się obracają; "
+      "część wychodzi z formy wzdłuż jej normalnej",
+  "Rib (B): tap an open sketch line drawn across the walls; a wall of the thickness fills from it to the body":
+      "Żebro (B): dotknij otwartej linii szkicu narysowanej w poprzek ścian; ścianka o podanej grubości wypełnia "
+      "przestrzeń od niej do bryły",
+  "Emboss (Shift+E): tap sketch regions (a letter takes its whole text), then the face to raise or sink them on, flat or curved":
+      "Wytłoczenie (Shift+E): dotknij obszarów szkicu (litera zaznacza cały tekst), potem ściany, na której mają "
+      "się wypukłić albo wgłębić, płaskiej lub zakrzywionej",
+  "Text": "Tekst",
+  "Text (X): tap where it starts and type the words; in any installed font; its letters are regions to extrude, emboss or engrave":
+      "Tekst (X): dotknij, gdzie się zaczyna, i wpisz słowa; dowolną zainstalowaną czcionką; litery są obszarami "
+      "do wyciągnięcia, wytłoczenia albo grawerowania",
+  "Radius Along the Edge…": "Promień wzdłuż krawędzi…",
+  "Setback Corners…": "Odsunięte naroża…",
+})
+PL["Model"].update({
+  "Could not cut the thread": "Nie udało się naciąć gwintu",
+  "Pick a round face for the thread": "Wybierz okrągłą ścianę na gwint",
+  "The face the thread was on is gone": "Ściany z gwintem już nie ma",
+  "The neutral plane is gone": "Płaszczyzny neutralnej już nie ma",
+  "The face that was drafted is gone": "Pochylonej ściany już nie ma",
+  "The rib's line is gone": "Linii żebra już nie ma",
+  "Pick the face to emboss on": "Wybierz ścianę do wytłoczenia",
+  "Pick the faces to draft": "Wybierz ściany do pochylenia",
+  "The draft angle must be between 0° and 89°": "Kąt pochylenia musi być między 0° a 89°",
+  "Can't draft this face: it must cross the neutral plane at an angle":
+      "Nie można pochylić tej ściany: musi przecinać płaszczyznę neutralną pod kątem",
+  "Can't draft these faces": "Nie można pochylić tych ścian",
+  "The rib needs a thickness": "Żebro potrzebuje grubości",
+  "A rib needs a body to stand on": "Żebro potrzebuje bryły, na której stoi",
+  "A rib follows an open line (or a chain of curves)": "Żebro biegnie wzdłuż otwartej linii (albo łańcucha krzywych)",
+  "The rib's line must lie in its sketch": "Linia żebra musi leżeć w jego szkicu",
+  "The rib doesn't meet the body on either side of its line": "Żebro nie styka się z bryłą po żadnej stronie linii",
+  "Could not join the rib with the body": "Nie udało się połączyć żebra z bryłą",
+  "Pick the sketch regions to emboss": "Wybierz obszary szkicu do wytłoczenia",
+  "The depth must be more than 0": "Głębokość musi być większa od 0",
+  "The face it was on is gone": "Ściany, na której było, już nie ma",
+  "Can't follow this curved face that deep": "Nie da się podążyć za tą zakrzywioną ścianą tak głęboko",
+  "Can't project the profiles onto the face": "Nie można rzutować profili na ścianę",
+  "The profiles don't land on the face": "Profile nie trafiają na ścianę",
+  "Both radii must be more than 0": "Oba promienie muszą być większe od 0",
+  "Can't set back this corner: try a smaller setback": "Nie można odsunąć tego naroża: spróbuj mniejszego odsunięcia",
+  "A thread goes on a round face (a cylinder or a hole)": "Gwint idzie na okrągłą ścianę (walec albo otwór)",
+  "The thread's size isn't valid": "Rozmiar gwintu jest nieprawidłowy",
+  "The round face is too short for a thread": "Okrągła ściana jest za krótka na gwint",
+  "The thread isn't wider than the hole: pick a larger size": "Gwint nie jest szerszy od otworu: wybierz większy rozmiar",
+  "The thread is too big for the cylinder: pick a smaller size": "Gwint jest za duży na ten walec: wybierz mniejszy rozmiar",
+  "The thread is too small for the cylinder: pick a larger size": "Gwint jest za mały na ten walec: wybierz większy rozmiar",
+})
+PL["SketchEditor"].update({
+  "Text: tap where it starts (the left end of its baseline), or tap a text to change it  ·  drag its point in Select to move it":
+      "Tekst: dotknij, gdzie się zaczyna (lewy koniec linii bazowej), albo dotknij tekstu, by go zmienić  ·  "
+      "przeciągnij jego punkt w Zaznacz, by go przesunąć",
+  "Thread": "Gwint", "Draft": "Pochylenie", "Rib": "Żebro", "Engrave": "Grawer", "Emboss": "Wytłoczenie",
+  "Thread: tap a round face (a cylinder or a hole)": "Gwint: dotknij okrągłej ściany (walca albo otworu)",
+  "Draft: tap flat faces": "Pochylenie: dotknij płaskich ścian",
+  "Hole diameter [mm] (tapped: the thread's size)": "Średnica otworu [mm] (gwintowany: rozmiar gwintu)",
+  "Tapped": "Gwintowany", "Depth [mm] (0: through)": "Głębokość [mm] (0: na wylot)",
+  "Thread length [mm] (0: as deep as the hole)": "Długość gwintu [mm] (0: na całą głębokość otworu)",
+  "Metric": "Metryczny", "UNC": "UNC", "UNF": "UNF",
+  "Cosmetic thread": "Gwint umowny", "Modelled thread": "Gwint modelowany",
+  "Thread size, nominal ⌀ [mm] (snaps to a standard size)": "Rozmiar gwintu, ⌀ nominalna [mm] (do najbliższego znormalizowanego)",
+  "Thread length [mm] (0: all of it)": "Długość gwintu [mm] (0: na całej długości)",
+  "Cosmetic": "Umowny", "Modelled": "Modelowany",
+  "Draft angle [°]": "Kąt pochylenia [°]", "Rib thickness [mm]": "Grubość żebra [mm]",
+  "This side": "Ta strona", "The other side": "Druga strona", "Height [mm]": "Wysokość [mm]",
+  "type the size and length, pick the standard  ·  Enter accepts": "wpisz rozmiar i długość, wybierz normę  ·  Enter zatwierdza",
+  "Thread: tap a round face: a cylinder for a bolt's thread, a hole's wall for a tapped one":
+      "Gwint: dotknij okrągłej ściany: walca na gwint zewnętrzny, ścianki otworu na wewnętrzny",
+  "Draft: tap the faces to tilt, then Enter (or tap a plane)": "Pochylenie: dotknij ścian do pochylenia, potem Enter (albo dotknij płaszczyzny)",
+  "Draft: %1 faces  ·  Enter, then tap the neutral plane": "Pochylenie: ścian: %1  ·  Enter, potem dotknij płaszczyzny neutralnej",
+  "Draft: tap the neutral plane (a flat face or a plane): the faces turn about where they cross it":
+      "Pochylenie: dotknij płaszczyzny neutralnej (płaskiej ściany albo płaszczyzny): ściany obracają się wokół miejsca, "
+      "gdzie ją przecinają",
+  "type the thickness, pick the side  ·  Enter accepts": "wpisz grubość, wybierz stronę  ·  Enter zatwierdza",
+  "Rib: tap an open sketch line (or chain) across the walls it should join":
+      "Żebro: dotknij otwartej linii szkicu (albo łańcucha) w poprzek ścian, które ma połączyć",
+  "type the height, emboss or engrave  ·  Enter accepts": "wpisz wysokość, wytłocz albo grawer  ·  Enter zatwierdza",
+  "Emboss: tap the sketch regions (a letter takes its whole text)": "Wytłoczenie: dotknij obszarów szkicu (litera zaznacza cały tekst)",
+  "Emboss: %1 regions  ·  tap the face to put them on (flat or curved)":
+      "Wytłoczenie: obszarów: %1  ·  dotknij ściany, na której mają być (płaskiej albo zakrzywionej)",
+  "Change Text": "Zmień tekst", "Text": "Tekst", "The words to write": "Słowa do napisania", "Text:": "Tekst:",
+  "Default (sans-serif)": "Domyślna (bezszeryfowa)", "Font:": "Czcionka:", "Bold": "Pogrubienie", "Italic": "Kursywa",
+  "Delete Text": "Usuń tekst", "Text height [mm]": "Wysokość tekstu [mm]",
+  "Radius where the edges start [mm]": "Promień na początku krawędzi [mm]",
+  "Radius where they end [mm] (0: the same)": "Promień na końcu [mm] (0: taki sam)",
+  "Corner setback [mm] (where 3+ edges meet; 0: none)": "Odsunięcie naroża [mm] (gdzie spotykają się 3+ krawędzie; 0: brak)",
+  "From the profile": "Od profilu", "Offset start": "Przesunięty start",
+  "Start offset [mm]": "Przesunięcie startu [mm]",
+  "Extrude: type how far from the profile it starts (negative: the other way)  ·  Enter goes on to the distance":
+      "Wyciągnięcie: wpisz, jak daleko od profilu się zaczyna (ujemne: w drugą stronę)  ·  Enter przechodzi do odległości",
+})
 
 path = sys.argv[1] if len(sys.argv) > 1 else "translations/nibform_pl.ts"
 tree = ET.parse(path)

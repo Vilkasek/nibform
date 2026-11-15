@@ -294,6 +294,18 @@
         <translation>Wyciągnij przez profile (L): dotknij po kolei obszarów na różnych płaszczyznach, potem Enter</translation>
     </message>
     <message>
+        <source>Thread</source>
+        <translation>Gwint</translation>
+    </message>
+    <message>
+        <source>Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored, countersunk or tapped</source>
+        <translation>Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym, gwintowany</translation>
+    </message>
+    <message>
+        <source>Thread (T): tap a round face: a cylinder gets a bolt's thread, a hole's wall a tapped one; metric, UNC or UNF, cosmetic (shown and called out in drawings) or modelled</source>
+        <translation>Gwint (T): dotknij okrągłej ściany: walec dostaje gwint zewnętrzny, ścianka otworu wewnętrzny; metryczny, UNC albo UNF, umowny (pokazany i opisany na rysunku) albo zamodelowany</translation>
+    </message>
+    <message>
         <source>Fillet</source>
         <translation>Zaokrąglij</translation>
     </message>
@@ -304,6 +316,30 @@
     <message>
         <source>Shell</source>
         <translation>Skorupa</translation>
+    </message>
+    <message>
+        <source>Draft</source>
+        <translation>Pochylenie</translation>
+    </message>
+    <message>
+        <source>Rib</source>
+        <translation>Żebro</translation>
+    </message>
+    <message>
+        <source>Emboss</source>
+        <translation>Wytłoczenie</translation>
+    </message>
+    <message>
+        <source>Draft (D): tap the faces to tilt, Enter, then the neutral plane they turn about; the part comes out of a mold along its normal</source>
+        <translation>Pochylenie (D): dotknij ścian do pochylenia, Enter, potem płaszczyzny neutralnej, wokół której się obracają; część wychodzi z formy wzdłuż jej normalnej</translation>
+    </message>
+    <message>
+        <source>Rib (B): tap an open sketch line drawn across the walls; a wall of the thickness fills from it to the body</source>
+        <translation>Żebro (B): dotknij otwartej linii szkicu narysowanej w poprzek ścian; ścianka o podanej grubości wypełnia przestrzeń od niej do bryły</translation>
+    </message>
+    <message>
+        <source>Emboss (Shift+E): tap sketch regions (a letter takes its whole text), then the face to raise or sink them on, flat or curved</source>
+        <translation>Wytłoczenie (Shift+E): dotknij obszarów szkicu (litera zaznacza cały tekst), potem ściany, na której mają się wypukłić albo wgłębić, płaskiej lub zakrzywionej</translation>
     </message>
     <message>
         <source>Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)</source>
@@ -382,6 +418,14 @@ a z dala od brył powstaje nowa bryła</translation>
     <message>
         <source>Circular Pattern (Ctrl+Shift+C): select curves, then pick the center and the count (a full turn)</source>
         <translation>Szyk kołowy (Ctrl+Shift+C) – zaznacz krzywe, potem wskaż środek i liczbę (na pełnym obrocie)</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>Tekst</translation>
+    </message>
+    <message>
+        <source>Text (X): tap where it starts and type the words; in any installed font; its letters are regions to extrude, emboss or engrave</source>
+        <translation>Tekst (X): dotknij, gdzie się zaczyna, i wpisz słowa; dowolną zainstalowaną czcionką; litery są obszarami do wyciągnięcia, wytłoczenia albo grawerowania</translation>
     </message>
     <message>
         <source>Project (Ctrl+Shift+P): tap body edges or faces to copy them into the sketch, pinned in place</source>
@@ -608,10 +652,6 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Hole</source>
         <translation>Otwór</translation>
-    </message>
-    <message>
-        <source>Hole (H): tap a flat face where it goes (sketch points and round edges' centers snap); through, blind, counterbored or countersunk</source>
-        <translation>Otwór (H): dotknij płaskiej ściany tam, gdzie ma być (przyciąga do punktów szkicu i środków okrągłych krawędzi); przelotowy, nieprzelotowy, z pogłębieniem walcowym albo stożkowym</translation>
     </message>
     <message>
         <source>Move</source>
@@ -1230,6 +1270,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Nie można otworzyć</translation>
     </message>
     <message>
+        <source>Radius Along the Edge…</source>
+        <translation>Promień wzdłuż krawędzi…</translation>
+    </message>
+    <message>
+        <source>Setback Corners…</source>
+        <translation>Odsunięte naroża…</translation>
+    </message>
+    <message>
         <source>Opened %1</source>
         <translation>Otwarto %1</translation>
     </message>
@@ -1385,6 +1433,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Nieznany rodzaj pliku (STEP, IGES albo STL)</translation>
     </message>
     <message>
+        <source>Could not cut the thread</source>
+        <translation>Nie udało się naciąć gwintu</translation>
+    </message>
+    <message>
         <source>The sketch region that was extruded is gone</source>
         <translation>Nie ma już obszaru szkicu, który był wyciągany</translation>
     </message>
@@ -1477,6 +1529,30 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Plik nie ma zamkniętych brył; zaimportuj go jako odniesienie</translation>
     </message>
     <message>
+        <source>Pick a round face for the thread</source>
+        <translation>Wybierz okrągłą ścianę na gwint</translation>
+    </message>
+    <message>
+        <source>The face the thread was on is gone</source>
+        <translation>Ściany z gwintem już nie ma</translation>
+    </message>
+    <message>
+        <source>The neutral plane is gone</source>
+        <translation>Płaszczyzny neutralnej już nie ma</translation>
+    </message>
+    <message>
+        <source>The face that was drafted is gone</source>
+        <translation>Pochylonej ściany już nie ma</translation>
+    </message>
+    <message>
+        <source>The rib's line is gone</source>
+        <translation>Linii żebra już nie ma</translation>
+    </message>
+    <message>
+        <source>Pick the face to emboss on</source>
+        <translation>Wybierz ścianę do wytłoczenia</translation>
+    </message>
+    <message>
         <source>The plane it was made from is gone</source>
         <translation>Płaszczyzna, z której powstała, zniknęła</translation>
     </message>
@@ -1525,12 +1601,84 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Wycięcie nie trafia w żadną bryłę</translation>
     </message>
     <message>
+        <source>Pick the faces to draft</source>
+        <translation>Wybierz ściany do pochylenia</translation>
+    </message>
+    <message>
+        <source>The draft angle must be between 0° and 89°</source>
+        <translation>Kąt pochylenia musi być między 0° a 89°</translation>
+    </message>
+    <message>
+        <source>Can't draft this face: it must cross the neutral plane at an angle</source>
+        <translation>Nie można pochylić tej ściany: musi przecinać płaszczyznę neutralną pod kątem</translation>
+    </message>
+    <message>
+        <source>Can't draft these faces</source>
+        <translation>Nie można pochylić tych ścian</translation>
+    </message>
+    <message>
+        <source>The rib needs a thickness</source>
+        <translation>Żebro potrzebuje grubości</translation>
+    </message>
+    <message>
+        <source>A rib needs a body to stand on</source>
+        <translation>Żebro potrzebuje bryły, na której stoi</translation>
+    </message>
+    <message>
+        <source>A rib follows an open line (or a chain of curves)</source>
+        <translation>Żebro biegnie wzdłuż otwartej linii (albo łańcucha krzywych)</translation>
+    </message>
+    <message>
+        <source>The rib's line must lie in its sketch</source>
+        <translation>Linia żebra musi leżeć w jego szkicu</translation>
+    </message>
+    <message>
+        <source>The rib doesn't meet the body on either side of its line</source>
+        <translation>Żebro nie styka się z bryłą po żadnej stronie linii</translation>
+    </message>
+    <message>
+        <source>Could not join the rib with the body</source>
+        <translation>Nie udało się połączyć żebra z bryłą</translation>
+    </message>
+    <message>
+        <source>Pick the sketch regions to emboss</source>
+        <translation>Wybierz obszary szkicu do wytłoczenia</translation>
+    </message>
+    <message>
+        <source>The depth must be more than 0</source>
+        <translation>Głębokość musi być większa od 0</translation>
+    </message>
+    <message>
+        <source>The face it was on is gone</source>
+        <translation>Ściany, na której było, już nie ma</translation>
+    </message>
+    <message>
+        <source>Can't follow this curved face that deep</source>
+        <translation>Nie da się podążyć za tą zakrzywioną ścianą tak głęboko</translation>
+    </message>
+    <message>
+        <source>Can't project the profiles onto the face</source>
+        <translation>Nie można rzutować profili na ścianę</translation>
+    </message>
+    <message>
+        <source>The profiles don't land on the face</source>
+        <translation>Profile nie trafiają na ścianę</translation>
+    </message>
+    <message>
         <source>Could not cut from the body</source>
         <translation>Nie udało się odjąć od bryły</translation>
     </message>
     <message>
+        <source>Both radii must be more than 0</source>
+        <translation>Oba promienie muszą być większe od 0</translation>
+    </message>
+    <message>
         <source>Can't fillet: the radius is too big for these edges</source>
         <translation>Nie da się zaokrąglić – promień za duży dla tych krawędzi</translation>
+    </message>
+    <message>
+        <source>Can't set back this corner: try a smaller setback</source>
+        <translation>Nie można odsunąć tego naroża: spróbuj mniejszego odsunięcia</translation>
     </message>
     <message>
         <source>Can't chamfer: the distance is too big for these edges</source>
@@ -1751,6 +1899,30 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Line %1: the expression is missing</source>
         <translation>Wiersz %1: brak wyrażenia</translation>
+    </message>
+    <message>
+        <source>A thread goes on a round face (a cylinder or a hole)</source>
+        <translation>Gwint idzie na okrągłą ścianę (walec albo otwór)</translation>
+    </message>
+    <message>
+        <source>The thread's size isn't valid</source>
+        <translation>Rozmiar gwintu jest nieprawidłowy</translation>
+    </message>
+    <message>
+        <source>The round face is too short for a thread</source>
+        <translation>Okrągła ściana jest za krótka na gwint</translation>
+    </message>
+    <message>
+        <source>The thread isn't wider than the hole: pick a larger size</source>
+        <translation>Gwint nie jest szerszy od otworu: wybierz większy rozmiar</translation>
+    </message>
+    <message>
+        <source>The thread is too big for the cylinder: pick a smaller size</source>
+        <translation>Gwint jest za duży na ten walec: wybierz mniejszy rozmiar</translation>
+    </message>
+    <message>
+        <source>The thread is too small for the cylinder: pick a larger size</source>
+        <translation>Gwint jest za mały na ten walec: wybierz większy rozmiar</translation>
     </message>
 </context>
 <context>
@@ -2207,6 +2379,10 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Przekrój: dotknij płaskiej ściany albo płaszczyzny, by przeciąć model wzdłuż niej</translation>
     </message>
     <message>
+        <source>Extrude: type how far from the profile it starts (negative: the other way)  ·  Enter goes on to the distance</source>
+        <translation>Wyciągnięcie: wpisz, jak daleko od profilu się zaczyna (ujemne: w drugą stronę)  ·  Enter przechodzi do odległości</translation>
+    </message>
+    <message>
         <source>Extrude: drag the arrow or type the distance  ·  Enter accepts, Esc cancels</source>
         <translation>Wyciągnij: przeciągnij strzałkę albo wpisz odległość  ·  Enter zatwierdza, Esc anuluje</translation>
     </message>
@@ -2303,6 +2479,10 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Wymiar: dotknij linii, okręgu lub łuku albo dwóch punktów, punktu i linii, dwóch linii  ·  Esc wraca do zaznaczania</translation>
     </message>
     <message>
+        <source>Text: tap where it starts (the left end of its baseline), or tap a text to change it  ·  drag its point in Select to move it</source>
+        <translation>Tekst: dotknij, gdzie się zaczyna (lewy koniec linii bazowej), albo dotknij tekstu, by go zmienić  ·  przeciągnij jego punkt w Zaznacz, by go przesunąć</translation>
+    </message>
+    <message>
         <source>Freehand: draw a line, corners, a rectangle, a circle or an arc  ·  scribble over something to delete it  ·  tap to select</source>
         <translation>Odręcznie: narysuj linię, łamaną, prostokąt, okrąg albo łuk  ·  zamaż coś, by to usunąć  ·  dotknij, by zaznaczyć</translation>
     </message>
@@ -2369,6 +2549,18 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Chamfer [mm]</source>
         <translation>Faza [mm]</translation>
+    </message>
+    <message>
+        <source>From the profile</source>
+        <translation>Od profilu</translation>
+    </message>
+    <message>
+        <source>Offset start</source>
+        <translation>Przesunięty start</translation>
+    </message>
+    <message>
+        <source>Start offset [mm]</source>
+        <translation>Przesunięcie startu [mm]</translation>
     </message>
     <message>
         <source>Couldn't record the picks</source>
@@ -2439,6 +2631,26 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Otwór</translation>
     </message>
     <message>
+        <source>Thread</source>
+        <translation>Gwint</translation>
+    </message>
+    <message>
+        <source>Draft</source>
+        <translation>Pochylenie</translation>
+    </message>
+    <message>
+        <source>Rib</source>
+        <translation>Żebro</translation>
+    </message>
+    <message>
+        <source>Engrave</source>
+        <translation>Grawer</translation>
+    </message>
+    <message>
+        <source>Emboss</source>
+        <translation>Wytłoczenie</translation>
+    </message>
+    <message>
         <source>Copy</source>
         <translation>Kopia</translation>
     </message>
@@ -2483,6 +2695,14 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Otwór: wybierz płaską ścianę</translation>
     </message>
     <message>
+        <source>Thread: tap a round face (a cylinder or a hole)</source>
+        <translation>Gwint: dotknij okrągłej ściany (walca albo otworu)</translation>
+    </message>
+    <message>
+        <source>Draft: tap flat faces</source>
+        <translation>Pochylenie: dotknij płaskich ścian</translation>
+    </message>
+    <message>
         <source>Count (with the original)</source>
         <translation>Liczba (z oryginałem)</translation>
     </message>
@@ -2493,10 +2713,6 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Spacing [mm]</source>
         <translation>Odstęp [mm]</translation>
-    </message>
-    <message>
-        <source>Hole diameter [mm]</source>
-        <translation>Średnica otworu [mm]</translation>
     </message>
     <message>
         <source>Through</source>
@@ -2515,8 +2731,16 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Pogłębienie stożkowe</translation>
     </message>
     <message>
-        <source>Depth [mm]</source>
-        <translation>Głębokość [mm]</translation>
+        <source>Hole diameter [mm] (tapped: the thread's size)</source>
+        <translation>Średnica otworu [mm] (gwintowany: rozmiar gwintu)</translation>
+    </message>
+    <message>
+        <source>Tapped</source>
+        <translation>Gwintowany</translation>
+    </message>
+    <message>
+        <source>Depth [mm] (0: through)</source>
+        <translation>Głębokość [mm] (0: na wylot)</translation>
     </message>
     <message>
         <source>Head diameter [mm]</source>
@@ -2525,6 +2749,66 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Counterbore depth [mm]</source>
         <translation>Głębokość pogłębienia [mm]</translation>
+    </message>
+    <message>
+        <source>Thread length [mm] (0: as deep as the hole)</source>
+        <translation>Długość gwintu [mm] (0: na całą głębokość otworu)</translation>
+    </message>
+    <message>
+        <source>Metric</source>
+        <translation>Metryczny</translation>
+    </message>
+    <message>
+        <source>UNC</source>
+        <translation>UNC</translation>
+    </message>
+    <message>
+        <source>UNF</source>
+        <translation>UNF</translation>
+    </message>
+    <message>
+        <source>Cosmetic thread</source>
+        <translation>Gwint umowny</translation>
+    </message>
+    <message>
+        <source>Modelled thread</source>
+        <translation>Gwint modelowany</translation>
+    </message>
+    <message>
+        <source>Thread size, nominal ⌀ [mm] (snaps to a standard size)</source>
+        <translation>Rozmiar gwintu, ⌀ nominalna [mm] (do najbliższego znormalizowanego)</translation>
+    </message>
+    <message>
+        <source>Thread length [mm] (0: all of it)</source>
+        <translation>Długość gwintu [mm] (0: na całej długości)</translation>
+    </message>
+    <message>
+        <source>Cosmetic</source>
+        <translation>Umowny</translation>
+    </message>
+    <message>
+        <source>Modelled</source>
+        <translation>Modelowany</translation>
+    </message>
+    <message>
+        <source>Draft angle [°]</source>
+        <translation>Kąt pochylenia [°]</translation>
+    </message>
+    <message>
+        <source>Rib thickness [mm]</source>
+        <translation>Grubość żebra [mm]</translation>
+    </message>
+    <message>
+        <source>This side</source>
+        <translation>Ta strona</translation>
+    </message>
+    <message>
+        <source>The other side</source>
+        <translation>Druga strona</translation>
+    </message>
+    <message>
+        <source>Height [mm]</source>
+        <translation>Wysokość [mm]</translation>
     </message>
     <message>
         <source>Offset [mm]</source>
@@ -2585,6 +2869,46 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>%1: tap a face of the cut or boss to repeat (or bodies)</source>
         <translation>%1: dotknij ściany wycięcia albo występu do powtórzenia (albo brył)</translation>
+    </message>
+    <message>
+        <source>type the size and length, pick the standard  ·  Enter accepts</source>
+        <translation>wpisz rozmiar i długość, wybierz normę  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Thread: tap a round face: a cylinder for a bolt's thread, a hole's wall for a tapped one</source>
+        <translation>Gwint: dotknij okrągłej ściany: walca na gwint zewnętrzny, ścianki otworu na wewnętrzny</translation>
+    </message>
+    <message>
+        <source>Draft: tap the faces to tilt, then Enter (or tap a plane)</source>
+        <translation>Pochylenie: dotknij ścian do pochylenia, potem Enter (albo dotknij płaszczyzny)</translation>
+    </message>
+    <message>
+        <source>Draft: %1 faces  ·  Enter, then tap the neutral plane</source>
+        <translation>Pochylenie: ścian: %1  ·  Enter, potem dotknij płaszczyzny neutralnej</translation>
+    </message>
+    <message>
+        <source>Draft: tap the neutral plane (a flat face or a plane): the faces turn about where they cross it</source>
+        <translation>Pochylenie: dotknij płaszczyzny neutralnej (płaskiej ściany albo płaszczyzny): ściany obracają się wokół miejsca, gdzie ją przecinają</translation>
+    </message>
+    <message>
+        <source>type the thickness, pick the side  ·  Enter accepts</source>
+        <translation>wpisz grubość, wybierz stronę  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Rib: tap an open sketch line (or chain) across the walls it should join</source>
+        <translation>Żebro: dotknij otwartej linii szkicu (albo łańcucha) w poprzek ścian, które ma połączyć</translation>
+    </message>
+    <message>
+        <source>type the height, emboss or engrave  ·  Enter accepts</source>
+        <translation>wpisz wysokość, wytłocz albo grawer  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Emboss: tap the sketch regions (a letter takes its whole text)</source>
+        <translation>Wytłoczenie: dotknij obszarów szkicu (litera zaznacza cały tekst)</translation>
+    </message>
+    <message>
+        <source>Emboss: %1 regions  ·  tap the face to put them on (flat or curved)</source>
+        <translation>Wytłoczenie: obszarów: %1  ·  dotknij ściany, na której mają być (płaskiej albo zakrzywionej)</translation>
     </message>
     <message>
         <source>An edge</source>
@@ -2801,6 +3125,58 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Parameter %1 = %2</source>
         <translation>Parametr %1 = %2</translation>
+    </message>
+    <message>
+        <source>Change Text</source>
+        <translation>Zmień tekst</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>Tekst</translation>
+    </message>
+    <message>
+        <source>The words to write</source>
+        <translation>Słowa do napisania</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>Tekst:</translation>
+    </message>
+    <message>
+        <source>Default (sans-serif)</source>
+        <translation>Domyślna (bezszeryfowa)</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>Czcionka:</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Pogrubienie</translation>
+    </message>
+    <message>
+        <source>Italic</source>
+        <translation>Kursywa</translation>
+    </message>
+    <message>
+        <source>Delete Text</source>
+        <translation>Usuń tekst</translation>
+    </message>
+    <message>
+        <source>Text height [mm]</source>
+        <translation>Wysokość tekstu [mm]</translation>
+    </message>
+    <message>
+        <source>Radius where the edges start [mm]</source>
+        <translation>Promień na początku krawędzi [mm]</translation>
+    </message>
+    <message>
+        <source>Radius where they end [mm] (0: the same)</source>
+        <translation>Promień na końcu [mm] (0: taki sam)</translation>
+    </message>
+    <message>
+        <source>Corner setback [mm] (where 3+ edges meet; 0: none)</source>
+        <translation>Odsunięcie naroża [mm] (gdzie spotykają się 3+ krawędzie; 0: brak)</translation>
     </message>
 </context>
 <context>

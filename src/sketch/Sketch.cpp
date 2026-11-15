@@ -106,6 +106,7 @@ Sketch::Sketch(const gp_Ax3& plane, Contents contents)
     , m_constraints(std::move(contents.constraints))
     , m_nextId(contents.nextId)
     , m_image(std::move(contents.image))
+    , m_texts(std::move(contents.texts))
 {
 }
 
@@ -279,6 +280,8 @@ void Sketch::removeEntities(const std::set<EntityId>& ids)
         for (PointId p : e.pointIds())
             used.insert(p);
     }
+    for (const SketchText& t : m_texts)
+        used.insert(t.at);
     std::erase_if(m_points, [&](const SketchPoint& p) { return used.count(p.id) == 0; });
 
     std::erase_if(m_constraints, [&](const SketchConstraint& c) {
@@ -325,6 +328,8 @@ bool Sketch::mergePoints(PointId keep, PointId drop)
         for (PointId& p : e.through)
             p = remap(p);
     }
+    for (SketchText& t : m_texts)
+        t.at = remap(t.at);
     std::erase_if(m_points, [&](const SketchPoint& p) { return p.id == drop; });
 
     std::vector<SketchConstraint> old = std::move(m_constraints);
@@ -363,6 +368,38 @@ void Sketch::clear()
     m_entities.clear();
     m_constraints.clear();
     m_image.reset();
+    m_texts.clear();
+}
+
+EntityId Sketch::addText(PointId at, std::string text, double height, std::string font, bool bold, bool italic)
+{
+    const EntityId id = m_nextId++;
+    m_texts.push_back({id, at, std::move(text), std::move(font), height, bold, italic});
+    return id;
+}
+
+void Sketch::removeTexts(const std::set<EntityId>& ids)
+{
+    std::erase_if(m_texts, [&](const SketchText& t) { return ids.count(t.id) > 0; });
+    removeEntities({}); // their points, when nothing else holds them
+}
+
+const SketchText* Sketch::text(EntityId id) const
+{
+    for (const SketchText& t : m_texts) {
+        if (t.id == id)
+            return &t;
+    }
+    return nullptr;
+}
+
+SketchText* Sketch::text(EntityId id)
+{
+    for (SketchText& t : m_texts) {
+        if (t.id == id)
+            return &t;
+    }
+    return nullptr;
 }
 
 void Sketch::setPos(PointId id, const gp_Pnt2d& pos)

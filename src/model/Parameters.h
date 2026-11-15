@@ -101,8 +101,10 @@ bool configurationModified(const ParameterTable& table);
 
 // --- Driving the model ---------------------------------------------------------------------
 
-// The values of a feature that can be expressions, by key: "value", "count",
-// "hole.diameter", "hole.depth", "hole.headDiameter", "hole.headDepth".
+// The values of a feature that can be expressions, by key: "value", "count", "endValue",
+// "setback", "startOffset", "hole.diameter", "hole.depth", "hole.headDiameter", "hole.headDepth",
+// "hole.thread.length", "thread.diameter", "thread.length". A thread's diameter (a
+// tapped hole's too) snaps to the nearest standard size.
 struct FeatureField
 {
     ValueKind kind = ValueKind::Length;

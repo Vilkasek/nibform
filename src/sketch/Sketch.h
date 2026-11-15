@@ -70,6 +70,22 @@ struct ReferenceImage
     }
 };
 
+// Text on the sketch plane, in a system font: its letters' outlines bound regions like
+// curves do (to extrude, emboss or engrave). It starts at point `at` (the left end of
+// its baseline), which moves, snaps and takes dimensions like any point. `height` is the
+// font's size; `font` a family name (empty: the default sans-serif).
+struct SketchText
+{
+    EntityId id = kNoId;
+    PointId at = kNoId;
+    std::string text;
+    std::string font;
+    double height = 10.0;
+    bool bold = false;
+    bool italic = false;
+    bool operator==(const SketchText&) const = default;
+};
+
 // A 2D sketch living on a plane in 3D. Plain value type: copying it is how undo works.
 class Sketch
 {
@@ -82,11 +98,12 @@ public:
         std::vector<SketchConstraint> constraints;
         int nextId = 1;
         std::optional<ReferenceImage> image;
+        std::vector<SketchText> texts;
     };
 
     explicit Sketch(const gp_Ax3& plane = gp_Ax3());
     Sketch(const gp_Ax3& plane, Contents contents);
-    Contents contents() const { return {m_points, m_entities, m_constraints, m_nextId, m_image}; }
+    Contents contents() const { return {m_points, m_entities, m_constraints, m_nextId, m_image, m_texts}; }
 
     const gp_Ax3& plane() const { return m_plane; }
     gp_Pnt to3d(const gp_Pnt2d& p) const;
@@ -104,6 +121,14 @@ public:
     EntityId addEllipse(PointId center, PointId axisA, PointId axisB);
     // Through `points` in order (2+ open, 3+ closed).
     EntityId addSpline(std::vector<PointId> points, bool closed);
+    // Text starting at `at` (an existing point).
+    EntityId addText(PointId at, std::string text, double height, std::string font = {}, bool bold = false,
+                     bool italic = false);
+    // Removes texts (and their points, unless something else uses them).
+    void removeTexts(const std::set<EntityId>& ids);
+    const std::vector<SketchText>& texts() const { return m_texts; }
+    const SketchText* text(EntityId id) const;
+    SketchText* text(EntityId id);
     // Takes a through point out of a spline that keeps enough of them; false otherwise.
     bool removeThroughPoint(EntityId spline, PointId point);
 
@@ -130,7 +155,7 @@ public:
     const SketchEntity* entity(EntityId id) const;
     SketchEntity* entity(EntityId id);
     gp_Pnt2d pos(PointId id) const;
-    bool isEmpty() const { return m_entities.empty() && m_points.empty() && !m_image; }
+    bool isEmpty() const { return m_entities.empty() && m_points.empty() && !m_image && m_texts.empty(); }
 
     const std::optional<ReferenceImage>& image() const { return m_image; }
     void setImage(std::optional<ReferenceImage> image) { m_image = std::move(image); }
@@ -153,6 +178,7 @@ private:
     std::vector<SketchConstraint> m_constraints;
     int m_nextId = 1;
     std::optional<ReferenceImage> m_image;
+    std::vector<SketchText> m_texts;
 };
 
 // Circle through three points; empty when they are (nearly) collinear.

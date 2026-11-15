@@ -24,6 +24,7 @@ ValueEditor::ValueEditor(QWidget* parent)
     , m_edit(new QLineEdit(this))
     , m_keypad(new QWidget(this))
     , m_choices(new QWidget(this))
+    , m_moreChoices(new QWidget(this))
     , m_result(new QLabel(this))
 {
     setObjectName(QStringLiteral("valueEditor")); // styled by the window's style sheet
@@ -74,10 +75,12 @@ ValueEditor::ValueEditor(QWidget* parent)
         }
     }
     m_keypad->hide();
-    auto* choiceRow = new QHBoxLayout(m_choices);
-    choiceRow->setContentsMargins(0, 0, 0, 0);
-    choiceRow->setSpacing(2);
-    m_choices->hide();
+    for (QWidget* choices : {m_choices, m_moreChoices}) {
+        auto* choiceRow = new QHBoxLayout(choices);
+        choiceRow->setContentsMargins(0, 0, 0, 0);
+        choiceRow->setSpacing(2);
+        choices->hide();
+    }
 
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(6, 4, 4, 4);
@@ -88,6 +91,7 @@ ValueEditor::ValueEditor(QWidget* parent)
     m_result->hide();
     outer->addWidget(m_result);
     outer->addWidget(m_choices);
+    outer->addWidget(m_moreChoices);
     outer->addWidget(m_keypad);
     hide();
 }
@@ -126,6 +130,32 @@ void ValueEditor::open(std::function<QString()> label, double value, double min,
     refocus();
 }
 
+void ValueEditor::retarget(std::function<QString()> label, double value, double min, double max,
+                           std::function<void(double)> accept, std::function<void()> cancel,
+                           std::function<void(double)> changed)
+{
+    m_labelText = std::move(label);
+    const QString labelText = m_labelText();
+    m_length = labelText.contains(QStringLiteral("[mm]"));
+    m_kind = m_length ? ValueKind::Length : labelText.contains(QStringLiteral("[°]")) ? ValueKind::Angle : ValueKind::Number;
+    m_expression = {};
+    m_opened = {};
+    m_label->setText(shownLabel());
+    m_min = shown(min);
+    m_max = shown(max);
+    m_accept = std::move(accept);
+    m_cancel = std::move(cancel);
+    m_changed = std::move(changed);
+    m_edit->setText(format(shown(value)));
+    m_edit->selectAll();
+    m_edit->setStyleSheet(QString());
+    m_result->hide();
+    show();
+    adjustSize();
+    raise();
+    refocus();
+}
+
 void ValueEditor::moveClamped(double x, double y)
 {
     const QWidget* area = parentWidget();
@@ -160,13 +190,11 @@ void ValueEditor::changeEvent(QEvent* event)
     QFrame::changeEvent(event);
 }
 
-void ValueEditor::setChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen)
+void ValueEditor::fillChoices(QWidget* row, const QStringList& texts, int current, const std::function<void(int)>& chosen)
 {
-    clearChoices();
-    m_choiceLabels = std::move(labels);
-    const QStringList texts = m_choiceLabels();
+    qDeleteAll(row->findChildren<QToolButton*>());
     for (int i = 0; i < texts.size(); ++i) {
-        auto* button = new QToolButton(m_choices);
+        auto* button = new QToolButton(row);
         button->setObjectName(QStringLiteral("valueChoice"));
         button->setText(texts[i]);
         button->setCheckable(true);
@@ -178,30 +206,57 @@ void ValueEditor::setChoices(std::function<QStringList()> labels, int current, c
             if (chosen)
                 chosen(i);
         });
-        m_choices->layout()->addWidget(button);
+        row->layout()->addWidget(button);
     }
-    m_choices->setVisible(!texts.isEmpty());
+    row->setVisible(!texts.isEmpty());
     if (isOpen())
         adjustSize();
 }
 
+void ValueEditor::setChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen)
+{
+    clearChoices();
+    m_choiceLabels = std::move(labels);
+    fillChoices(m_choices, m_choiceLabels(), current, chosen);
+}
+
+void ValueEditor::setMoreChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen)
+{
+    m_moreChoiceLabels = std::move(labels);
+    fillChoices(m_moreChoices, m_moreChoiceLabels(), current, chosen);
+}
+
 void ValueEditor::refreshChoices()
 {
-    if (!m_choiceLabels)
-        return;
-    const QStringList texts = m_choiceLabels();
-    const QList<QToolButton*> buttons = m_choices->findChildren<QToolButton*>();
-    for (int i = 0; i < std::min<int>(texts.size(), buttons.size()); ++i)
-        buttons[i]->setText(texts[i]);
+    const std::pair<QWidget*, const std::function<QStringList()>*> rows[] = {{m_choices, &m_choiceLabels},
+                                                                              {m_moreChoices, &m_moreChoiceLabels}};
+    for (const auto& [row, labels] : rows) {
+        if (!*labels)
+            continue;
+        const QStringList texts = (*labels)();
+        const QList<QToolButton*> buttons = row->findChildren<QToolButton*>();
+        for (int i = 0; i < std::min<int>(texts.size(), buttons.size()); ++i)
+            buttons[i]->setText(texts[i]);
+    }
     if (isOpen())
         adjustSize();
+}
+
+void ValueEditor::checkMoreChoice(int index)
+{
+    const QList<QToolButton*> buttons = m_moreChoices->findChildren<QToolButton*>();
+    if (index >= 0 && index < buttons.size())
+        buttons[index]->setChecked(true);
 }
 
 void ValueEditor::clearChoices()
 {
     m_choiceLabels = nullptr;
-    qDeleteAll(m_choices->findChildren<QToolButton*>());
-    m_choices->hide();
+    m_moreChoiceLabels = nullptr;
+    for (QWidget* row : {m_choices, m_moreChoices}) {
+        qDeleteAll(row->findChildren<QToolButton*>());
+        row->hide();
+    }
 }
 
 void ValueEditor::setKeypad(bool on)

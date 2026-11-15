@@ -31,6 +31,12 @@ public:
     void open(std::function<QString()> label, double value, double min, double max, const QPointF& anchor,
               std::function<void(double)> accept, std::function<void()> cancel = {},
               std::function<void(double)> changed = {});
+    // Turns the field to another value of the same edit (an extrusion's start offset and
+    // back), where it is, keeping the rows of choices; the previous callbacks are dropped
+    // without `cancel`. Also shows the field again after an accept closed it.
+    void retarget(std::function<QString()> label, double value, double min, double max,
+                  std::function<void(double)> accept, std::function<void()> cancel = {},
+                  std::function<void(double)> changed = {});
     // Moves the open field so it starts just right of `point` (parent coordinates),
     // instead of centered on its anchor: for things that must stay visible, like an arrow.
     void placeBeside(const QPointF& point);
@@ -59,7 +65,10 @@ public:
     // until the field closes. `labels` is asked again by refreshChoices() and when the
     // language changes; `chosen` gets the index tapped.
     void setChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen);
+    // A second row under it (after setChoices()), for a second, independent choice.
+    void setMoreChoices(std::function<QStringList()> labels, int current, const std::function<void(int)>& chosen);
     void refreshChoices();
+    void checkMoreChoice(int index); // marks a choice of the second row, without `chosen`
     // A numeric keypad under the field, for typing values without a keyboard (tablet mode).
     void setKeypad(bool on);
 
@@ -94,9 +103,12 @@ private:
     QLineEdit* m_edit;
     QWidget* m_keypad;
     QWidget* m_choices;
+    QWidget* m_moreChoices;
     QLabel* m_result; // an expression's value, or why it has none
     std::function<QStringList()> m_choiceLabels;
+    std::function<QStringList()> m_moreChoiceLabels;
     void clearChoices();
+    void fillChoices(QWidget* row, const QStringList& texts, int current, const std::function<void(int)>& chosen);
     double m_min = 0.0;
     double m_max = 0.0;
     QPointF m_anchor;

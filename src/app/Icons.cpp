@@ -506,6 +506,51 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.drawLine(QPointF(14, 12), QPointF(18, 12));
         break;
     }
+    case Icon::Thread: {
+        // A bolt: its outline, and the slanted crests of the thread.
+        p.drawLine(QPointF(8, 3), QPointF(8, 21));
+        p.drawLine(QPointF(16, 3), QPointF(16, 21));
+        p.setPen(pen(accent, 1.6));
+        for (double y = 6; y <= 18; y += 4)
+            p.drawLine(QPointF(6, y + 1.5), QPointF(18, y - 1.5));
+        break;
+    }
+    case Icon::Draft: {
+        // A block whose sides lean in, and the angle against upright.
+        p.drawLine(QPointF(4, 20), QPointF(20, 20));
+        p.setPen(QPen(ink, 1.2, Qt::DashLine));
+        p.drawLine(QPointF(5, 20), QPointF(5, 4));
+        p.setPen(pen(accent, 1.8));
+        p.drawPolyline(QPolygonF({{5, 20}, {8, 5}, {16, 5}, {19, 20}}));
+        break;
+    }
+    case Icon::Rib: {
+        // An L of a plate and a wall, with the rib across the corner.
+        p.drawPolyline(QPolygonF({{4, 3}, {4, 20}, {21, 20}}));
+        p.drawPolyline(QPolygonF({{7, 3}, {7, 17}, {21, 17}}));
+        p.setPen(pen(accent, 1.6));
+        p.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 90));
+        p.drawPolygon(QPolygonF({{7, 7}, {7, 17}, {17, 17}}));
+        p.setBrush(Qt::NoBrush);
+        break;
+    }
+    case Icon::Emboss: {
+        // A slab with a raised capital on top.
+        p.drawPolygon(QPolygonF({{2, 16}, {12, 20}, {22, 16}, {12, 12}}));
+        p.setPen(pen(accent, 1.8));
+        p.drawPolyline(QPolygonF({{8, 15}, {12, 4}, {16, 15}}));
+        p.drawLine(QPointF(9.6, 11), QPointF(14.4, 11));
+        break;
+    }
+    case Icon::Text: {
+        // A capital T on its baseline, starting at a point.
+        p.drawLine(QPointF(4, 20), QPointF(20, 20));
+        p.setPen(pen(accent, 2.0));
+        p.drawLine(QPointF(6, 4), QPointF(18, 4));
+        p.drawLine(QPointF(12, 4), QPointF(12, 17));
+        dot(p, {4, 20}, accent, 2.2);
+        break;
+    }
     case Icon::Note: {
         // Lines of text under a capital.
         p.drawLine(QPointF(5, 13), QPointF(19, 13));

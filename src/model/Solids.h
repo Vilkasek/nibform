@@ -1,5 +1,7 @@
 #pragma once
 
+#include "model/Threads.h"
+
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
@@ -31,7 +33,10 @@ enum class HoleKind { Simple, Counterbore, Countersink };
 
 // A hole's shape: a cylinder `diameter` wide, `depth` deep (through everything when 0),
 // under a wider counterbore (`headDiameter`, `headDepth` deep) or a 90° countersink
-// (`headDiameter` across at the surface).
+// (`headDiameter` across at the surface). A tapped hole is threaded: `diameter` is the
+// thread's nominal size (snapped to the nearest standard one of `thread.standard`), it
+// is drilled with that thread's tap drill and threaded from its mouth as deep as it
+// goes, or `thread.length` deep.
 struct HoleSpec
 {
     HoleKind kind = HoleKind::Simple;
@@ -39,6 +44,8 @@ struct HoleSpec
     double depth = 0.0;
     double headDiameter = 9.0;
     double headDepth = 3.0;
+    bool tapped = false;
+    ThreadSpec thread{ThreadStandard::Metric, 6.0, 1.0, 0.0, false};
 };
 
 // A planar face to push or pull: a sketch region, or a face of an existing body.
@@ -79,6 +86,11 @@ double volumeOf(const TopoDS_Shape& shape);
 
 // Whether extruding sketch profiles by `distance` starts inside material: then Auto cuts.
 bool startsInside(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles, double distance);
+
+// The profiles moved `offset` along their normals: an extrusion that starts away from the
+// sketch plane or face (inside a part, say). Moved off a body's face, a profile no longer
+// belongs to that body.
+std::vector<Profile> offsetProfiles(std::vector<Profile> profiles, double offset);
 
 // Extrudes the profiles by `distance` along their normals (negative goes the other way)
 // and applies the result to `bodies`.

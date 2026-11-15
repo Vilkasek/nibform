@@ -350,6 +350,9 @@ std::optional<Feature> SketchEditor::featureFromSession(double value) const
     if (m_session.kind == Kind::Extrude) {
         f.kind = Feature::Kind::Extrude;
         f.operation = m_bodyOperation;
+        f.startOffset = m_session.offset;
+        if (!m_session.offsetExpression.empty())
+            f.expressions["startOffset"] = m_session.offsetExpression;
         for (const RegionRef& r : m_regionSelection) {
             const Slot& slot = m_slots[r.sketch];
             const auto inside = insidePoint(slot.sketch, slot.regions[r.index]);
@@ -378,6 +381,8 @@ std::optional<Feature> SketchEditor::featureFromSession(double value) const
 void SketchEditor::refreshBodies()
 {
     const auto& ctx = m_viewer->aisContext();
+    setCutLook(false); // presentations kept below must not stay see-through
+    showThreads();
     // Picked faces / edges belong to the old presentations.
     ctx->ClearSelected(false);
     m_bodySelection.clear();
@@ -466,7 +471,9 @@ void SketchEditor::updateSelectionModes()
         const bool noEdges = m_toolKind == ToolKind::PushPull || m_toolKind == ToolKind::Shell
                           || m_toolKind == ToolKind::Hole || m_toolKind == ToolKind::Loft
                           || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::OffsetPlane
-                          || m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Section;
+                          || m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Section
+                          || m_toolKind == ToolKind::Thread || m_toolKind == ToolKind::Draft
+                          || m_toolKind == ToolKind::Emboss || m_toolKind == ToolKind::Rib;
         set(faces, model);
         set(edges, model && !noEdges);
         set(AIS_Shape::SelectionMode(TopAbs_VERTEX), model && corners);
@@ -609,10 +616,12 @@ void SketchEditor::showRegions()
         prs->Attributes()->SetFaceBoundaryDraw(false);
         prs->SetColor(color);
         prs->SetTransparency(transparency);
+        // Flat, unlit: the same blue on any plane, not shaded grey like a face.
+        prs->Attributes()->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit, true);
         prs->SetZLayer(Graphic3d_ZLayerId_Top);
         ctx->Display(prs, AIS_Shaded, -1, false); // not pickable through AIS: hit-tested on the planes
     };
-    show(m_regionPrs, plain, anyPlain, m_colors.region, 0.85);
+    show(m_regionPrs, plain, anyPlain, m_colors.region, 0.7);
     show(m_selectedRegionPrs, picked, anyPicked, m_colors.accent, 0.5);
     showHoverRegion();
 }
@@ -672,12 +681,12 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     // Regions only where they can be used: pulled, turned, swept, lofted.
     const bool regionTool = m_toolKind == ToolKind::Select || m_toolKind == ToolKind::PushPull
                          || m_toolKind == ToolKind::Revolve || m_toolKind == ToolKind::Sweep
-                         || m_toolKind == ToolKind::Loft;
+                         || m_toolKind == ToolKind::Loft || m_toolKind == ToolKind::Emboss;
 
     // Sketch curves (an axis to turn about, a path to sweep along) lie on top of the rest.
     const bool lineTool = m_toolKind == ToolKind::Revolve || m_toolKind == ToolKind::BodyLinearPattern
                        || m_toolKind == ToolKind::BodyCircularPattern || m_toolKind == ToolKind::AnglePlane;
-    if (lineTool || m_toolKind == ToolKind::Sweep) {
+    if (lineTool || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::Rib) {
         Hit curve;
         double nearest = 10.0 * m_touchScale;
         for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
@@ -786,8 +795,14 @@ bool SketchEditor::isPicked(const Hit& hit) const
 void SketchEditor::togglePick(const Hit& hit)
 {
     if (hit.kind == Hit::Kind::Region) {
-        if (!m_regionSelection.erase(hit.region))
-            m_regionSelection.insert(hit.region);
+        // A letter stands for its whole text.
+        const std::vector<RegionRef> regions = letterRegions(hit.region);
+        if (m_regionSelection.count(hit.region)) {
+            for (const RegionRef& r : regions)
+                m_regionSelection.erase(r);
+        } else {
+            m_regionSelection.insert(regions.begin(), regions.end());
+        }
         showRegions();
     } else if (hit.kind == Hit::Kind::Face || hit.kind == Hit::Kind::Edge) {
         const auto it = std::find_if(m_bodySelection.begin(), m_bodySelection.end(),
@@ -905,6 +920,8 @@ bool SketchEditor::modelPress(const PointerEvent& e)
         return movePress(e); // the gizmo; a tap is handled on release
     // The arrow takes the press first: dragging it sets the distance / radius.
     if (hitsArrow(e.pos)) {
+        if (m_session.editingOffset)
+            showExtrudeDistance(); // the arrow pulls the distance
         m_session.dragging = true;
         m_session.dragStartValue = m_session.value;
         m_session.dragStartParam = arrowParam(e.pixel);
@@ -1044,8 +1061,8 @@ std::optional<BodyOperation> SketchEditor::sessionAutoOperation()
 {
     if (m_session.kind != ValueSession::Kind::Extrude || std::abs(m_session.value) < 1e-6)
         return std::nullopt;
-    std::vector<Profile> sketchProfiles;
-    for (const Profile& p : selectedProfiles()) {
+    std::vector<Profile> sketchProfiles; // body faces moved off their body count as these
+    for (const Profile& p : offsetProfiles(selectedProfiles(), m_session.offset)) {
         if (p.body < 0)
             sketchProfiles.push_back(p);
     }
@@ -1125,14 +1142,7 @@ void SketchEditor::syncValueSession()
     };
     m_valueEditor->open(
         label, m_session.value, min, 1e5, anchor,
-        [this](double value) { applySession(value, m_valueEditor->expression()); },
-        [this] {
-            // Esc / ✕: drop the operation and what was picked for it.
-            if (m_session.kind != ValueSession::Kind::None) {
-                endValueSession(true);
-                clearModelSelection();
-            }
-        },
+        [this](double value) { applySession(value, m_valueEditor->expression()); }, [this] { dropValueSession(); },
         [this](double value) {
             m_session.value = value;
             showSessionPreview();
@@ -1149,10 +1159,73 @@ void SketchEditor::syncValueSession()
                 setBodyOperation(kOperations[index]);
                 showSessionPreview();
             });
+        // Where it starts: on the sketch plane / face, or moved off it first.
+        m_valueEditor->setMoreChoices([] { return QStringList{tr("From the profile"), tr("Offset start")}; }, 0,
+                                      [this](int index) {
+                                          if (index == 1) {
+                                              showExtrudeOffset();
+                                              return;
+                                          }
+                                          m_session.offsetExpression = {};
+                                          setSessionOffset(0.0);
+                                          if (m_session.editingOffset)
+                                              showExtrudeDistance();
+                                      });
     }
     if (const auto arrow = arrowOnScreen())
         m_valueEditor->placeBeside(arrow->second); // next to the arrow's head, not over it
     updateHint();
+}
+
+void SketchEditor::dropValueSession()
+{
+    if (m_session.kind != ValueSession::Kind::None) {
+        endValueSession(true);
+        clearModelSelection();
+    }
+}
+
+void SketchEditor::showExtrudeDistance()
+{
+    m_session.editingOffset = false;
+    m_valueEditor->retarget(
+        [] { return tr("Distance [mm]"); }, m_session.value, -1e5, 1e5,
+        [this](double value) { applySession(value, m_valueEditor->expression()); }, [this] { dropValueSession(); },
+        [this](double value) {
+            m_session.value = value;
+            showSessionPreview();
+        });
+    m_valueEditor->checkMoreChoice(std::abs(m_session.offset) > 1e-9 ? 1 : 0);
+    if (const auto arrow = arrowOnScreen())
+        m_valueEditor->placeBeside(arrow->second);
+    updateHint();
+}
+
+void SketchEditor::showExtrudeOffset()
+{
+    m_session.editingOffset = true;
+    m_session.offsetBefore = m_session.offset;
+    m_valueEditor->retarget(
+        [] { return tr("Start offset [mm]"); }, m_session.offset, -1e5, 1e5,
+        [this](double offset) {
+            m_session.offsetExpression = m_valueEditor->expression();
+            setSessionOffset(offset);
+            showExtrudeDistance(); // on to the distance
+        },
+        [this] {
+            setSessionOffset(m_session.offsetBefore); // Esc: the start as it was
+            showExtrudeDistance();
+        },
+        [this](double offset) { setSessionOffset(offset); });
+    m_valueEditor->checkMoreChoice(1);
+    updateHint();
+}
+
+void SketchEditor::setSessionOffset(double offset)
+{
+    m_session.offset = offset;
+    m_session.startsInside.reset();
+    showSessionPreview();
 }
 
 void SketchEditor::endValueSession(bool restoreBodies)
@@ -1181,8 +1254,10 @@ void SketchEditor::showSessionPreview()
     bool any = false;
     bool solid = false; // fillet / chamfer previews look like bodies, extrusions like ghosts
 
+    if (m_session.kind != Kind::Extrude)
+        setCutLook(false);
     if (m_session.kind == Kind::Extrude && std::abs(m_session.value) > 1e-6) {
-        for (const Profile& p : selectedProfiles()) {
+        for (const Profile& p : offsetProfiles(selectedProfiles(), m_session.offset)) {
             BRepPrimAPI_MakePrism prism(p.face, gp_Vec(p.normal) * m_session.value);
             if (prism.IsDone()) {
                 BRep_Builder().Add(shapes, prism.Shape());
@@ -1242,7 +1317,9 @@ void SketchEditor::showSessionPreview()
             m_bodyOperation == BodyOperation::Auto ? sessionAutoOperation() : m_bodyOperation;
         const bool cut = m_session.kind == Kind::Extrude && effective == BodyOperation::Cut;
         ctx->SetColor(m_previewPrs3d, solid ? m_colors.body : cut ? m_colors.trim : m_colors.preview, false);
-        ctx->SetTransparency(m_previewPrs3d, solid ? 0.0 : 0.55, false);
+        ctx->SetTransparency(m_previewPrs3d, solid ? 0.0 : cut ? 0.45 : 0.55, false);
+        if (m_session.kind == Kind::Extrude)
+            setCutLook(cut);
     }
     if (m_valueEditor->isOpen())
         m_valueEditor->refreshChoices(); // "Automatic: cut" as the value turns around
@@ -1250,8 +1327,26 @@ void SketchEditor::showSessionPreview()
     m_viewer->update();
 }
 
+void SketchEditor::setCutLook(bool on)
+{
+    if (m_cutLook == on)
+        return;
+    m_cutLook = on;
+    const auto& ctx = m_viewer->aisContext();
+    for (int i = 0; i < static_cast<int>(m_bodyPrs.size()); ++i) {
+        if (on) {
+            ctx->SetColor(m_bodyPrs[i], m_colors.preview, false);
+            ctx->SetTransparency(m_bodyPrs[i], 0.75, false);
+        } else {
+            ctx->SetColor(m_bodyPrs[i], bodyColor(i), false);
+            ctx->UnsetTransparency(m_bodyPrs[i], false);
+        }
+    }
+}
+
 void SketchEditor::hideSessionPreview()
 {
+    setCutLook(false);
     if (m_previewPrs3d.IsNull())
         return;
     m_viewer->aisContext()->Remove(m_previewPrs3d, false);
@@ -1346,6 +1441,8 @@ std::vector<TimelineItem> SketchEditor::timeline() const
         case Feature::Kind::Fillet:
             base = tr("Fillet");
             item.detail = QStringLiteral("r ") + lengthShort(f.value);
+            if (f.endValue > 0.0 && std::abs(f.endValue - f.value) > 1e-9)
+                item.detail += QStringLiteral(" → ") + lengthShort(f.endValue);
             break;
         case Feature::Kind::Chamfer:
             base = tr("Chamfer");
@@ -1384,7 +1481,25 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             break;
         case Feature::Kind::Hole:
             base = tr("Hole");
-            item.detail = QStringLiteral("⌀ %1").arg(lengthShort(f.hole.diameter));
+            item.detail = f.hole.tapped
+                            ? QString::fromStdString(threadCallout(nearestThread(f.hole.thread.standard, f.hole.diameter)))
+                            : QStringLiteral("⌀ %1").arg(lengthShort(f.hole.diameter));
+            break;
+        case Feature::Kind::Thread:
+            base = tr("Thread");
+            item.detail = QString::fromStdString(threadCallout(f.thread));
+            break;
+        case Feature::Kind::Draft:
+            base = tr("Draft");
+            item.detail = mm(f.value) + QStringLiteral("°");
+            break;
+        case Feature::Kind::Rib:
+            base = tr("Rib");
+            item.detail = lengthShort(f.value);
+            break;
+        case Feature::Kind::Emboss:
+            base = f.operation == BodyOperation::Cut ? tr("Engrave") : tr("Emboss");
+            item.detail = lengthShort(f.value);
             break;
         case Feature::Kind::Move:
             base = f.copy ? tr("Copy") : tr("Move");
@@ -1445,7 +1560,9 @@ void SketchEditor::activateTimelineItem(int index)
         return;
     }
     if (feature.kind == Feature::Kind::Revolve || feature.kind == Feature::Kind::Pattern
-        || feature.kind == Feature::Kind::Hole || feature.kind == Feature::Kind::Datum) {
+        || feature.kind == Feature::Kind::Hole || feature.kind == Feature::Kind::Datum
+        || feature.kind == Feature::Kind::Thread || feature.kind == Feature::Kind::Draft
+        || feature.kind == Feature::Kind::Rib || feature.kind == Feature::Kind::Emboss) {
         editFeature(index);
         return;
     }
@@ -1476,15 +1593,20 @@ void SketchEditor::activateTimelineItem(int index)
     const gp_Dir up = std::abs(eye.Dot(gp::DZ())) > 0.99 ? gp::DY() : gp::DZ();
     m_viewer->animateCamera(eye, up, bodiesBox());
 
-    // The whole model follows the value (and for an extrusion, the operation) as it is
-    // changed; Esc puts it back.
+    // The whole model follows the value (and for an extrusion, the operation and where it
+    // starts) as it is changed; Esc puts it back.
     auto operation = std::make_shared<BodyOperation>(feature.operation);
     auto typed = std::make_shared<double>(feature.value);
-    auto preview = [this, index, operation, typed](double value) {
+    auto offset = std::make_shared<double>(feature.startOffset);
+    auto offsetExpression = std::make_shared<Expression>();
+    if (const auto it = feature.expressions.find("startOffset"); it != feature.expressions.end())
+        *offsetExpression = it->second;
+    auto preview = [this, index, operation, typed, offset](double value) {
         *typed = value;
         std::vector<Feature> features = m_features;
         features[index].value = value;
         features[index].operation = *operation;
+        features[index].startOffset = *offset;
         requestBuild(
             std::move(features),
             [this](RebuildResult& result) {
@@ -1501,30 +1623,86 @@ void SketchEditor::activateTimelineItem(int index)
              : kind == Feature::Kind::Shell  ? tr("Wall thickness [mm]")
                                              : tr("Chamfer [mm]");
     };
-    m_valueEditor->open(label, feature.value, extrusion ? -1e5 : 1e-3, 1e5,
-                        QPointF(m_viewer->width() / 2.0, m_viewer->height() - 60.0),
-                        [this, index, operation](double value) {
-                            pushUndo();
-                            Feature& f = m_features[index];
-                            f.value = value;
-                            f.operation = *operation;
-                            if (const Expression& e = m_valueEditor->expression(); e.empty())
-                                f.expressions.erase("value");
-                            else
-                                f.expressions["value"] = e;
-                            rebuildModel();
-                            emit historyChanged();
-                        },
-                        [this] { rebuildModel(); }, preview);
-    if (const auto it = feature.expressions.find("value"); it != feature.expressions.end())
-        m_valueEditor->setExpression(it->second);
-    if (extrusion) {
-        m_valueEditor->setChoices([] { return operationLabels(std::nullopt); }, operationIndex(*operation),
-                                  [operation, typed, preview](int choice) {
-                                      *operation = kOperations[choice];
+    auto accept = [this, index, operation, offset, offsetExpression, extrusion](double value) {
+        pushUndo();
+        Feature& f = m_features[index];
+        f.value = value;
+        f.operation = *operation;
+        if (const Expression& e = m_valueEditor->expression(); e.empty())
+            f.expressions.erase("value");
+        else
+            f.expressions["value"] = e;
+        if (extrusion) {
+            f.startOffset = *offset;
+            if (offsetExpression->empty())
+                f.expressions.erase("startOffset");
+            else
+                f.expressions["startOffset"] = *offsetExpression;
+        }
+        rebuildModel();
+        emit historyChanged();
+    };
+    auto cancel = [this] { rebuildModel(); };
+    const double min = extrusion ? -1e5 : 1e-3;
+    m_valueEditor->open(label, feature.value, min, 1e5, QPointF(m_viewer->width() / 2.0, m_viewer->height() - 60.0),
+                        accept, cancel, preview);
+    const auto valueExpression = feature.expressions.find("value");
+    if (valueExpression != feature.expressions.end())
+        m_valueEditor->setExpression(valueExpression->second);
+    if (!extrusion)
+        return;
+    m_valueEditor->setChoices([] { return operationLabels(std::nullopt); }, operationIndex(*operation),
+                              [operation, typed, preview](int choice) {
+                                  *operation = kOperations[choice];
+                                  preview(*typed);
+                              });
+    // Where it starts: the field turns to the offset and, on Enter, back to the distance.
+    std::optional<Expression> shownExpression;
+    if (valueExpression != feature.expressions.end())
+        shownExpression = valueExpression->second;
+    auto showDistance = [this, label, typed, offset, accept, cancel, preview, shownExpression, value = feature.value] {
+        m_valueEditor->retarget(label, *typed, -1e5, 1e5, accept, cancel, preview);
+        if (shownExpression && *typed == value)
+            m_valueEditor->setExpression(*shownExpression); // still the expression's value
+        m_valueEditor->checkMoreChoice(std::abs(*offset) > 1e-9 ? 1 : 0);
+    };
+    auto showOffset = [this, typed, offset, offsetExpression, preview, showDistance] {
+        const double before = *offset;
+        const Expression beforeExpression = *offsetExpression;
+        m_valueEditor->retarget(
+            [] { return tr("Start offset [mm]"); }, *offset, -1e5, 1e5,
+            [this, typed, offset, offsetExpression, preview, showDistance](double value) {
+                *offset = value;
+                *offsetExpression = m_valueEditor->expression();
+                preview(*typed);
+                showDistance();
+            },
+            [typed, offset, offsetExpression, preview, showDistance, before, beforeExpression] {
+                *offset = before;
+                *offsetExpression = beforeExpression;
+                preview(*typed);
+                showDistance();
+            },
+            [typed, offset, preview](double value) {
+                *offset = value;
+                preview(*typed);
+            });
+        if (!offsetExpression->empty())
+            m_valueEditor->setExpression(*offsetExpression);
+        m_valueEditor->checkMoreChoice(1);
+    };
+    m_valueEditor->setMoreChoices([] { return QStringList{tr("From the profile"), tr("Offset start")}; },
+                                  std::abs(*offset) > 1e-9 ? 1 : 0,
+                                  [typed, offset, offsetExpression, preview, showDistance, showOffset](int choice) {
+                                      if (choice == 1) {
+                                          showOffset();
+                                          return;
+                                      }
+                                      *offset = 0.0;
+                                      *offsetExpression = {};
                                       preview(*typed);
+                                      showDistance();
                                   });
-    }
 }
 
 void SketchEditor::removeTimelineItem(int index)
@@ -1634,7 +1812,7 @@ std::optional<std::pair<QPointF, QPointF>> SketchEditor::arrowOnScreen() const
         return std::nullopt;
     // From where the value puts it (top of the extrusion / depth of the round), pointing
     // the way bigger values go.
-    const gp_Pnt tip = m_session.base.Translated(gp_Vec(m_session.normal) * m_session.value);
+    const gp_Pnt tip = m_session.base.Translated(gp_Vec(m_session.normal) * (m_session.offset + m_session.value));
     const QPointF from = m_viewer->project(tip);
     const QPointF ahead = m_viewer->project(tip.Translated(gp_Vec(m_session.normal) * pixelsToModel(kArrowPx)));
     QPointF dir = ahead - from;

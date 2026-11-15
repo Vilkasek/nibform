@@ -35,6 +35,8 @@ struct RegionPick
     gp_Pnt2d inside; // in sketch coordinates
 };
 
+// Flat faces are picked by their middle; round and curved ones (threads, emboss) by a
+// point on them, with the normal there.
 struct FacePick
 {
     gp_Pnt middle;
@@ -101,7 +103,7 @@ struct Feature
     enum class Kind
     {
         Sketch,  // a sketch was made (keeps its place in the timeline; builds nothing)
-        Extrude, // regions and / or body faces, `value` far, with `operation`
+        Extrude, // regions and / or body faces, `value` far from `startOffset`, with `operation`
         Fillet,  // edges, radius `value`
         Chamfer, // edges, size `value`
         Combine, // bodies, with `boolean`
@@ -116,6 +118,10 @@ struct Feature
         Datum,   // a construction plane or axis (`datum`)
         Move,    // bodies moved (or copied, `copy`) by `matrix`
         Import,  // the solids of `shape` as new bodies, or all of it as a `reference`
+        Thread,  // `thread` on the round face `faces[0]` (cosmetic, or a groove cut)
+        Draft,   // `faces` tilted by `value` degrees about the neutral `plane`
+        Rib,     // a wall `value` thick from the open path (`pathSketch`, `pathEntity`) to the body; `flip`: the other side
+        Emboss,  // regions onto the face `faces[0]`, `value` high (`operation` Join) or deep (Cut)
     };
     enum class PatternKind { Linear, Circular };
     enum class DatumKind { OffsetPlane, AnglePlane, ThreePointPlane, Axis, TwoPointAxis };
@@ -124,6 +130,16 @@ struct Feature
     int id = 0; // stable, for patterns and datums to refer to
     int sketch = -1; // Sketch: its id
     double value = 0.0;
+    // Fillet: the radius at the end each edge was picked toward (`value` at the other);
+    // 0: the same all along.
+    double endValue = 0.0;
+    // Fillet: how far from a corner where three or more of its edges meet the fillets give
+    // way to one smooth patch; 0: the usual corner.
+    double setback = 0.0;
+    bool flip = false; // Rib: fills the other side of its line
+    // Extrude: where it starts, this far from the profiles along their normal (negative:
+    // the other way); 0: on the sketch plane / face.
+    double startOffset = 0.0;
     BodyOperation operation = BodyOperation::Auto;
     BooleanKind boolean = BooleanKind::Union;
     std::vector<RegionPick> regions;
@@ -143,6 +159,8 @@ struct Feature
     int source = 0;
     // Hole
     HoleSpec hole;
+    // Thread
+    ThreadSpec thread;
     std::vector<SketchPointRef> holeAt;
     std::vector<gp_Pnt> points; // Hole: where else; Datum: through these
     DatumKind datum = DatumKind::OffsetPlane; // `value`: offset (mm) / angle (degrees)
@@ -185,7 +203,9 @@ struct ModelContext
     std::vector<Datum> datums;
     std::map<int, FeatureTool> tools;
     std::vector<TopoDS_Shape> references; // imported to look at, not to build on
+    std::map<int, std::vector<ThreadMark>> threads; // by feature id: threads and tapped holes
     const Datum* datum(int id) const;
+    std::vector<ThreadMark> allThreads() const;
 };
 
 std::optional<gp_Ax1> resolveAxis(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies,
@@ -207,6 +227,10 @@ std::optional<TopoDS_Face> findRegion(const SketchLookup& sketches, const Region
 std::optional<std::pair<TopoDS_Face, int>> findFace(const std::vector<TopoDS_Shape>& bodies, const FacePick& pick);
 std::optional<EdgeRef> findEdge(const std::vector<TopoDS_Shape>& bodies, const EdgePick& pick);
 std::optional<int> findBody(const std::vector<TopoDS_Shape>& bodies, const gp_Pnt& inside);
+// Any face (flat or curved) through the picked point, facing the same way.
+std::optional<std::pair<TopoDS_Face, int>> findSurface(const std::vector<TopoDS_Shape>& bodies, const FacePick& pick);
+// A pick of a face at `point` on it (the normal there).
+FacePick surfacePick(const TopoDS_Face& face, const gp_Pnt& point);
 
 // Picking what a feature made, for patterns: the feature (id) whose cut or added solid
 // shaped `face`, i.e. the face lies on that solid's surface. The latest such feature
@@ -221,6 +245,7 @@ struct FeatureResult : ModelResult
 {
     std::optional<Datum> datum;
     std::optional<TopoDS_Shape> reference;
+    std::vector<ThreadMark> threads;
 };
 FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies,
                            const Feature& feature, const ModelContext& context = {});

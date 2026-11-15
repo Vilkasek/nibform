@@ -262,6 +262,11 @@ std::optional<FeatureField> featureField(const Feature& f, const std::string& ke
             return positive;
         case K::Revolve:
             return turn;
+        case K::Draft:
+            return FeatureField{ValueKind::Angle, -89.0, 89.0, false};
+        case K::Rib:
+        case K::Emboss:
+            return positive;
         case K::Pattern:
             return f.pattern == Feature::PatternKind::Circular ? FeatureField{ValueKind::Angle, 1.0, 360.0, false} : length;
         case K::Datum:
@@ -276,6 +281,18 @@ std::optional<FeatureField> featureField(const Feature& f, const std::string& ke
     }
     if (key == "count" && f.kind == K::Pattern)
         return FeatureField{ValueKind::Number, 2, 500, true};
+    if ((key == "endValue" || key == "setback") && f.kind == K::Fillet)
+        return FeatureField{ValueKind::Length, 0.0, 1e5, false};
+    if (key == "startOffset" && f.kind == K::Extrude)
+        return FeatureField{ValueKind::Length, -1e5, 1e5, false};
+    // A thread's size snaps to the nearest standard one of its kind.
+    if (f.kind == K::Thread && key == "thread.diameter")
+        return FeatureField{ValueKind::Length, 0.5, 1e3, false};
+    if (f.kind == K::Thread && key == "thread.length")
+        return FeatureField{ValueKind::Length, 0.0, 1e5, false};
+    if (f.kind == K::Hole && key == "hole.thread.length")
+        return FeatureField{ValueKind::Length, 0.0, 1e5, false};
+
     if (f.kind == K::Hole && (key == "hole.diameter" || key == "hole.depth" || key == "hole.headDiameter"
                               || key == "hole.headDepth"))
         return FeatureField{ValueKind::Length, 0.01, 1e5, false};
@@ -296,6 +313,18 @@ std::optional<double> featureValue(const Feature& f, const std::string& key)
         return f.hole.depth;
     if (key == "hole.headDiameter")
         return f.hole.headDiameter;
+    if (key == "endValue")
+        return f.endValue;
+    if (key == "setback")
+        return f.setback;
+    if (key == "startOffset")
+        return f.startOffset;
+    if (key == "thread.diameter")
+        return f.thread.diameter;
+    if (key == "thread.length")
+        return f.thread.length;
+    if (key == "hole.thread.length")
+        return f.hole.thread.length;
     return f.hole.headDepth;
 }
 
@@ -313,6 +342,18 @@ void setFeatureValue(Feature& f, const std::string& key, double value)
         f.hole.headDiameter = value;
     else if (key == "hole.headDepth")
         f.hole.headDepth = value;
+    else if (key == "endValue")
+        f.endValue = value;
+    else if (key == "setback")
+        f.setback = value;
+    else if (key == "startOffset")
+        f.startOffset = value;
+    else if (key == "thread.diameter")
+        f.thread = nearestThread(f.thread.standard, value, f.thread);
+    else if (key == "thread.length")
+        f.thread.length = value;
+    else if (key == "hole.thread.length")
+        f.hole.thread.length = value;
 }
 
 ValueKind dimensionKind(ConstraintKind kind)

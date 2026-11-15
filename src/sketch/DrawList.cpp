@@ -1,5 +1,7 @@
 #include "sketch/DrawList.h"
 
+#include "model/TextShapes.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -29,6 +31,13 @@ DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent, cons
         const std::vector<gp_Pnt2d> pts = sketch.polyline(e);
         for (std::size_t i = 1; i < pts.size(); ++i)
             out.push_back({pts[i - 1], pts[i]});
+    }
+    for (const SketchText& t : sketch.texts()) {
+        std::vector<Segment2d>& out = accent.count(t.id) ? list.accentSegments : list.segments;
+        for (const std::vector<gp_Pnt2d>& line : textOutlines(sketch, t)) {
+            for (std::size_t i = 1; i < line.size(); ++i)
+                out.push_back({line[i - 1], line[i]});
+        }
     }
     for (const SketchPoint& p : sketch.points())
         (accentPoints.count(p.id) ? list.accentPoints : list.points).push_back(p.pos);

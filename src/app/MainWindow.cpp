@@ -74,6 +74,11 @@ QString toolId(ToolKind kind)
     case ToolKind::Project: return QStringLiteral("project");
     case ToolKind::Image: return QStringLiteral("image");
     case ToolKind::Freehand: return QStringLiteral("freehand");
+    case ToolKind::Text: return QStringLiteral("text");
+    case ToolKind::Thread: return QStringLiteral("thread");
+    case ToolKind::Draft: return QStringLiteral("draft");
+    case ToolKind::Rib: return QStringLiteral("rib");
+    case ToolKind::Emboss: return QStringLiteral("emboss");
     case ToolKind::Move: return QStringLiteral("move");
     case ToolKind::Measure: return QStringLiteral("measure");
     case ToolKind::Section: return QStringLiteral("section");
@@ -807,15 +812,27 @@ void MainWindow::buildActions()
     tip(ToolKind::Revolve, tr("Revolve (R): tap sketch regions, then the axis (a sketch line, an edge or an axis)"));
     tip(ToolKind::Sweep, tr("Sweep (W): tap the profile region, then a curve of the path sketch"));
     tip(ToolKind::Loft, tr("Loft (L): tap profile regions on different planes in order, then Enter"));
-    m_modelBar->addAction(makeTool(ToolKind::Hole, tr("Hole"), QKeySequence(Qt::Key_H), Icon::Hole));
+    modelGroup({makeTool(ToolKind::Hole, tr("Hole"), QKeySequence(Qt::Key_H), Icon::Hole),
+                makeTool(ToolKind::Thread, tr("Thread"), QKeySequence(Qt::Key_T), Icon::Thread)});
     tip(ToolKind::Hole, tr("Hole (H): tap a flat face where it goes (sketch points and round edges' centers "
-                           "snap); through, blind, counterbored or countersunk"));
+                           "snap); through, blind, counterbored, countersunk or tapped"));
+    tip(ToolKind::Thread, tr("Thread (T): tap a round face: a cylinder gets a bolt's thread, a hole's wall a tapped "
+                             "one; metric, UNC or UNF, cosmetic (shown and called out in drawings) or modelled"));
     m_modelBar->addAction(
         makeTool(ToolKind::Fillet, tr("Fillet"), QKeySequence(Qt::SHIFT | Qt::Key_F), Icon::Fillet));
     m_modelBar->addAction(
         makeTool(ToolKind::Chamfer, tr("Chamfer"), QKeySequence(Qt::SHIFT | Qt::Key_C), Icon::Chamfer));
     m_modelBar->addAction(
         makeTool(ToolKind::Shell, tr("Shell"), QKeySequence(Qt::SHIFT | Qt::Key_H), Icon::Shell));
+    modelGroup({makeTool(ToolKind::Draft, tr("Draft"), QKeySequence(Qt::Key_D), Icon::Draft),
+                makeTool(ToolKind::Rib, tr("Rib"), QKeySequence(Qt::Key_B), Icon::Rib),
+                makeTool(ToolKind::Emboss, tr("Emboss"), QKeySequence(Qt::SHIFT | Qt::Key_E), Icon::Emboss)});
+    tip(ToolKind::Draft, tr("Draft (D): tap the faces to tilt, Enter, then the neutral plane they turn about; "
+                            "the part comes out of a mold along its normal"));
+    tip(ToolKind::Rib, tr("Rib (B): tap an open sketch line drawn across the walls; a wall of the thickness "
+                          "fills from it to the body"));
+    tip(ToolKind::Emboss, tr("Emboss (Shift+E): tap sketch regions (a letter takes its whole text), then the face "
+                             "to raise or sink them on, flat or curved"));
     m_modelBar->addSeparator();
     m_modelBar->addAction(makeTool(ToolKind::Move, tr("Move"), QKeySequence(Qt::Key_M), Icon::Move));
     tip(ToolKind::Move, tr("Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or "
@@ -925,6 +942,10 @@ void MainWindow::buildActions()
         tr("Linear Pattern (Shift+L): select curves, then pick the step between copies and their count"));
     m_toolActions[ToolKind::CircularPattern]->setToolTip(
         tr("Circular Pattern (Ctrl+Shift+C): select curves, then pick the center and the count (a full turn)"));
+    m_sketchBar->addAction(tool(ToolKind::Text, tr("Text"), QKeySequence(Qt::Key_X), Icon::Text));
+    m_toolActions[ToolKind::Text]->setToolTip(
+        tr("Text (X): tap where it starts and type the words; in any installed font; its letters are regions "
+           "to extrude, emboss or engrave"));
     m_sketchBar->addAction(tool(ToolKind::Project, tr("Project"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), Icon::Project));
     m_toolActions[ToolKind::Project]->setToolTip(
         tr("Project (Ctrl+Shift+P): tap body edges or faces to copy them into the sketch, pinned in place"));
@@ -1278,7 +1299,8 @@ void MainWindow::buildActions()
     addBoolean(BooleanKind::Intersect, tr("Intersect"),
                tr("Keeps only what the selected bodies share"));
     bodies->addSeparator();
-    for (ToolKind kind : {ToolKind::Revolve, ToolKind::Sweep, ToolKind::Loft, ToolKind::Hole, ToolKind::BodyMirror,
+    for (ToolKind kind : {ToolKind::Revolve, ToolKind::Sweep, ToolKind::Loft, ToolKind::Hole, ToolKind::Thread,
+                          ToolKind::Draft, ToolKind::Rib, ToolKind::Emboss, ToolKind::BodyMirror,
                           ToolKind::BodyLinearPattern, ToolKind::BodyCircularPattern, ToolKind::OffsetPlane,
                           ToolKind::AnglePlane, ToolKind::ThreePointPlane, ToolKind::Axis})
         bodies->addAction(m_toolActions[kind]);
@@ -1477,6 +1499,10 @@ void MainWindow::updateTimeline()
                         : item.kind == Feature::Kind::Sweep   ? Icon::Sweep
                         : item.kind == Feature::Kind::Loft    ? Icon::Loft
                         : item.kind == Feature::Kind::Hole    ? Icon::Hole
+                        : item.kind == Feature::Kind::Thread  ? Icon::Thread
+                        : item.kind == Feature::Kind::Draft   ? Icon::Draft
+                        : item.kind == Feature::Kind::Rib     ? Icon::Rib
+                        : item.kind == Feature::Kind::Emboss  ? Icon::Emboss
                         : item.kind == Feature::Kind::Mirror  ? Icon::BodyMirror
                         : item.kind == Feature::Kind::Pattern ? Icon::CircularPattern
                         : item.kind == Feature::Kind::Datum   ? Icon::Plane
@@ -1495,6 +1521,10 @@ void MainWindow::updateTimeline()
         if (m_editor->canPattern(i)) {
             menu->addAction(tr("Linear Pattern…"), this, [this, i] { m_editor->patternFeature(i, false); });
             menu->addAction(tr("Circular Pattern…"), this, [this, i] { m_editor->patternFeature(i, true); });
+        }
+        if (m_editor->canVaryFillet(i)) {
+            menu->addAction(tr("Radius Along the Edge…"), this, [this, i] { m_editor->varyFillet(i); });
+            menu->addAction(tr("Setback Corners…"), this, [this, i] { m_editor->setBackFillet(i); });
         }
         menu->addAction(tr("Delete"), this, [this, i] {
             m_timelinePick = -1;

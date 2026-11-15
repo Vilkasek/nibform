@@ -70,17 +70,20 @@ protected:
 // Sketch tools draw on the open sketch. PushPull, Fillet and Chamfer work on regions
 // and bodies in model mode, so the editor handles them itself, like Select and
 // Dimension (picking, like Select): makeTool() gives no SketchTool for those.
-// Project picks body edges, and Freehand draws ink, so the editor handles them as well.
+// Project picks body edges, Freehand draws ink and Text asks for words, so the editor
+// handles them as well.
 enum class ToolKind
 {
     Select, Line, Rectangle, Circle, Arc, Trim, Offset, Dimension, PushPull, Fillet, Chamfer, Shell,
     Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
     Project, Image, Freehand,
+    Text, // sketch text, placed and edited by the editor (SketchEditorDetails.cpp)
     // Model: moving, measuring and cutting open (SketchEditorInspect.cpp)
     Move, Measure, Section,
     // Model: solid features and construction geometry (SketchEditorSolids.cpp)
     Revolve, Sweep, Loft, Hole, BodyMirror, BodyLinearPattern, BodyCircularPattern,
     OffsetPlane, AnglePlane, ThreePointPlane, Axis,
+    Thread, Draft, Rib, Emboss,
 };
 
 // The model tools that build a solid feature or construction geometry from several picks.

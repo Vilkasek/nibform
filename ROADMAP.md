@@ -1,6 +1,7 @@
 # Roadmap
 
-M0–M15 and i18n are done (see the README). Next: the details a real part needs (M16).
+M0–M16 and i18n are done (see the README). Next: assemblies (M17).
+M21 collects the extra variants of the everyday tools.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
 
@@ -123,7 +124,7 @@ Driving a model by named values.
 **Done when:** a box with a lid is resized for a new board by changing three parameters,
 and *Small* / *Large* configurations switch in one tap.
 
-## M16 – Details
+## M16 – Details ✓
 
 The finishing features a part for real use needs.
 
@@ -193,6 +194,23 @@ Working on a project over time and with others.
 
 **Done when:** two people editing a copy of one project in a synced folder can merge their
 changes, and a client can look at the result in a browser.
+
+## M21 – More ways to draw and build
+
+The variants of the everyday tools that save steps.
+
+- Rectangles from the center, and at an angle by three points; circles through three
+  points or tangent to two curves
+- Arcs from the center, and tangent arcs that continue a line or arc
+- Construction lines and points as their own tools (and a toggle for any curve); a
+  centerline that revolve and mirror pick up
+- Extend and split curves (next to trim), a sketch offset that keeps the corners round
+- Extrude both ways (symmetric or two distances), up to a face or through all; extrude
+  that starts from an offset
+- Split a body by a plane or a face, scale a body, offset and replace faces
+
+**Done when:** a part drawn from its center lines (a centered plate with a revolved boss
+and a slot) needs no helper geometry that has to be deleted afterwards.
 
 ## Later
 

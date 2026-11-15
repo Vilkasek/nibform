@@ -99,6 +99,7 @@ shortcuts.
 | Linear / Circular pattern | `Shift+L` / `Ctrl+Shift+C` | select curves, pick the step (or the center) and the count |
 | Project | `Ctrl+Shift+P` | tap a body edge or face: it is copied into the sketch, pinned in place |
 | Construction | `Q` | toggles the selected curves to helper geometry (dashed: snapped to and dimensioned, never bounding a region) |
+| Text | `X` | tap where it starts (the left end of its baseline) and type the words; font (any installed one), height, bold and italic go in the same dialog. Tap a text to change or delete it, drag its point in Select to move it. Its letters are regions: tap one to extrude, emboss or engrave the whole text |
 | Image | | *Image → Insert Image…* puts a picture on the sketch plane to trace over; tap two points a known distance apart and type it to scale it |
 
 Related tools share a toolbar button (the arrow lists the others, the button shows the one used
@@ -148,9 +149,13 @@ the other way), tap more regions or flat body faces to add them, `Enter` applies
 | Revolve | `R` | tap regions, then the axis – a sketch line, a straight or round edge, or an axis; type the angle |
 | Sweep | `W` | tap the profile region, then a curve of the path sketch (the curves connected to it follow) |
 | Loft | `L` | tap profile regions on different planes in order, then `Enter` |
-| Hole | `H` | tap a flat face where it goes (it snaps to sketch points – and then follows them – and to round edges' centers); through, blind, counterbored or countersunk |
+| Hole | `H` | tap a flat face where it goes (it snaps to sketch points – and then follows them – and to round edges' centers); through, blind, counterbored, countersunk or **tapped** (the thread's size, standard and length) |
 | Fillet / Chamfer | `Shift+F` / `Shift+C` | tap edges (a face takes all of its edges), drag the handle or type the size |
 | Shell | `Shift+H` | tap the faces to open and type the wall thickness |
+| Thread | `T` | tap a round face: a cylinder gets a bolt's thread, a hole's wall a tapped one. Type the nominal size (it snaps to the nearest standard one) and length; metric, UNC or UNF; cosmetic or modelled |
+| Draft | `D` | tap the faces to tilt, `Enter`, then the neutral plane (a flat face or a plane) they turn about; type the angle |
+| Rib | `B` | tap an open sketch line (or chain of curves) drawn across the walls: a wall of the typed thickness fills from it to the body, on this side or the other |
+| Emboss | `Shift+E` | tap sketch regions (a letter takes its whole text), then the face – flat or curved – to raise them on (*Emboss*) or sink them into (*Engrave*); type the height |
 | Move | `M` | tap bodies, then drag the gizmo's arrows and rings – or tap a corner, round edge or face of them and then one of another body: they meet, faces lie flush. `Enter` types offsets and a turn, and moves or copies |
 | Mirror | `Shift+M` | tap bodies, `Enter`, then the mirror plane (a flat face or a plane) |
 | Linear / Circular Pattern | `Shift+L` / `Ctrl+Shift+C` | tap a face of a cut, boss or hole to repeat what made it (or tap bodies), then the direction or axis; the count, spacing or angle go in the *Pattern* panel |
@@ -161,7 +166,10 @@ the other way), tap more regions or flat body faces to add them, `Enter` applies
 What an extrusion (or revolve, sweep, loft) does to the bodies it meets is chosen under the value
 field or in the *Operation* box: **Automatic** cuts when it starts inside a body (a sketch on a
 face pushed into it), joins when it reaches or touches one, and makes a new body otherwise;
-*New Body*, *Join* and *Cut* force one of them.
+*New Body*, *Join* and *Cut* force one of them. The row below picks where it starts: **From the
+profile** (the sketch plane or the face), or **Offset start** – the field asks how far from the
+profile it begins (negative: the other way; `Enter` goes on to the distance), so a pocket can start
+inside a part or a boss float above its sketch. Both are changed again from the history.
 
 - **Patterns of features**: in *Linear / Circular Pattern*, tap any face of a pocket cut from a
   sketch, a boss, a hole (what an extrusion from a sketch, a revolve, sweep, loft or hole cut or
@@ -182,6 +190,13 @@ face pushed into it), joins when it reaches or touches one, and makes a new body
   `Delete` removes them (and sketches with picked regions).
 - **Body list** (*View → Body List*): show / hide bodies, rename them, give them colors – kept with
   the project, and passed on to 3MF exports.
+- **Threads**: a *cosmetic* thread changes no geometry – it shows as a see-through sleeve on the
+  threaded wall and as a callout (`M8×1.25`, `1/4-20 UNC`) in drawings; a *modelled* one cuts the
+  real helix (heavier: for printing a thread). A tapped hole is drilled at the tap drill size.
+- **Varying fillets and setback corners**: the *History* arrow of a fillet offers *Radius Along the
+  Edge…* – one radius where the edges start, another where they end – and *Setback Corners…*: where
+  three or more of its edges meet, the fillets give way to one smooth patch within the typed distance
+  of the corner (a softer corner than the usual ball, as on molded parts).
 - Extruded regions are hidden so they don't cover the faces they lie on; *View → Show Extruded
   Regions* brings them back.
 
@@ -259,7 +274,8 @@ title block. *Back to Model* returns.
 
 - **Views** show visible edges thick, hidden ones dashed, center lines on holes. *Add View* adds
   any standard view, an isometric one, or a **section** – hatched, labelled A–A, with its cutting
-  line drawn on the views that see it edge on.
+  line drawn on the views that see it edge on. Cosmetic threads are drawn thin, and a threaded
+  hole or bolt is called out by its size (`M8×1.25`) instead of its diameter.
 - **Dimension**: tap two corners or centers of a view, or the rim of a hole for its diameter.
   Dimensions are tied to the model: they follow the history's changes (a lost one shows a red "?").
 - **Note**: tap where a text goes.
@@ -338,7 +354,7 @@ little as possible; degrees of freedom come from the Jacobian's null space (SVD)
 **Tests**: `ctest --test-dir build`, or one suite: `./build/test_sketch`, `test_solver`,
 `test_trim`, `test_offset`, `test_model`, `test_features`, `test_project`, `test_project_fuzz`,
 `test_input`, `test_value_editor`, `test_toolkit`, `test_freehand`, `test_solid_features`,
-`test_inspect`, `test_interop`, `test_drawing`, `test_rebuild`, `test_parameters`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
+`test_inspect`, `test_interop`, `test_drawing`, `test_rebuild`, `test_parameters`, `test_details`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
 `./build/bench_rebuild [pockets…]` times rebuilds of long histories (a plate with that many
 pockets and holes; 100 makes 227 features): a full replay, by kind of feature, and cached
 rebuilds after an edit early, midway and at the end.
@@ -397,7 +413,7 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M13** – drawings: views, sections, dimensions, notes, PDF / SVG export, printing
 - [x] **M14** – speed and robustness: background and incremental rebuild, large models
 - [x] **M15** – parameters: a parameter table, expressions in values, configurations
-- [ ] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
+- [x] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
 - [ ] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
 - [ ] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF
 - [ ] **M19** – scripting: Python API, console, headless runs, macros, plugins

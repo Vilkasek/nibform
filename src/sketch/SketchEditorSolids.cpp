@@ -6,11 +6,13 @@
 #include "sketch/SketchEditor.h"
 
 #include "model/Profiles.h"
+#include "model/Threads.h"
 #include "viewer/OcctViewerWidget.h"
 #include "viewer/ValueEditor.h"
 
 #include <AIS_InteractiveContext.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -54,6 +56,18 @@ double s_circularAngle = 360.0;
 HoleSpec s_hole;
 double s_planeOffset = 10.0;
 double s_planeAngle = 45.0;
+ThreadSpec s_thread; // the standard, length and cosmetic / modelled of the last thread
+double s_draftAngle = 3.0;
+double s_ribThickness = 2.0;
+double s_embossDepth = 1.0;
+bool s_engrave = false;
+
+constexpr ThreadStandard kStandards[] = {ThreadStandard::Metric, ThreadStandard::UNC, ThreadStandard::UNF};
+
+int standardChoice(ThreadStandard s)
+{
+    return s == ThreadStandard::UNC ? 1 : s == ThreadStandard::UNF ? 2 : 0;
+}
 
 TopoDS_Compound compound()
 {
@@ -98,6 +112,7 @@ bool SketchEditor::wantsBaseDatums() const
     case ToolKind::OffsetPlane:
     case ToolKind::AnglePlane:
     case ToolKind::Section:
+    case ToolKind::Draft:
         return true;
     default:
         return false;
@@ -266,13 +281,18 @@ void SketchEditor::placeHole(const Hit& hit, const QPointF& tap)
 void SketchEditor::solidTap(const Hit& hit)
 {
     auto toggleRegion = [this](const RegionRef& r) {
-        const auto it = std::find(m_solid.regions.begin(), m_solid.regions.end(), r);
-        if (it != m_solid.regions.end()) {
-            m_solid.regions.erase(it);
-            m_regionSelection.erase(r);
-        } else {
-            m_solid.regions.push_back(r);
-            m_regionSelection.insert(r);
+        // A letter stands for its whole text.
+        const std::vector<RegionRef> all = letterRegions(r);
+        const bool picked = std::find(m_solid.regions.begin(), m_solid.regions.end(), r) != m_solid.regions.end();
+        for (const RegionRef& each : all) {
+            const auto it = std::find(m_solid.regions.begin(), m_solid.regions.end(), each);
+            if (picked && it != m_solid.regions.end()) {
+                m_solid.regions.erase(it);
+                m_regionSelection.erase(each);
+            } else if (!picked && it == m_solid.regions.end()) {
+                m_solid.regions.push_back(each);
+                m_regionSelection.insert(each);
+            }
         }
         showRegions();
     };
@@ -371,6 +391,56 @@ void SketchEditor::solidTap(const Hit& hit)
         }
         ready = m_solid.axis || m_solid.points.size() >= 2;
         break;
+    case ToolKind::Thread:
+        if (hit.kind == Hit::Kind::Face) {
+            const TopoDS_Face face = TopoDS::Face(hit.shape);
+            if (BRepAdaptor_Surface(face).GetType() != GeomAbs_Cylinder) {
+                emit message(tr("Thread: tap a round face (a cylinder or a hole)"));
+                break;
+            }
+            if (const auto at = pointOnFace(face, m_tapPos))
+                m_solid.face = surfacePick(face, *at);
+        }
+        ready = m_solid.face.has_value();
+        break;
+    case ToolKind::Draft:
+        // Faces to tilt, Enter, then the neutral plane (a datum plane can come any time).
+        if (!m_solid.reference && hit.kind == Hit::Kind::Face) {
+            const TopoDS_Face face = TopoDS::Face(hit.shape);
+            if (!planarNormal(face)) {
+                emit message(tr("Draft: tap flat faces"));
+                break;
+            }
+            const FacePick pick = facePick(face);
+            const auto known = std::find_if(m_solid.faces.begin(), m_solid.faces.end(), [&](const FacePick& p) {
+                return p.middle.Distance(pick.middle) < 1e-6 && p.normal.IsEqual(pick.normal, 1e-6);
+            });
+            if (known != m_solid.faces.end())
+                m_solid.faces.erase(known);
+            else
+                m_solid.faces.push_back(pick);
+        } else if (const auto plane = planeOf(hit); plane && (m_solid.reference || hit.kind == Hit::Kind::Datum)) {
+            m_solid.plane = plane;
+        }
+        ready = !m_solid.faces.empty() && m_solid.plane;
+        break;
+    case ToolKind::Rib:
+        if (hit.kind == Hit::Kind::SketchCurve) {
+            m_solid.pathSketch = m_slots[hit.region.sketch].id;
+            m_solid.pathEntity = hit.id;
+        }
+        ready = m_solid.pathEntity >= 0;
+        break;
+    case ToolKind::Emboss:
+        if (hit.kind == Hit::Kind::Region) {
+            toggleRegion(hit.region);
+        } else if (hit.kind == Hit::Kind::Face && !m_solid.regions.empty()) {
+            const TopoDS_Face face = TopoDS::Face(hit.shape);
+            if (const auto at = pointOnFace(face, m_tapPos))
+                m_solid.face = surfacePick(face, *at);
+        }
+        ready = !m_solid.regions.empty() && m_solid.face;
+        break;
     default:
         return;
     }
@@ -428,6 +498,14 @@ void SketchEditor::refreshSolidMarks()
                 add(face);
         }
     }
+    for (const FacePick& p : m_solid.faces) {
+        if (const auto face = findFace(m_bodies, p))
+            add(face->first);
+    }
+    if (m_solid.face && (m_toolKind == ToolKind::Thread || m_toolKind == ToolKind::Emboss)) {
+        if (const auto face = findSurface(m_bodies, *m_solid.face))
+            add(face->first);
+    }
     for (const gp_Pnt& p : m_solid.points)
         add(BRepBuilderAPI_MakeVertex(p).Shape());
     for (const SketchPointRef& r : m_solid.holeAt) {
@@ -474,6 +552,12 @@ bool SketchEditor::solidConfirm()
         updateHint();
         return true;
     }
+    if (m_toolKind == ToolKind::Draft && !m_solid.reference && !m_solid.faces.empty()) {
+        m_solid.reference = true;
+        updateSelectionModes();
+        updateHint();
+        return true;
+    }
     if (m_toolKind == ToolKind::Hole && (!m_solid.points.empty() || !m_solid.holeAt.empty())) {
         solidReady();
         return true;
@@ -491,7 +575,7 @@ bool SketchEditor::solidCancel()
         return false;
     const bool any = !m_solid.regions.empty() || m_solid.axis || m_solid.plane || m_solid.pathEntity >= 0
                   || !m_solid.bodies.empty() || m_solid.source != 0 || !m_solid.points.empty()
-                  || !m_solid.holeAt.empty() || m_solid.face;
+                  || !m_solid.holeAt.empty() || m_solid.face || !m_solid.faces.empty();
     if (!any)
         return false;
     clearFeaturePreview();
@@ -598,6 +682,36 @@ std::optional<Feature> SketchEditor::solidFeature() const
             f.points = m_solid.points;
         }
         break;
+    case ToolKind::Thread: {
+        f.kind = Feature::Kind::Thread;
+        f.faces = {*m_solid.face};
+        f.thread = s_thread;
+        // The size that fits the cylinder: a bolt's nominal one, or a hole's tapped one.
+        if (const auto face = findSurface(m_bodies, *m_solid.face)) {
+            const double diameter = 2.0 * BRepAdaptor_Surface(face->first).Cylinder().Radius();
+            f.thread = threadForCylinder(s_thread.standard, diameter, isHoleWall(m_bodies[face->second], face->first),
+                                         s_thread);
+        }
+        break;
+    }
+    case ToolKind::Draft:
+        f.kind = Feature::Kind::Draft;
+        f.faces = m_solid.faces;
+        f.plane = *m_solid.plane;
+        f.value = s_draftAngle;
+        break;
+    case ToolKind::Rib:
+        f.kind = Feature::Kind::Rib;
+        f.pathSketch = m_solid.pathSketch;
+        f.pathEntity = m_solid.pathEntity;
+        f.value = s_ribThickness;
+        break;
+    case ToolKind::Emboss:
+        f.kind = Feature::Kind::Emboss;
+        f.faces = {*m_solid.face};
+        f.value = s_embossDepth;
+        f.operation = s_engrave ? BodyOperation::Cut : BodyOperation::Join;
+        break;
     default:
         return std::nullopt;
     }
@@ -648,17 +762,34 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
     }
     case Feature::Kind::Hole: {
         FeaturePrompt diameter;
-        diameter.label = [] { return tr("Hole diameter [mm]"); };
+        diameter.label = [] { return tr("Hole diameter [mm] (tapped: the thread's size)"); };
         diameter.min = 0.01;
         diameter.get = [](const Feature& f) { return f.hole.diameter; };
         diameter.set = [](Feature& f, double v) { f.hole.diameter = v; };
         diameter.field = "hole.diameter";
-        diameter.choices = [] { return QStringList{tr("Through"), tr("Blind"), tr("Counterbore"), tr("Countersink")}; };
+        diameter.choices = [] {
+            return QStringList{tr("Through"), tr("Blind"), tr("Counterbore"), tr("Countersink"), tr("Tapped")};
+        };
         diameter.choice = [](const Feature& f) {
-            return f.hole.kind == HoleKind::Counterbore ? 2 : f.hole.kind == HoleKind::Countersink ? 3 : f.hole.depth > 0.0 ? 1 : 0;
+            return f.hole.tapped ? 4
+                 : f.hole.kind == HoleKind::Counterbore ? 2
+                 : f.hole.kind == HoleKind::Countersink ? 3
+                 : f.hole.depth > 0.0                   ? 1
+                                                        : 0;
         };
         diameter.choose = [](Feature& f, int i) {
             HoleSpec& h = f.hole;
+            if (i == 4) {
+                // Tapped: the drill so far is taken as the tap drill of the thread to cut.
+                if (!h.tapped)
+                    h.diameter = threadForCylinder(h.thread.standard, h.diameter, true).diameter;
+                h.tapped = true;
+                h.kind = HoleKind::Simple;
+                return;
+            }
+            if (h.tapped) // back to a plain hole: the tap drill
+                h.diameter = tapDrill(nearestThread(h.thread.standard, h.diameter, h.thread));
+            h.tapped = false;
             h.kind = i == 2 ? HoleKind::Counterbore : i == 3 ? HoleKind::Countersink : HoleKind::Simple;
             if (i == 0)
                 h.depth = 0.0;
@@ -671,12 +802,12 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         };
         prompts.push_back(diameter);
         FeaturePrompt depth;
-        depth.label = [] { return tr("Depth [mm]"); };
-        depth.min = 0.01;
+        depth.label = [] { return tr("Depth [mm] (0: through)"); };
+        depth.min = 0.0;
         depth.get = [](const Feature& f) { return f.hole.depth; };
         depth.set = [](Feature& f, double v) { f.hole.depth = v; };
         depth.field = "hole.depth";
-        depth.applies = [](const Feature& f) { return f.hole.depth > 0.0; };
+        depth.applies = [](const Feature& f) { return f.hole.depth > 0.0 || f.hole.tapped; };
         prompts.push_back(depth);
         FeaturePrompt head;
         head.label = [] { return tr("Head diameter [mm]"); };
@@ -684,7 +815,7 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         head.get = [](const Feature& f) { return f.hole.headDiameter; };
         head.set = [](Feature& f, double v) { f.hole.headDiameter = v; };
         head.field = "hole.headDiameter";
-        head.applies = [](const Feature& f) { return f.hole.kind != HoleKind::Simple; };
+        head.applies = [](const Feature& f) { return f.hole.kind != HoleKind::Simple && !f.hole.tapped; };
         prompts.push_back(head);
         FeaturePrompt headDepth;
         headDepth.label = [] { return tr("Counterbore depth [mm]"); };
@@ -692,8 +823,86 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         headDepth.get = [](const Feature& f) { return f.hole.headDepth; };
         headDepth.set = [](Feature& f, double v) { f.hole.headDepth = v; };
         headDepth.field = "hole.headDepth";
-        headDepth.applies = [](const Feature& f) { return f.hole.kind == HoleKind::Counterbore; };
+        headDepth.applies = [](const Feature& f) { return f.hole.kind == HoleKind::Counterbore && !f.hole.tapped; };
         prompts.push_back(headDepth);
+        FeaturePrompt thread;
+        thread.label = [] { return tr("Thread length [mm] (0: as deep as the hole)"); };
+        thread.min = 0.0;
+        thread.get = [](const Feature& f) { return f.hole.thread.length; };
+        thread.set = [](Feature& f, double v) { f.hole.thread.length = v; };
+        thread.field = "hole.thread.length";
+        thread.applies = [](const Feature& f) { return f.hole.tapped; };
+        thread.choices = [] { return QStringList{tr("Metric"), tr("UNC"), tr("UNF")}; };
+        thread.choice = [](const Feature& f) { return standardChoice(f.hole.thread.standard); };
+        thread.choose = [](Feature& f, int i) {
+            f.hole.thread.standard = kStandards[i];
+            f.hole.diameter = nearestThread(kStandards[i], f.hole.diameter).diameter;
+        };
+        thread.moreChoices = [] { return QStringList{tr("Cosmetic thread"), tr("Modelled thread")}; };
+        thread.moreChoice = [](const Feature& f) { return f.hole.thread.modelled ? 1 : 0; };
+        thread.chooseMore = [](Feature& f, int i) { f.hole.thread.modelled = i == 1; };
+        prompts.push_back(thread);
+        break;
+    }
+    case Feature::Kind::Thread: {
+        FeaturePrompt size;
+        size.label = [] { return tr("Thread size, nominal ⌀ [mm] (snaps to a standard size)"); };
+        size.min = 0.5;
+        size.max = 1e3;
+        size.get = [](const Feature& f) { return f.thread.diameter; };
+        size.set = [](Feature& f, double v) { f.thread = nearestThread(f.thread.standard, v, f.thread); };
+        size.field = "thread.diameter";
+        size.choices = [] { return QStringList{tr("Metric"), tr("UNC"), tr("UNF")}; };
+        size.choice = [](const Feature& f) { return standardChoice(f.thread.standard); };
+        size.choose = [](Feature& f, int i) { f.thread = nearestThread(kStandards[i], f.thread.diameter, f.thread); };
+        prompts.push_back(size);
+        FeaturePrompt length;
+        length.label = [] { return tr("Thread length [mm] (0: all of it)"); };
+        length.min = 0.0;
+        length.get = [](const Feature& f) { return f.thread.length; };
+        length.set = [](Feature& f, double v) { f.thread.length = v; };
+        length.field = "thread.length";
+        length.choices = [] { return QStringList{tr("Cosmetic"), tr("Modelled")}; };
+        length.choice = [](const Feature& f) { return f.thread.modelled ? 1 : 0; };
+        length.choose = [](Feature& f, int i) { f.thread.modelled = i == 1; };
+        prompts.push_back(length);
+        break;
+    }
+    case Feature::Kind::Draft: {
+        FeaturePrompt angle;
+        angle.label = [] { return tr("Draft angle [°]"); };
+        angle.min = -89.0;
+        angle.max = 89.0;
+        angle.get = [](const Feature& f) { return f.value; };
+        angle.set = [](Feature& f, double v) { f.value = v; };
+        angle.field = "value";
+        prompts.push_back(angle);
+        break;
+    }
+    case Feature::Kind::Rib: {
+        FeaturePrompt thickness;
+        thickness.label = [] { return tr("Rib thickness [mm]"); };
+        thickness.min = 0.01;
+        thickness.get = [](const Feature& f) { return f.value; };
+        thickness.set = [](Feature& f, double v) { f.value = v; };
+        thickness.field = "value";
+        thickness.choices = [] { return QStringList{tr("This side"), tr("The other side")}; };
+        thickness.choice = [](const Feature& f) { return f.flip ? 1 : 0; };
+        thickness.choose = [](Feature& f, int i) { f.flip = i == 1; };
+        prompts.push_back(thickness);
+        break;
+    }
+    case Feature::Kind::Emboss: {
+        FeaturePrompt depth;
+        depth.label = [] { return tr("Height [mm]"); };
+        depth.min = 0.01;
+        depth.get = [](const Feature& f) { return f.value; };
+        depth.set = [](Feature& f, double v) { f.value = v; };
+        depth.field = "value";
+        depth.choices = [] { return QStringList{tr("Emboss"), tr("Engrave")}; };
+        depth.choice = [](const Feature& f) { return f.operation == BodyOperation::Cut ? 1 : 0; };
+        depth.choose = [](Feature& f, int i) { f.operation = i == 1 ? BodyOperation::Cut : BodyOperation::Join; };
+        prompts.push_back(depth);
         break;
     }
     case Feature::Kind::Datum:
@@ -753,10 +962,19 @@ void SketchEditor::configure(std::shared_ptr<Feature> draft, std::vector<Feature
     if (const auto it = draft->expressions.find(prompt.field); !prompt.field.empty() && it != draft->expressions.end())
         m_valueEditor->setExpression(it->second);
     if (prompt.choices) {
-        m_valueEditor->setChoices(prompt.choices, prompt.choice(*draft), [=](int choice) {
+        m_valueEditor->setChoices(prompt.choices, prompt.choice(*draft), [=, this](int choice) {
+            const double before = prompt.get(*draft);
             prompt.choose(*draft, choice);
+            if (prompt.get(*draft) != before) // a choice can change the value (a thread's size)
+                m_valueEditor->setValue(prompt.get(*draft));
             preview(*draft);
         });
+        if (prompt.moreChoices) {
+            m_valueEditor->setMoreChoices(prompt.moreChoices, prompt.moreChoice(*draft), [=](int choice) {
+                prompt.chooseMore(*draft, choice);
+                preview(*draft);
+            });
+        }
     }
     updateHint();
 }
@@ -777,6 +995,7 @@ void SketchEditor::previewNewFeature(const Feature& feature)
     } else if (bodies) {
         for (const TopoDS_Shape& b : result.bodies)
             BRep_Builder().Add(shapes, b);
+        addThreadSleeves(shapes, result.threads); // a cosmetic thread changes no body: show where it goes
         any = !result.bodies.empty();
     }
     // The bodies as they would be, over their faded originals.
@@ -826,6 +1045,19 @@ void SketchEditor::solidReady()
         case Feature::Kind::Hole:
             s_hole = f.hole;
             break;
+        case Feature::Kind::Thread:
+            s_thread = f.thread;
+            break;
+        case Feature::Kind::Draft:
+            s_draftAngle = f.value;
+            break;
+        case Feature::Kind::Rib:
+            s_ribThickness = f.value;
+            break;
+        case Feature::Kind::Emboss:
+            s_embossDepth = f.value;
+            s_engrave = f.operation == BodyOperation::Cut;
+            break;
         case Feature::Kind::Pattern:
             if (f.pattern == Feature::PatternKind::Circular) {
                 s_circularCount = f.count;
@@ -865,14 +1097,14 @@ void SketchEditor::solidReady()
               });
 }
 
-void SketchEditor::editFeature(int index)
+void SketchEditor::editFeature(int index, std::vector<FeaturePrompt> asked)
 {
     const Feature original = m_features[index];
-    if (original.kind == Feature::Kind::Pattern) {
+    if (original.kind == Feature::Kind::Pattern && asked.empty()) {
         startPatternEdit(index); // in the pattern panel
         return;
     }
-    const std::vector<FeaturePrompt> prompts = promptsFor(original);
+    const std::vector<FeaturePrompt> prompts = asked.empty() ? promptsFor(original) : asked;
     if (prompts.empty())
         return;
     if (mode() == EditorMode::Sketch)
@@ -1002,6 +1234,27 @@ QString SketchEditor::solidHint() const
     case ToolKind::Axis:
         return m_solid.points.empty() ? tr("Axis: tap a straight or round edge, or two corners")
                                       : tr("Axis: tap the second corner");
+    case ToolKind::Thread:
+        if (asking)
+            return with(tr("Thread"), tr("type the size and length, pick the standard  ·  Enter accepts"));
+        return tr("Thread: tap a round face: a cylinder for a bolt's thread, a hole's wall for a tapped one");
+    case ToolKind::Draft:
+        if (asking)
+            return with(tr("Draft"), tr("type the angle  ·  Enter accepts"));
+        if (!m_solid.reference)
+            return m_solid.faces.empty() ? tr("Draft: tap the faces to tilt, then Enter (or tap a plane)")
+                                         : tr("Draft: %1 faces  ·  Enter, then tap the neutral plane").arg(m_solid.faces.size());
+        return tr("Draft: tap the neutral plane (a flat face or a plane): the faces turn about where they cross it");
+    case ToolKind::Rib:
+        if (asking)
+            return with(tr("Rib"), tr("type the thickness, pick the side  ·  Enter accepts"));
+        return tr("Rib: tap an open sketch line (or chain) across the walls it should join");
+    case ToolKind::Emboss:
+        if (asking)
+            return with(tr("Emboss"), tr("type the height, emboss or engrave  ·  Enter accepts"));
+        if (m_solid.regions.empty())
+            return tr("Emboss: tap the sketch regions (a letter takes its whole text)");
+        return tr("Emboss: %1 regions  ·  tap the face to put them on (flat or curved)").arg(m_solid.regions.size());
     default:
         return {};
     }

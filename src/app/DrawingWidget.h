@@ -81,6 +81,7 @@ private:
     std::vector<ViewGeometry> m_geometry;
     std::vector<std::string> m_keys; // what each view was projected for
     std::vector<TopoDS_Shape> m_bodies; // what the views were projected from
+    std::vector<ThreadMark> m_threads;  // and the threads on them
     gp_Pnt m_middle;
 
     double m_zoom = 3.0;   // widget px per sheet mm

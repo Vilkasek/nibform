@@ -36,7 +36,8 @@ struct DrawList
 void appendArc(std::vector<Segment2d>& out, const gp_Pnt2d& center, double radius,
                double startAngle, double sweep);
 
-// Tessellates the sketch. Entities and points in `accent` go to the accent lists,
+// Tessellates the sketch (its texts' outlines too). Entities, texts and points in
+// `accent` go to the accent lists,
 // entities in `defined` (and not accented) to the defined list.
 DrawList tessellate(const Sketch& sketch, const std::set<EntityId>& accent = {},
                     const std::set<EntityId>& defined = {}, const std::set<PointId>& accentPoints = {});

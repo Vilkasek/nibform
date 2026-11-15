@@ -44,9 +44,11 @@ constexpr std::array<const char*, 19> kConstraintKinds{
     "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
     "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
     "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
-constexpr std::array<const char*, 16> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine", "delete",
+constexpr std::array<const char*, 20> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine", "delete",
                                                     "shell",  "revolve", "sweep",  "loft",    "mirror",  "pattern",
-                                                    "hole",   "datum",   "move",   "import"};
+                                                    "hole",   "datum",   "move",   "import",  "thread",  "draft",
+                                                    "rib",    "emboss"};
+constexpr std::array<const char*, 3> kThreadStandards{"metric", "unc", "unf"};
 constexpr std::array<const char*, 8> kViewKinds{"front", "back", "top", "bottom", "right", "left", "iso", "section"};
 constexpr std::array<const char*, 5> kDimensionKinds{"distance", "horizontal", "vertical", "radius", "diameter"};
 constexpr std::array<const char*, 4> kAxisKinds{"none", "edge", "sketchLine", "datum"};
@@ -185,6 +187,19 @@ QJsonObject sketchToJson(int id, const Sketch& sketch)
         {"constraints", constraints},
         {"nextId", c.nextId},
     };
+    if (!c.texts.empty()) {
+        QJsonArray texts;
+        for (const SketchText& t : c.texts) {
+            texts.append(QJsonObject{{"id", t.id},
+                                     {"at", t.at},
+                                     {"text", QString::fromStdString(t.text)},
+                                     {"font", QString::fromStdString(t.font)},
+                                     {"height", t.height},
+                                     {"bold", t.bold},
+                                     {"italic", t.italic}});
+        }
+        out.insert("texts", texts);
+    }
     if (c.image && c.image->data) {
         const ReferenceImage& image = *c.image;
         const QByteArray bytes = QByteArray::fromRawData(image.data->data(), static_cast<qsizetype>(image.data->size()));
@@ -262,6 +277,21 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
         sc.expression = expressionFromJson(k.value("expression"));
         c.constraints.push_back(sc);
     }
+    // Texts (M16): a text without its point, or of no size, is left out.
+    for (const auto& v : o.value("texts").toArray()) {
+        const QJsonObject t = v.toObject();
+        SketchText text;
+        text.id = t.value("id").toInt();
+        text.at = t.value("at").toInt(kNoId);
+        text.text = t.value("text").toString().toStdString();
+        text.font = t.value("font").toString().toStdString();
+        text.height = t.value("height").toDouble(10.0);
+        text.bold = t.value("bold").toBool(false);
+        text.italic = t.value("italic").toBool(false);
+        const bool hasPoint = std::any_of(c.points.begin(), c.points.end(), [&](const SketchPoint& p) { return p.id == text.at; });
+        if (hasPoint && text.height > 0.0 && text.height <= 1e4 && text.text.size() <= 10000)
+            c.texts.push_back(std::move(text));
+    }
     // New ids go after every id in use, or a curve added later would share one; ids
     // at the end of int would leave none to count up to (the next would overflow).
     long long next = o.value("nextId").toInt(1);
@@ -271,6 +301,8 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
         next = std::max(next, e.id + 1LL);
     for (const SketchConstraint& k : c.constraints)
         next = std::max(next, k.id + 1LL);
+    for (const SketchText& t : c.texts)
+        next = std::max(next, t.id + 1LL);
     if (next >= std::numeric_limits<int>::max()) {
         sketchError(error);
         return std::nullopt;
@@ -290,6 +322,32 @@ std::optional<ProjectData::SketchEntry> sketchFromJson(const QJsonObject& o, QSt
             c.image = std::move(image);
     }
     return ProjectData::SketchEntry{o.value("id").toInt(), Sketch(axes, std::move(c))};
+}
+
+QJsonObject threadToJson(const ThreadSpec& t)
+{
+    return {{"standard", nameOf(t.standard, kThreadStandards)},
+            {"diameter", t.diameter},
+            {"pitch", t.pitch},
+            {"length", t.length},
+            {"modelled", t.modelled}};
+}
+
+// A thread as stored; sizes that make no thread (a damaged file) fall back to the default.
+ThreadSpec threadFromJson(const QJsonValue& v, const ThreadSpec& fallback)
+{
+    const QJsonObject o = v.toObject();
+    ThreadSpec t = fallback;
+    t.standard = fromName<ThreadStandard>(o.value("standard").toString(), kThreadStandards).value_or(t.standard);
+    const double diameter = o.value("diameter").toDouble(t.diameter);
+    const double pitch = o.value("pitch").toDouble(t.pitch);
+    if (diameter > 0.0 && pitch > 0.0 && pitch < diameter) {
+        t.diameter = diameter;
+        t.pitch = pitch;
+    }
+    t.length = std::max(0.0, o.value("length").toDouble(0.0));
+    t.modelled = o.value("modelled").toBool(false);
+    return t;
 }
 
 QJsonObject featureToJson(const Feature& f)
@@ -330,7 +388,14 @@ QJsonObject featureToJson(const Feature& f)
                              {"diameter", f.hole.diameter},
                              {"depth", f.hole.depth},
                              {"headDiameter", f.hole.headDiameter},
-                             {"headDepth", f.hole.headDepth}}},
+                             {"headDepth", f.hole.headDepth},
+                             {"tapped", f.hole.tapped},
+                             {"thread", threadToJson(f.hole.thread)}}},
+        {"thread", threadToJson(f.thread)},
+        {"endValue", f.endValue},
+        {"setback", f.setback},
+        {"startOffset", f.startOffset},
+        {"flip", f.flip},
         {"holeAt", holeAt},
         {"points", points},
         {"datum", nameOf(f.datum, kDatumKinds)},
@@ -419,7 +484,16 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
         f.hole.depth = h.value("depth").toDouble(0.0);
         f.hole.headDiameter = h.value("headDiameter").toDouble(f.hole.headDiameter);
         f.hole.headDepth = h.value("headDepth").toDouble(f.hole.headDepth);
+        f.hole.tapped = h.value("tapped").toBool(false);
+        f.hole.thread = threadFromJson(h.value("thread"), f.hole.thread);
     }
+    // Added with threads, draft and ribs (M16).
+    f.thread = threadFromJson(o.value("thread"), f.thread);
+    f.endValue = o.value("endValue").toDouble(0.0);
+    f.setback = std::max(0.0, o.value("setback").toDouble(0.0));
+    // Added with the extrusion's start offset (M21).
+    f.startOffset = o.value("startOffset").toDouble(0.0);
+    f.flip = o.value("flip").toBool(false);
     for (const auto& v : o.value("holeAt").toArray())
         f.holeAt.push_back({v.toObject().value("sketch").toInt(-1), v.toObject().value("point").toInt(-1)});
     for (const auto& v : o.value("points").toArray())

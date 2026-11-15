@@ -38,7 +38,9 @@
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopTools_ListOfShape.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
 #include <TopoDS.hxx>
+#include <gp_Trsf.hxx>
 #include <gp_Pln.hxx>
 
 #include <algorithm>
@@ -271,6 +273,19 @@ bool startsInside(const std::vector<TopoDS_Shape>& bodies, const std::vector<Pro
     }
     // Some of it is enough: a circle across a face's edge cuts a half-round notch.
     return total > 0.0 && inside > 0.1 * total;
+}
+
+std::vector<Profile> offsetProfiles(std::vector<Profile> profiles, double offset)
+{
+    if (std::abs(offset) < 1e-9)
+        return profiles;
+    for (Profile& p : profiles) {
+        gp_Trsf move;
+        move.SetTranslation(gp_Vec(p.normal) * offset);
+        p.face = TopoDS::Face(BRepBuilderAPI_Transform(p.face, move, true).Shape());
+        p.body = -1;
+    }
+    return profiles;
 }
 
 ModelResult extrude(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles,

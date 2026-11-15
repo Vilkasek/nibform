@@ -29,6 +29,8 @@ add_library(nibform_core STATIC
   src/input/PalmRejection.h
   src/input/TapGesture.cpp
   src/input/TapGesture.h
+  src/model/Details.cpp
+  src/model/Details.h
   src/model/Drawing.cpp
   src/model/Drawing.h
   src/model/Export.cpp
@@ -47,6 +49,10 @@ add_library(nibform_core STATIC
   src/model/Rebuild.h
   src/model/Solids.cpp
   src/model/Solids.h
+  src/model/TextShapes.cpp
+  src/model/TextShapes.h
+  src/model/Threads.cpp
+  src/model/Threads.h
   src/model/Units.cpp
   src/model/Units.h
   src/sketch/Constraint.h
@@ -74,8 +80,9 @@ add_library(nibform_core STATIC
 target_include_directories(nibform_core PUBLIC src ${OpenCASCADE_INCLUDE_DIR})
 target_compile_options(nibform_core PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_core PUBLIC
-  TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKShHealing TKFillet TKOffset
+  TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKBool TKShHealing TKFillet TKOffset
   TKMesh TKXSBase TKDESTEP TKDESTL TKDEIGES TKHLR
+  TKService TKV3d # fonts: sketch text outlines
   Eigen3::Eigen Threads::Threads)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
@@ -112,6 +119,7 @@ add_executable(nibform
   src/sketch/SketchEditorInspect.cpp
   src/sketch/SketchEditorExchange.cpp
   src/sketch/SketchEditorParameters.cpp
+  src/sketch/SketchEditorDetails.cpp
   src/viewer/UnitText.h
   src/sketch/SketchEditor.h
   src/sketch/SketchTools.cpp
@@ -182,6 +190,13 @@ endforeach()
 add_executable(bench_rebuild tests/bench_rebuild.cpp tests/LongModel.h)
 target_compile_options(bench_rebuild PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(bench_rebuild PRIVATE nibform_core)
+
+# The finishing features (M16); its enclosure can be saved as a project to look at
+# (NIBFORM_SAVE_ENCLOSURE=path).
+add_executable(test_details tests/test_details.cpp tests/Check.h)
+target_compile_options(test_details PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(test_details PRIVATE nibform_io)
+add_test(NAME details COMMAND test_details)
 
 add_executable(test_project tests/test_project.cpp tests/Check.h)
 target_compile_options(test_project PRIVATE ${NIBFORM_WARNINGS})

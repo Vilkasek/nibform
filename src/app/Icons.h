@@ -14,6 +14,7 @@ enum class Icon
     Polygon, Slot, Ellipse, Spline, SketchFillet, SketchChamfer, Mirror, LinearPattern, CircularPattern,
     Project, Image, HorizontalDimension, VerticalDimension, Freehand,
     Revolve, Sweep, Loft, Hole, Plane, Axis, BodyMirror, Move, Measure, Section, Import, Drawing, Note,
+    Thread, Draft, Rib, Emboss, Text,
 };
 
 // Toolbar icons drawn in code, so they follow the theme: lines in `ink`, the part that

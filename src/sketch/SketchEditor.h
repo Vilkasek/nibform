@@ -19,6 +19,7 @@
 #include <Bnd_Box.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 
@@ -214,11 +215,18 @@ public:
     void setDrawing(int index, const Drawing& drawing, bool undoable = true);
     // The bodies a drawing shows (the shown ones).
     std::vector<TopoDS_Shape> visibleBodies() const;
+    // The threads and tapped holes of the model (for drawings' callouts).
+    std::vector<ThreadMark> threads() const { return m_context.allThreads(); }
 
     // Whether the entry made a solid a pattern can repeat (an extrusion from a sketch, a
     // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
     bool canPattern(int index) const;
     void patternFeature(int index, bool circular);
+    // A fillet in the history: its radius at both ends of the edges, and how far its
+    // corners are set back; asked and previewed.
+    bool canVaryFillet(int index) const;
+    void varyFillet(int index);
+    void setBackFillet(int index);
 
     // --- The pattern panel ----------------------------------------------------------------
     // A pattern being set up with the Linear / Circular Pattern tool (a tap on a face of a
@@ -346,8 +354,14 @@ private:
         double dragStartParam = 0.0;
         std::string error; // why the previewed value doesn't work (fillet too big, ...)
         // Extrude: whether the sketch profiles start inside a body, for the value's sign
-        // (it only changes with the picks or the direction).
+        // (it only changes with the picks, the direction or the start).
         std::optional<std::pair<bool, bool>> startsInside;
+        // Extrude: where it starts, this far from the profiles along the arrow; the field
+        // asks it instead of the distance while `editingOffset`.
+        double offset = 0.0;
+        double offsetBefore = 0.0; // put back by Esc
+        Expression offsetExpression;
+        bool editingOffset = false;
     };
     // Screen rectangle of a constraint glyph or dimension label, from the last overlay paint.
     struct Label
@@ -416,7 +430,8 @@ private:
         int pathEntity = -1;
         std::vector<int> bodies; // indices
         int source = 0;          // a pattern of this feature (id) instead of bodies
-        std::optional<FacePick> face; // a hole's face
+        std::optional<FacePick> face; // a hole's face; the face a thread or an emboss goes on
+        std::vector<FacePick> faces;  // faces to draft
         std::vector<gp_Pnt> points;   // hole positions, or a plane's / axis' points
         std::vector<SketchPointRef> holeAt;
         bool reference = false; // mirror: the bodies are picked, now the plane
@@ -433,6 +448,9 @@ private:
         std::function<QStringList()> choices;         // a row of choices under the field
         std::function<int(const Feature&)> choice;
         std::function<void(Feature&, int)> choose;
+        std::function<QStringList()> moreChoices; // a second row (needs the first)
+        std::function<int(const Feature&)> moreChoice;
+        std::function<void(Feature&, int)> chooseMore;
         std::string field; // the value's key for an expression (see featureField()); empty: none
     };
     // Asks the prompts in turn about `draft`, calling `preview` as it changes; `done` gets
@@ -449,7 +467,8 @@ private:
     void solidReady(); // the picks are complete: ask the values, or apply
     std::optional<Feature> solidFeature() const;
     void previewNewFeature(const Feature& feature);
-    void editFeature(int index);
+    // Changes a feature from the history, asking `prompts` (empty: its usual ones).
+    void editFeature(int index, std::vector<FeaturePrompt> prompts = {});
     int nextFeatureId() const;
     // Patterns: the preview of a new one with the current values, and an edited one.
     bool patternTool() const;
@@ -470,6 +489,17 @@ private:
     // nearby, else right there.
     void placeHole(const Hit& face, const QPointF& tap);
     QString solidHint() const;
+    // Details (SketchEditorDetails.cpp): sketch text, cosmetic threads, letters as regions.
+    void textTap(const SnapResult& s);
+    // Asks the words, font and height of text `id` (kNoId: a new one at `at`).
+    void editText(EntityId id, std::optional<SnapResult> at = std::nullopt);
+    // A tapped region that is a letter of a text stands for all the text's letters.
+    std::vector<RegionRef> letterRegions(const RegionRef& region) const;
+    void showThreads(); // cosmetic threads of the last rebuild, see-through
+    static void addThreadSleeves(TopoDS_Compound& shapes, const std::vector<ThreadMark>& marks);
+    Handle(AIS_Shape) m_threadPrs;
+    // Where the pointer at `tap` meets `face` (a flat or curved face of a body).
+    std::optional<gp_Pnt> pointOnFace(const TopoDS_Face& face, const QPointF& tap) const;
     // Datums (construction planes and axes) on screen; base ones while a tool takes them.
     void showDatums();
     bool wantsBaseDatums() const;
@@ -534,6 +564,9 @@ private:
     void matchStyles();         // after the bodies change
     BodyStyle& styleFor(int body);
     Quantity_Color bodyColor(int body) const;
+    // While an extrusion cuts: the bodies see-through in blue, so the red cut shows inside.
+    void setCutLook(bool on);
+    bool m_cutLook = false;
     void inspectToolChanged(); // tool switched: end what the old tool had going
 
     std::vector<Handle(AIS_Shape)> m_referencePrs; // imported references, see-through
@@ -558,6 +591,12 @@ private:
     std::vector<EdgeRef> selectedEdges() const;
     void syncValueSession(); // opens / updates / closes the session after a pick changed
     void endValueSession(bool restoreBodies);
+    void dropValueSession(); // Esc / ✕ on the field: the operation and its picks go
+    // The extrusion's field: the distance, or (Offset start) how far from the profiles it
+    // starts; the rows of choices stay.
+    void showExtrudeDistance();
+    void showExtrudeOffset();
+    void setSessionOffset(double offset);
     void showSessionPreview();
     void hideSessionPreview();
     void applySession(double value, const Expression& expression = {});

@@ -11,6 +11,7 @@
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <map>
@@ -216,6 +217,51 @@ void testStepAndStlExport()
 
 } // namespace
 
+// An extrusion that starts away from its sketch: inside the part (a closed pocket), off
+// the ground (a body floating above), off a body's face (a separate body).
+void testExtrudeFromAnOffset()
+{
+    std::map<int, Sketch> sketches;
+    rectangle(sketches[1], 0, 0, 20, 20);
+    sketches.emplace(2, Sketch(gp_Ax3(gp_Pnt(0, 0, 20), gp::DZ(), gp::DX())));
+    sketches.at(2).addCircle(sketches.at(2).addPoint({10, 10}), 3.0);
+    const SketchLookup lookup = [&](int id) { return sketches.count(id) ? &sketches.at(id) : nullptr; };
+    std::vector<Feature> history = {extrudeAt(1, {10, 10}, 20.0), extrudeAt(2, {10, 10}, 10.0)}; // a 20 cube
+    history[1].startOffset = -15.0; // from z 5 up to z 15, all inside: Automatic cuts
+    auto build = [&] {
+        numberFeatures(history);
+        return rebuild(lookup, history);
+    };
+    RebuildResult r = build();
+    CHECK(r.errors.at(1).empty());
+    CHECK(r.bodies.size() == 1);
+    CHECK(near(totalVolume(r.bodies), 8000.0 - M_PI * 9.0 * 10.0, 1e-3));
+
+    // Pulled the other way from the same start: z 5 down to z −5, half of it outside.
+    history[1].value = -10.0;
+    r = build();
+    CHECK(r.errors.at(1).empty());
+    CHECK(near(totalVolume(r.bodies), 8000.0 - M_PI * 9.0 * 5.0, 1e-3));
+
+    // Up from 30 above the ground: a new body, not touching the cube.
+    history[1] = extrudeAt(1, {10, 10}, 5.0);
+    history[1].startOffset = 30.0;
+    r = build();
+    CHECK(r.errors.at(1).empty());
+    CHECK(r.bodies.size() == 2 && near(totalVolume(r.bodies), 10000.0, 1e-3));
+
+    // A body's top face pulled from 5 above it: a separate body again.
+    Feature face;
+    face.kind = Feature::Kind::Extrude;
+    face.faces = {{gp_Pnt(10, 10, 20), gp::DZ()}};
+    face.value = 5.0;
+    face.startOffset = 5.0;
+    history[1] = face;
+    r = build();
+    CHECK(r.errors.at(1).empty());
+    CHECK(r.bodies.size() == 2 && near(totalVolume(r.bodies), 10000.0, 1e-3));
+}
+
 int main()
 {
     return runTests({
@@ -226,5 +272,6 @@ int main()
         {"shell follows the body", testShellFollowsTheBody},
         {"inside point avoids holes", testInsidePointAvoidsHoles},
         {"STEP and STL export", testStepAndStlExport},
+        {"extrude from an offset", testExtrudeFromAnOffset},
     });
 }
