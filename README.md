@@ -32,6 +32,16 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 
 ## Installing
 
+Ready-made builds are on the [Releases](https://github.com/Vilkasek/nibform/releases) page:
+
+- **Linux, any distribution**: the `.AppImage` (`chmod +x`, then run it; glibc 2.35 or newer) or
+  the `.flatpak` bundle (`flatpak install --user Nibform-*.flatpak`).
+- **Windows 10 / 11**: the `-setup.exe` installer, or the `.zip`. Not signed: SmartScreen asks once
+  (*More info → Run anyway*).
+- **macOS (Apple silicon)**: the `.dmg`. Not notarized: open it the first time with right-click → *Open*.
+
+Or from a package manager or the sources:
+
 - **Arch Linux** (AUR): `yay -S nibform` (the `PKGBUILD` is in `packaging/aur`).
 - **Flatpak**: a manifest is in `packaging/flatpak`:
   `flatpak-builder --user --install --force-clean build-flatpak packaging/flatpak/io.github.vilkasek.Nibform.yml`.
@@ -435,7 +445,10 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 
 1. Bump `VERSION` in `CMakeLists.txt` and add a `<release>` to
    `packaging/io.github.vilkasek.Nibform.metainfo.xml`.
-2. Tag and push: `git tag v0.4.0 && git push origin v0.4.0`.
+2. Tag and push: `git tag v0.5.0 && git push origin v0.5.0`. The *Release* workflow builds the
+   AppImage, the Flatpak bundle, the Windows zip and installer and the macOS disk image and
+   publishes them as a GitHub release (pushing a `release/*` branch runs the same builds without
+   publishing).
 3. AUR: set `pkgver` in `packaging/aur/PKGBUILD`, run `updpkgsums` and
    `makepkg --printsrcinfo > .SRCINFO`, then copy both to the `nibform` AUR repository and push.
 
