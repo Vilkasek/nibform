@@ -75,6 +75,8 @@ jobs:
 
       - name: Make the AppImage
         run: |
+          exec > >(tee package.log) 2>&1
+          trap 'echo "::error::line $LINENO: $BASH_COMMAND"; tail -25 package.log | sed "s/^/::error::/"' ERR
           VERSION=${GITHUB_REF_NAME#v}
           curl -L -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           curl -L -o linuxdeploy-plugin-qt https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
@@ -210,6 +212,8 @@ jobs:
 
       - name: Package
         run: |
+          exec > >(tee package.log) 2>&1
+          trap 'echo "::error::line $LINENO: $BASH_COMMAND"; tail -25 package.log | sed "s/^/::error::/"' ERR
           VERSION=$(echo ${GITHUB_REF_NAME#v} | tr / -)
           mkdir -p dist && cp -R build/nibform.app dist/Nibform.app
           # The icon, from the window icon.
@@ -221,7 +225,12 @@ jobs:
           iconutil -c icns nibform.iconset -o dist/Nibform.app/Contents/Resources/nibform.icns
           "$(brew --prefix qt)/bin/macdeployqt" dist/Nibform.app -libpath="$(brew --prefix opencascade)/lib"
           # Not notarized: an ad-hoc signature, so Apple silicon runs the deployed binaries.
-          codesign --force --deep --sign - dist/Nibform.app
+          # File by file: --deep stumbles over Homebrew's frameworks.
+          find dist/Nibform.app/Contents -type f \( -name '*.dylib' -o -perm -u+x \) -print0 |
+            while IFS= read -r -d '' f; do
+              if file "$f" | grep -q Mach-O; then codesign --force --sign - "$f" || echo "::warning::not signed: $f"; fi
+            done
+          codesign --force --sign - dist/Nibform.app
           ln -s /Applications dist/Applications
           hdiutil create -volname Nibform -srcfolder dist -ov -format UDZO "Nibform-$VERSION-macos-arm64.dmg"
 
