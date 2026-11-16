@@ -132,7 +132,8 @@ jobs:
 
       - uses: jurplel/install-qt-action@v4
         with:
-          version: ${{ env.QT_VERSION }}
+          # aqt doesn't read the Windows repository layout of Qt 6.11+ yet.
+          version: '6.10.3'
           arch: win64_msvc2022_64
           cache: true
 
