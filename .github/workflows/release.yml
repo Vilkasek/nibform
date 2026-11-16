@@ -1,0 +1,238 @@
+name: Release
+
+# A tag v* builds the app for Linux (AppImage and Flatpak bundle), Windows and macOS and
+# publishes a GitHub release with the files. Pushes to release/* branches run the same
+# builds without publishing, to try the packaging out.
+on:
+  push:
+    tags: ['v*']
+    branches: ['release/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: '6.12.0'
+  OCCT_TAG: 'V7_9_3'
+
+jobs:
+  appimage:
+    # The oldest supported Ubuntu: the AppImage runs on any distribution with glibc 2.35 or newer.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++-12 libeigen3-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxext-dev libxi-dev libgl-dev libegl-dev libglu1-mesa-dev libxkbcommon-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-sync1 libxcb-xfixes0 \
+            libxcb-util1 libdbus-1-3 libfuse2 file
+          echo "CC=gcc-12" >> "$GITHUB_ENV"
+          echo "CXX=g++-12" >> "$GITHUB_ENV"
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Cache OpenCASCADE
+        id: occt-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/occt
+          key: occt-${{ env.OCCT_TAG }}-ubuntu-22.04-gcc12
+
+      - name: Build OpenCASCADE
+        if: steps.occt-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o occt.tar.gz https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/${OCCT_TAG}.tar.gz
+          mkdir occt-src && tar xzf occt.tar.gz -C occt-src --strip-components=1
+          cmake -S occt-src -B occt-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/occt \
+            -DBUILD_LIBRARY_TYPE=Shared -DINSTALL_DIR_LAYOUT=Unix -DBUILD_MODULE_Draw=OFF -DBUILD_DOC_Overview=OFF \
+            -DUSE_TK=OFF -DUSE_FREEIMAGE=OFF -DUSE_RAPIDJSON=OFF -DUSE_DRACO=OFF -DUSE_TBB=OFF -DUSE_VTK=OFF \
+            -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF
+          cmake --build occt-build
+          cmake --install occt-build
+
+      - name: Build Nibform
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNIBFORM_BUILD_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_PREFIX_PATH="$HOME/occt;$QT_ROOT_DIR"
+          cmake --build build
+          DESTDIR=$PWD/AppDir cmake --install build
+
+      - name: Make the AppImage
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          curl -L -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -L -o linuxdeploy-plugin-qt https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export QMAKE=$QT_ROOT_DIR/bin/qmake
+          export LD_LIBRARY_PATH=$HOME/occt/lib:$QT_ROOT_DIR/lib:$LD_LIBRARY_PATH
+          # The desktop's light / dark preference comes through the portal platform theme.
+          export EXTRA_QT_MODULES="dbus;svg"
+          export EXTRA_QT_PLUGINS="dbus;svg"
+          export LDAI_OUTPUT="Nibform-${VERSION//\//-}-x86_64.AppImage"
+          ./linuxdeploy --appdir AppDir \
+            --desktop-file AppDir/usr/share/applications/io.github.vilkasek.Nibform.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/io.github.vilkasek.Nibform.png \
+            --plugin qt
+          mkdir -p AppDir/usr/plugins/platformthemes
+          cp "$QT_ROOT_DIR/plugins/platformthemes/libqxdgdesktopportal.so" AppDir/usr/plugins/platformthemes/ || true
+          ./linuxdeploy --appdir AppDir --output appimage
+          mkdir dist && mv Nibform-*.AppImage dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist/*
+
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Name the bundle
+        run: echo "BUNDLE=Nibform-$(echo ${GITHUB_REF_NAME#v} | tr / -)-x86_64.flatpak" >> "$GITHUB_ENV"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ env.BUNDLE }}
+          manifest-path: packaging/flatpak/io.github.vilkasek.Nibform.yml
+          cache-key: flatpak-${{ env.OCCT_TAG }}
+          upload-artifact: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-flatpak
+          path: ${{ env.BUNDLE }}
+
+  windows:
+    runs-on: windows-2022
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          cache: true
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: vcpkg-cache
+          key: vcpkg-occt-eigen-windows-${{ hashFiles('.github/workflows/release.yml') }}
+          restore-keys: vcpkg-occt-eigen-windows-
+
+      - name: Install OpenCASCADE and Eigen
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install opencascade:x64-windows eigen3:x64-windows
+
+      - name: Build Nibform
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNIBFORM_BUILD_TESTS=OFF `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+          cmake --build build
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v','' -replace '/','-'
+          $app = "dist\Nibform"
+          New-Item -ItemType Directory -Force $app | Out-Null
+          Copy-Item build\nibform.exe $app
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" $app
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-quick-import "$app\nibform.exe"
+          foreach ($dll in 'msvcp140.dll','msvcp140_1.dll','msvcp140_2.dll','vcruntime140.dll','vcruntime140_1.dll','concrt140.dll') {
+            if (Test-Path "C:\Windows\System32\$dll") { Copy-Item "C:\Windows\System32\$dll" $app }
+          }
+          Copy-Item LICENSE "$app\LICENSE.txt"
+          Compress-Archive -Path $app -DestinationPath "dist\Nibform-$version-windows-x64.zip"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" /DAppVersion=$version /DSourceDir="$PWD\$app" `
+            /O"$PWD\dist" /F"Nibform-$version-windows-x64-setup" packaging\windows\nibform.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.zip
+            dist/*.exe
+
+  macos:
+    # Apple silicon.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install qt opencascade eigen ninja
+
+      - name: Build Nibform
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNIBFORM_BUILD_TESTS=OFF \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix opencascade);$(brew --prefix eigen)"
+          cmake --build build
+
+      - name: Package
+        run: |
+          VERSION=$(echo ${GITHUB_REF_NAME#v} | tr / -)
+          mkdir -p dist && cp -R build/nibform.app dist/Nibform.app
+          # The icon, from the window icon.
+          mkdir nibform.iconset
+          for s in 16 32 128 256; do
+            sips -z $s $s src/app/nibform.png --out nibform.iconset/icon_${s}x${s}.png
+            sips -z $((s*2)) $((s*2)) src/app/nibform.png --out nibform.iconset/icon_${s}x${s}@2x.png
+          done
+          iconutil -c icns nibform.iconset -o dist/Nibform.app/Contents/Resources/nibform.icns
+          "$(brew --prefix qt)/bin/macdeployqt" dist/Nibform.app -libpath="$(brew --prefix opencascade)/lib"
+          # Not notarized: an ad-hoc signature, so Apple silicon runs the deployed binaries.
+          codesign --force --deep --sign - dist/Nibform.app
+          ln -s /Applications dist/Applications
+          hdiutil create -volname Nibform -srcfolder dist -ov -format UDZO "Nibform-$VERSION-macos-arm64.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: Nibform-*.dmg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [appimage, flatpak, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Nibform ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            - **Linux, any distribution**: `Nibform-*-x86_64.AppImage` – `chmod +x` it and run it
+              (glibc 2.35 or newer: Ubuntu 22.04+, Debian 12+, Fedora, Arch, openSUSE…).
+              Or the Flatpak bundle: `flatpak install --user Nibform-*-x86_64.flatpak`
+              (needs the Flathub remote for the KDE runtime). Arch: `yay -S nibform`.
+            - **Windows 10/11 (x64)**: the `-setup.exe` installer, or the `.zip` to unpack and run `nibform.exe`.
+              The app is not signed, so SmartScreen asks once: *More info → Run anyway*.
+            - **macOS (Apple silicon)**: open the `.dmg` and drag Nibform to Applications. The app is not
+              notarized: the first time, right-click it and choose *Open*, or run
+              `xattr -dr com.apple.quarantine /Applications/Nibform.app`.
+          files: dist/*

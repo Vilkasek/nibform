@@ -10,6 +10,7 @@
 
 int main(int argc, char** argv)
 {
+#if defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
     // Arch's OpenCASCADE is built against GLX, which needs an X11 surface.
     // On Wayland this runs through XWayland; pen and touch still work there.
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
@@ -20,6 +21,7 @@ int main(int argc, char** argv)
     // so the System theme can follow the desktop.
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORMTHEME"))
         qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
+#endif
     // Qt logs to journald when stderr is not a tty; keep input diagnostics in the terminal.
     if (qEnvironmentVariableIsSet("NIBFORM_DEBUG_INPUT"))
         qputenv("QT_FORCE_STDERR_LOGGING", "1");

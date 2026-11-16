@@ -53,6 +53,14 @@
     <mediatype>application/x-nibform-project</mediatype>
   </provides>
   <releases>
+    <release version="0.5.0" date="2026-11-16">
+      <description>
+        <p>Pen-first sketching, a larger sketch toolkit, revolve / sweep / loft and other solid features,
+          transforms and measuring, STEP / IGES / STL import, technical drawings, background rebuilds,
+          parameters and configurations, threads and text, and assemblies with joints, interference
+          checks, exploded views and a parts list. Builds for Linux (AppImage, Flatpak), Windows and macOS.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-07">
       <description>
         <p>Autosave and crash recovery, recent files, an About dialog, desktop integration and packages.</p>

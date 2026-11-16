@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Nibform VERSION 0.4.0 LANGUAGES CXX)
+project(Nibform VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,7 +21,14 @@ find_package(OpenCASCADE REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Threads REQUIRED)
 
-set(NIBFORM_WARNINGS -Wall -Wextra -Wno-unused-parameter)
+if(MSVC)
+  set(NIBFORM_WARNINGS /W3)
+  # M_PI, std::min / std::max next to windows.h, UTF-8 sources, large translation units.
+  add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
+  add_compile_options(/utf-8 /bigobj /permissive- /Zc:__cplusplus)
+else()
+  set(NIBFORM_WARNINGS -Wall -Wextra -Wno-unused-parameter)
+endif()
 
 # Geometry/model code with no Qt or GUI dependency, so it can be unit tested.
 add_library(nibform_core STATIC
@@ -94,7 +101,7 @@ add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h src/io
 target_compile_options(nibform_io PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_io PUBLIC nibform_core Qt6::Core)
 
-add_executable(nibform
+add_executable(nibform WIN32 MACOSX_BUNDLE
   src/main.cpp
   src/app/MainWindow.cpp
   src/app/Icons.cpp
@@ -169,7 +176,13 @@ qt_add_translations(TARGETS nibform
 # Installed: the app, its desktop entry and icon, the .nibform file type and the
 # AppStream metadata (all named by the app id, as Flatpak and software centers expect).
 set(NIBFORM_APP_ID io.github.vilkasek.Nibform)
-install(TARGETS nibform RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+set_target_properties(nibform PROPERTIES
+  MACOSX_BUNDLE_GUI_IDENTIFIER io.github.vilkasek.Nibform
+  MACOSX_BUNDLE_BUNDLE_NAME Nibform
+  MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+  MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+  MACOSX_BUNDLE_ICON_FILE nibform.icns)
+install(TARGETS nibform RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
 install(FILES packaging/${NIBFORM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES packaging/${NIBFORM_APP_ID}.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES packaging/${NIBFORM_APP_ID}.mime.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/mime/packages
