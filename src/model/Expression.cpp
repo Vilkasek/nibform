@@ -6,7 +6,32 @@
 #include <cmath>
 #include <charconv>
 #include <cstdlib>
+#include <locale>
 #include <set>
+#include <sstream>
+
+
+namespace {
+
+// Digits, a point and an exponent to a double, whatever the locale (Qt sets the system's,
+// where 12.5 may read as 12). Too big gives HUGE_VAL: "Not a number" when evaluated.
+double parseDigits(const std::string& digits)
+{
+#if defined(_LIBCPP_VERSION) && _LIBCPP_VERSION < 200000
+    // libc++ before 20 (Apple's included) has no from_chars for floating point.
+    std::istringstream in(digits);
+    in.imbue(std::locale::classic());
+    double number = 0.0;
+    in >> number;
+    return in.fail() ? HUGE_VAL : number;
+#else
+    double number = 0.0;
+    const auto [end, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), number);
+    return ec == std::errc::result_out_of_range ? HUGE_VAL : number;
+#endif
+}
+
+} // namespace
 
 namespace {
 
@@ -133,11 +158,7 @@ bool tokenize(const std::string& s, std::vector<Token>& tokens, ExpressionError&
                         digits += s[i++];
                 }
             }
-            // from_chars: whatever the locale (Qt sets the system's, where 12.5 may read as 12).
-            double number = 0.0;
-            const auto [end, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), number);
-            if (ec == std::errc::result_out_of_range)
-                number = HUGE_VAL; // too big: "Not a number" when evaluated
+            const double number = parseDigits(digits);
             tokens.push_back({Token::Kind::Number, s.substr(begin, i - begin), number, begin, i});
             continue;
         }
