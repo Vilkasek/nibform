@@ -237,6 +237,7 @@ jobs:
             sips -z $s $s src/app/nibform.png --out nibform.iconset/icon_${s}x${s}.png
             sips -z $((s*2)) $((s*2)) src/app/nibform.png --out nibform.iconset/icon_${s}x${s}@2x.png
           done
+          mkdir -p dist/Nibform.app/Contents/Resources
           iconutil -c icns nibform.iconset -o dist/Nibform.app/Contents/Resources/nibform.icns
           "$(brew --prefix qt)/bin/macdeployqt" dist/Nibform.app -libpath="$(brew --prefix opencascade)/lib"
           # Not notarized: an ad-hoc signature, so Apple silicon runs the deployed binaries.
