@@ -507,7 +507,7 @@ Handle(SelectMgr_EntityOwner) SketchEditor::ownerOf(int body, const TopoDS_Shape
     for (const Handle(SelectMgr_SensitiveEntity)& entity : prs->Selection(mode)->Entities()) {
         const auto owner = Handle(StdSelect_BRepOwner)::DownCast(entity->BaseSensitive()->OwnerId());
         if (!owner.IsNull() && owner->Shape().IsSame(shape))
-            return owner;
+            return Handle(SelectMgr_EntityOwner)(owner);
     }
     return {};
 }

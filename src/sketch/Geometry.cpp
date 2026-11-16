@@ -131,7 +131,7 @@ Handle(Geom2d_Curve) curve2d(const Sketch& sketch, const SketchEntity& e)
             const gp_Pnt2d a = sketch.pos(e.a), b = sketch.pos(e.b);
             if (a.Distance(b) < 1e-9)
                 return nullptr;
-            return GCE2d_MakeSegment(a, b).Value();
+            return Handle(Geom2d_Curve)(GCE2d_MakeSegment(a, b).Value());
         }
         case EntityKind::Circle:
             if (e.radius <= 0.0)
@@ -142,8 +142,9 @@ Handle(Geom2d_Curve) curve2d(const Sketch& sketch, const SketchEntity& e)
             const double r = c.Distance(sketch.pos(e.a));
             if (r <= 0.0)
                 return nullptr;
-            return GCE2d_MakeArcOfCircle(gp_Circ2d(gp_Ax2d(c, gp::DX2d()), r), sketch.pos(e.a), sketch.pos(e.b), true)
-                .Value();
+            return Handle(Geom2d_Curve)(
+                GCE2d_MakeArcOfCircle(gp_Circ2d(gp_Ax2d(c, gp::DX2d()), r), sketch.pos(e.a), sketch.pos(e.b), true)
+                    .Value());
         }
         case EntityKind::Ellipse: {
             const EllipseAxes axes = ellipseAxes(sketch, e);

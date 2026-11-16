@@ -477,7 +477,12 @@ void analyzeAt(const Sketch& sketch, const System& sys, const VectorXd& x, Solve
     if (j.rows() == 0) {
         nullSpace = MatrixXd::Identity(n, n);
     } else {
+#if EIGEN_VERSION_AT_LEAST(3, 4, 90)
         Eigen::BDCSVD<MatrixXd, Eigen::ComputeFullV> svd(j);
+#else
+        // Eigen 3.4 (Ubuntu, Flatpak) takes the options at run time.
+        Eigen::BDCSVD<MatrixXd> svd(j, Eigen::ComputeFullV);
+#endif
         const VectorXd& s = svd.singularValues();
         const double cutoff = kRankTolerance * std::max(1.0, s.size() ? s[0] : 0.0);
         for (Eigen::Index i = 0; i < s.size(); ++i) {

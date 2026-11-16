@@ -45,9 +45,10 @@ jobs:
           arch: linux_gcc_64
           cache: true
 
-      - name: Cache OpenCASCADE
+      # Restore and save separately: the build is kept even when a later step fails.
+      - name: Restore OpenCASCADE
         id: occt-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/occt
           key: occt-${{ env.OCCT_TAG }}-ubuntu-22.04-gcc12
@@ -63,6 +64,13 @@ jobs:
             -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF
           cmake --build occt-build
           cmake --install occt-build
+
+      - name: Save OpenCASCADE
+        if: steps.occt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/occt
+          key: occt-${{ env.OCCT_TAG }}-ubuntu-22.04-gcc12
 
       - name: Build Nibform
         run: |
@@ -143,11 +151,11 @@ jobs:
 
       - uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@v4
+      - name: Restore vcpkg packages
+        uses: actions/cache/restore@v4
         with:
           path: vcpkg-cache
-          key: vcpkg-occt-eigen-windows-${{ hashFiles('.github/workflows/release.yml') }}
+          key: vcpkg-occt-eigen-windows-${{ github.run_id }}
           restore-keys: vcpkg-occt-eigen-windows-
 
       - name: Install OpenCASCADE and Eigen
@@ -155,6 +163,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install opencascade:x64-windows eigen3:x64-windows
+
+      - name: Save vcpkg packages
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: vcpkg-cache
+          key: vcpkg-occt-eigen-windows-${{ github.run_id }}
 
       - name: Build Nibform
         shell: pwsh
