@@ -29,6 +29,8 @@ add_library(nibform_core STATIC
   src/input/PalmRejection.h
   src/input/TapGesture.cpp
   src/input/TapGesture.h
+  src/model/Assembly.cpp
+  src/model/Assembly.h
   src/model/Details.cpp
   src/model/Details.h
   src/model/Drawing.cpp
@@ -82,12 +84,13 @@ target_compile_options(nibform_core PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_core PUBLIC
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKBool TKShHealing TKFillet TKOffset
   TKMesh TKXSBase TKDESTEP TKDESTL TKDEIGES TKHLR
+  TKXCAF TKLCAF TKCAF TKCDF # assemblies to STEP with their structure (XDE)
   TKService TKV3d # fonts: sketch text outlines
   Eigen3::Eigen Threads::Threads)
 
 # Project files (Qt Core for JSON), shared by the app and its tests.
 add_library(nibform_io STATIC src/io/ProjectFile.cpp src/io/ProjectFile.h src/io/Recovery.cpp src/io/Recovery.h
-  src/io/SketchExchange.cpp src/io/SketchExchange.h)
+  src/io/SketchExchange.cpp src/io/SketchExchange.h src/io/ComponentFiles.cpp src/io/ComponentFiles.h)
 target_compile_options(nibform_io PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform_io PUBLIC nibform_core Qt6::Core)
 
@@ -103,6 +106,8 @@ add_executable(nibform
   src/app/DrawingSheet.h
   src/app/DrawingWidget.cpp
   src/app/DrawingWidget.h
+  src/app/AssemblyPanel.cpp
+  src/app/AssemblyPanel.h
   src/app/ParametersPanel.cpp
   src/app/ParametersPanel.h
   src/app/PatternPanel.cpp
@@ -119,6 +124,7 @@ add_executable(nibform
   src/sketch/SketchEditorInspect.cpp
   src/sketch/SketchEditorExchange.cpp
   src/sketch/SketchEditorParameters.cpp
+  src/sketch/SketchEditorAssembly.cpp
   src/sketch/SketchEditorDetails.cpp
   src/viewer/UnitText.h
   src/sketch/SketchEditor.h
@@ -197,6 +203,13 @@ add_executable(test_details tests/test_details.cpp tests/Check.h)
 target_compile_options(test_details PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_details PRIVATE nibform_io)
 add_test(NAME details COMMAND test_details)
+
+# Assemblies (M17): components, joints, interference, the hinge (saved as a project to
+# look at with NIBFORM_SAVE_HINGE=path).
+add_executable(test_assembly tests/test_assembly.cpp tests/Check.h)
+target_compile_options(test_assembly PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(test_assembly PRIVATE nibform_io)
+add_test(NAME assembly COMMAND test_assembly)
 
 add_executable(test_project tests/test_project.cpp tests/Check.h)
 target_compile_options(test_project PRIVATE ${NIBFORM_WARNINGS})

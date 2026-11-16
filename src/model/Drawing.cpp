@@ -20,6 +20,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS.hxx>
 #include <gp_Pln.hxx>
+#include <gp_Vec2d.hxx>
 
 #include <algorithm>
 #include <cmath>
@@ -429,6 +430,91 @@ Drawing defaultDrawing(const std::vector<TopoDS_Shape>& bodies, const std::strin
     add(ViewKind::Left, leftX, rowY);
     add(ViewKind::Iso, isoX, rowY);
     return d;
+}
+
+Drawing assemblyDrawing(const std::vector<TopoDS_Shape>& together, const std::vector<TopoDS_Shape>& apart,
+                        const std::string& title)
+{
+    Drawing d;
+    d.title = title;
+    d.assembly = true;
+    d.partsList = true;
+    auto extent = [](const std::vector<TopoDS_Shape>& shapes) {
+        const Bnd_Box box = boxOf(shapes);
+        if (box.IsVoid())
+            return std::pair(10.0, 10.0);
+        gp_Pnt2d min(1e100, 1e100), max(-1e100, -1e100);
+        const gp_Pnt lo = box.CornerMin(), hi = box.CornerMax();
+        for (int i = 0; i < 8; ++i)
+            grow(min, max, projectPoint(ViewKind::Iso, gp_Pnt(i & 1 ? hi.X() : lo.X(), i & 2 ? hi.Y() : lo.Y(),
+                                                               i & 4 ? hi.Z() : lo.Z())));
+        return std::pair(max.X() - min.X(), max.Y() - min.Y());
+    };
+    const auto a = extent(together), b = extent(apart);
+    // Side by side above the parts list and title block, the exploded one with room for
+    // its balloons.
+    constexpr double gap = 20.0, leftMargin = 20.0, margin = 10.0, bottom = 60.0;
+    auto layout = [&](double w, double h) {
+        return fittingScale(a.first + b.first, std::max(a.second, b.second), w - leftMargin - margin - 3.0 * gap,
+                            h - 2.0 * margin - bottom - gap);
+    };
+    double scale = layout(d.width, d.height);
+    if (scale < 0.5) {
+        d.width = 420.0;
+        d.height = 297.0;
+        scale = layout(d.width, d.height);
+    }
+    const double rowY = d.height - margin - gap - std::max(a.second, b.second) * scale / 2.0;
+    const double togetherX = leftMargin + gap + a.first * scale / 2.0;
+    const double apartX = togetherX + (a.first + b.first) * scale / 2.0 + gap;
+    SheetView v;
+    v.kind = ViewKind::Iso;
+    v.scale = scale;
+    v.hidden = false;
+    v.at = gp_Pnt2d(togetherX, rowY);
+    d.views.push_back(v);
+    v.at = gp_Pnt2d(apartX, rowY);
+    v.exploded = true;
+    d.views.push_back(v);
+    return d;
+}
+
+std::vector<PartsListRow> partsList(const std::vector<std::pair<int, std::string>>& parts, std::map<int, int>* itemOf)
+{
+    std::vector<PartsListRow> rows;
+    std::map<int, int> items;
+    for (const auto& [source, name] : parts) {
+        const auto it = items.find(source);
+        if (it != items.end()) {
+            ++rows[it->second - 1].quantity;
+            continue;
+        }
+        rows.push_back({static_cast<int>(rows.size()) + 1, name, 1});
+        items[source] = rows.back().item;
+    }
+    if (itemOf)
+        *itemOf = items;
+    return rows;
+}
+
+std::vector<Balloon> placeBalloons(const ViewGeometry& view, const std::vector<std::pair<int, gp_Pnt2d>>& anchors,
+                                   double distance)
+{
+    std::vector<Balloon> out;
+    const gp_Pnt2d middle = view.middle();
+    for (const auto& [item, anchor] : anchors) {
+        if (std::any_of(out.begin(), out.end(), [item = item](const Balloon& b) { return b.item == item; }))
+            continue; // one per item
+        gp_Vec2d out2(middle, anchor);
+        if (out2.Magnitude() < 1e-9)
+            out2 = gp_Vec2d(1.0, 1.0);
+        out2.Normalize();
+        // Out from the middle, past the view's edge in that direction.
+        const double reach = std::max({std::abs(view.max.X() - middle.X()), std::abs(view.max.Y() - middle.Y()), 1.0});
+        const gp_Pnt2d at = middle.Translated(out2 * (reach + distance));
+        out.push_back({item, anchor, at});
+    }
+    return out;
 }
 
 bool resolveDimension(const SheetDimension& dimension, const ViewGeometry& g, gp_Pnt2d& a, gp_Pnt2d& b, double& radius,

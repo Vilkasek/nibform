@@ -176,7 +176,9 @@ gp_Ax3 SketchEditor::basePlane(SketchPlane plane)
 void SketchEditor::setTool(ToolKind kind)
 {
     // Each tool belongs to one mode (the toolbar only offers those).
-    if (isSketchTool(kind) != (mode() == EditorMode::Sketch) && kind != ToolKind::Select)
+    if (kind != ToolKind::Select
+        && (isSketchTool(kind) != (mode() == EditorMode::Sketch)
+            || isAssemblyTool(kind) != (mode() == EditorMode::Assembly)))
         return;
     endPatternEdit(false); // a pattern being changed from the history goes back
     endValueSession(true); // before the field is dropped, so dropping it doesn't clear picks
@@ -235,6 +237,11 @@ void SketchEditor::setTool(ToolKind kind)
         }
         updateSelectionModes();
         syncValueSession();
+    }
+    if (mode() == EditorMode::Assembly) {
+        m_jointFirst.reset();
+        showJointMark();
+        showComponents(); // Joint picks faces, edges and corners; Select whole parts
     }
     refreshSolidMarks(); // and the datums the tool can pick
 
@@ -426,6 +433,10 @@ void SketchEditor::redo()
 
 void SketchEditor::deleteSelection()
 {
+    if (mode() == EditorMode::Assembly) {
+        removeComponent(m_pickedComponent);
+        return;
+    }
     if (mode() == EditorMode::Model) {
         // Picked faces delete their bodies, picked regions their whole sketches.
         const std::vector<int> bodies = selectedBodies();
@@ -884,6 +895,8 @@ bool SketchEditor::press(const PointerEvent& e)
     }
     if (mode() == EditorMode::Model)
         return modelPress(e); // the field there stays open while picking / dragging
+    if (mode() == EditorMode::Assembly)
+        return assemblyPress(e);
     if (m_valueEditor->isOpen() && m_toolKind == ToolKind::Dimension) {
         // Dimension tool: tapping more geometry while the value is asked turns it into a
         // dimension to that (a line's length into the gap to another line, ...).
@@ -964,6 +977,8 @@ bool SketchEditor::move(const PointerEvent& e, bool pressed)
     }
     if (mode() == EditorMode::Model)
         return modelMove(e, pressed);
+    if (mode() == EditorMode::Assembly)
+        return assemblyMove(e, pressed);
     if (m_toolKind == ToolKind::Project) {
         const Hit hit = modelHitAt(e); // highlights the edge / face under the pointer
         const bool changed = !(hit == m_hover);
@@ -1010,6 +1025,8 @@ bool SketchEditor::release(const PointerEvent& e)
     }
     if (mode() == EditorMode::Model)
         return modelRelease(e);
+    if (mode() == EditorMode::Assembly)
+        return assemblyRelease(e);
     if (m_toolKind == ToolKind::Project)
         return true;
     if (m_toolKind == ToolKind::Text) {
@@ -1319,6 +1336,20 @@ void SketchEditor::cancel()
         } else if (m_toolKind != ToolKind::Select) {
             setTool(ToolKind::Select);
         }
+    } else if (mode() == EditorMode::Assembly) {
+        // The joint's first pick, the picked part, then the tool.
+        if (m_jointFirst) {
+            m_jointFirst.reset();
+            showJointMark();
+        } else if (!m_interferencePrs.IsNull()) {
+            m_viewer->aisContext()->Remove(m_interferencePrs, false);
+            m_interferencePrs.Nullify();
+        } else if (m_pickedComponent >= 0) {
+            pickComponent(-1);
+        } else if (m_toolKind != ToolKind::Select) {
+            setTool(ToolKind::Select);
+        }
+        updateHint();
     } else if (m_tool && m_tool->cancel()) {
         refreshOverlay();
         updateHint();
@@ -1477,6 +1508,22 @@ void SketchEditor::updateHint()
     }
     if (mode() == EditorMode::Model && isSolidTool(m_toolKind)) {
         emit hintChanged(solidHint());
+        return;
+    }
+    if (mode() == EditorMode::Assembly) {
+        if (m_toolKind == ToolKind::Joint) {
+            emit hintChanged(m_valueEditor->isOpen()
+                                 ? tr("Joint: pick the kind, type the value  ·  Enter accepts, Esc drops it")
+                             : m_jointFirst ? tr("Joint: tap where the second part meets it (a face, round edge or corner)")
+                                            : tr("Joint: tap a face, round edge or corner of the first part"));
+        } else if (m_assembly.components.empty()) {
+            emit hintChanged(tr("Assembly: Insert adds a body of this project or another project file as a part"));
+        } else {
+            emit hintChanged(m_assembly.exploded
+                                 ? tr("Exploded: drag a part to move it apart  ·  Explode again puts them back")
+                                 : tr("Drag a part: it moves as its joints allow  ·  tap to pick it  ·  "
+                                      "Joint joins two parts"));
+        }
         return;
     }
     if (mode() == EditorMode::Model && m_toolKind == ToolKind::Move) {

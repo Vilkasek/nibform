@@ -36,14 +36,16 @@
 #include <vector>
 
 class OcctViewerWidget;
+class QFileSystemWatcher;
 class QTimer;
 class ValueEditor;
 
 enum class SketchPlane { XY, XZ, YZ };
 
 // Model: bodies and finished sketches; their regions are pulled into bodies and body
-// edges rounded. Sketch: one sketch is open for drawing and constraining.
-enum class EditorMode { Model, Sketch };
+// edges rounded. Sketch: one sketch is open for drawing and constraining. Assembly: parts
+// placed as components and joined (the part model steps aside meanwhile).
+enum class EditorMode { Model, Sketch, Assembly };
 
 // One entry of the history timeline shown under the view.
 struct TimelineItem
@@ -92,7 +94,10 @@ public:
     static QString modelText(const std::string& message);
 
     // --- Modes ----------------------------------------------------------------------
-    EditorMode mode() const { return m_active >= 0 ? EditorMode::Sketch : EditorMode::Model; }
+    EditorMode mode() const
+    {
+        return m_active >= 0 ? EditorMode::Sketch : m_assemblyMode ? EditorMode::Assembly : EditorMode::Model;
+    }
     static gp_Ax3 basePlane(SketchPlane plane);
     // Opens a new, empty sketch on `plane` and turns the view to face it.
     void createSketch(const gp_Ax3& plane);
@@ -259,6 +264,74 @@ public:
     // An evaluation error in the current language.
     static QString expressionText(const ExpressionError& error);
 
+    // --- Assembly (SketchEditorAssembly.cpp) ------------------------------------------------
+    // Components of parts placed and joined. Entering closes an open sketch; the part
+    // bodies, sketches and history step aside until leaving.
+    void enterAssembly();
+    void leaveAssembly();
+    const Assembly& assembly() const { return m_assembly; }
+    void setAssembly(const Assembly& assembly); // an undo step
+    struct ComponentInfo
+    {
+        QString name;   // "Leaf 2"
+        QString source; // the body or file it is a copy of
+        bool grounded = false;
+        bool hidden = false;
+        bool missing = false; // its body is gone, or its file can't be read (and no copy is kept)
+        QString problem;      // why its file couldn't be read (a kept copy is shown)
+    };
+    std::vector<ComponentInfo> componentInfos() const;
+    struct JointInfo
+    {
+        QString name; // "Revolute 1"
+        JointKind kind = JointKind::Rigid;
+        QString between; // "Leaf 1 – Pin 1"
+        std::array<double, 3> values{}, min{}, max{};
+        std::array<bool, 3> limited{};
+        bool flip = false;
+        QString error; // why it doesn't apply
+    };
+    std::vector<JointInfo> jointInfos() const;
+    static QString jointKindName(JointKind kind);
+    static QString jointValueLabel(JointKind kind, int value); // "Angle [°]", "X [mm]", ...
+    // The bodies of the part model, by name, to insert as components.
+    QStringList bodyNames() const;
+    void insertBodyComponent(int body);
+    bool insertFileComponent(const QString& path); // false (with a message) when it can't be read
+    int pickedComponent() const { return m_pickedComponent; } // index, -1: none
+    void pickComponent(int index);
+    void setComponentGrounded(int index, bool grounded);
+    void setComponentHidden(int index, bool hidden);
+    void removeComponent(int index);
+    // A joint's value: while `final` is false (a slider being dragged) the model follows
+    // without an undo step; the final value records one.
+    void setJointValue(int joint, int value, double v, bool final);
+    void setJointLimits(int joint, int value, bool limited, double min, double max);
+    void setJointKind(int joint, JointKind kind);
+    void flipJoint(int joint);
+    void removeJoint(int joint);
+    // Overlaps between the parts, shown in red and reported; empty: none.
+    void checkInterference();
+    // Moves a joint through its range (its limits, or a full turn / ±50 mm) looking for
+    // collisions; reports the first.
+    void checkJointRange(int joint, int value);
+    bool exploded() const { return m_assembly.exploded; }
+    void setExploded(bool on);
+    void autoExplode(); // the parts apart along their joints' axes
+    // The components where they sit (shown ones; exploded when the view is), with their
+    // names, for drawings and export.
+    struct PlacedComponent
+    {
+        TopoDS_Shape shape; // placed
+        int source = 0;
+        QString name;       // the source's
+    };
+    std::vector<PlacedComponent> placedComponents(bool exploded) const;
+    // STEP with the assembly's structure (a product per source, placed per part); an
+    // error, empty on success. And the parts where they sit, as a 3D printer gets them.
+    std::string exportAssemblyStep(const std::string& path, const std::string& name) const;
+    std::vector<PrintBody> assemblyPrintBodies() const;
+
     ProjectData project() const;
     void loadProject(ProjectData project); // replaces everything; undo starts empty
     void newProject();
@@ -298,6 +371,7 @@ signals:
     void drawingsChanged();
     void patternChanged(); // the pattern panel's state (see patternState())
     void parametersChanged();
+    void assemblyChanged(); // components, joints or the exploded view
 
 private:
     struct Slot
@@ -314,6 +388,7 @@ private:
         std::vector<Feature> features;
         std::vector<Drawing> drawings;
         ParameterTable parameters;
+        Assembly assembly;
     };
     // What is under the pointer. Sketch mode: points, curves, constraint labels.
     // Model mode: Region (`region`), Face / Edge of body `id` (picked through AIS).
@@ -550,6 +625,62 @@ private:
 
     std::vector<Drawing> m_drawings;
     ParameterTable m_parameters;
+    Assembly m_assembly; // components and joints, beside the history (M17)
+    bool m_assemblyMode = false;
+    std::vector<Handle(AIS_Shape)> m_componentPrs; // by component index (null: not shown)
+    std::map<int, TopoDS_Shape> m_sourceShapes;    // by source id
+    std::map<int, QString> m_sourceProblems;       // file sources that couldn't be read
+    struct FileShape
+    {
+        qint64 modified = 0; // ms since the epoch
+        TopoDS_Shape shape;
+        QString error;
+    };
+    std::map<QString, FileShape> m_fileShapes; // read project files, by path
+    QFileSystemWatcher* m_fileWatcher = nullptr;
+    AssemblySolution m_solution;
+    int m_pickedComponent = -1;
+    Handle(AIS_Shape) m_interferencePrs;
+    Handle(AIS_Shape) m_jointMarkPrs;
+    struct JointPick
+    {
+        int component = -1;
+        gp_Ax3 frame; // in the component's coordinates
+        bool round = false;
+    };
+    std::optional<JointPick> m_jointFirst;
+    std::optional<Assembly> m_assemblyBefore; // a joint being set up, a drag: what undo goes back to
+    struct ComponentDrag
+    {
+        int component = -1;
+        int joint = -1; // the joint it is dragged along (-1: free)
+        double sign = 1.0;
+        gp_Ax3 axis;    // the joint's frame in the world, when it started
+        std::array<double, 3> start{};
+        gp_Trsf startPlacement;
+        QPointF pressPos;
+        bool moved = false;
+    };
+    std::optional<ComponentDrag> m_componentDrag;
+    void refreshAssembly(); // the sources' shapes, the solve, the presentations
+    void updateSourceShapes();
+    void showComponents();
+    void hidePartScene();
+    void showPartScene();
+    bool assemblyPress(const PointerEvent& e);
+    bool assemblyMove(const PointerEvent& e, bool pressed);
+    bool assemblyRelease(const PointerEvent& e);
+    // The component under the pointer and the face / edge / corner of it (in its own
+    // coordinates); component -1: none.
+    std::pair<int, TopoDS_Shape> componentAt(const PointerEvent& e) const;
+    void jointTap(int component, const TopoDS_Shape& picked);
+    void askJoint(int joint);
+    void showJointMark();
+    // An assembly change as one undo step: `before` is what undo goes back to.
+    void commitAssembly(const Assembly& before);
+    void dragComponentTo(const QPointF& pos);
+    QString componentName(int index) const;
+    QString sourceName(int source) const;
     std::vector<ParameterIssue> m_parameterIssues; // from the last time values followed them
     // Sets the values that have expressions from the parameters, then rebuilds.
     void followParameters();

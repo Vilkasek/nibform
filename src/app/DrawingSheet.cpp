@@ -493,6 +493,59 @@ void paintSheet(QPainter& p, const SheetContent& content, const SheetHighlight& 
         drawText(p, d, s->text.anchor, s->label, kText, s->text.angle);
     }
 
+    // Balloons: the item number in a circle, its leader ending in a dot on the part.
+    for (int i = 0; i < static_cast<int>(d.views.size()) && i < static_cast<int>(content.views.size())
+                    && i < static_cast<int>(content.balloons.size());
+         ++i) {
+        const SheetView& v = d.views[i];
+        const ViewGeometry& g = content.views[i];
+        constexpr double r = 4.0;
+        for (const Balloon& balloon : content.balloons[i]) {
+            const Vec at = vec(toSheet(v, g, balloon.at)), anchor = vec(toSheet(v, g, balloon.anchor));
+            const Vec toward = (anchor - at).unit();
+            p.setPen(pen(ink, kThin));
+            p.setBrush(Qt::NoBrush);
+            const Vec start = at + toward * r;
+            p.drawLine(toPaint(d, gp_Pnt2d(start.x, start.y)), toPaint(d, gp_Pnt2d(anchor.x, anchor.y)));
+            p.drawEllipse(toPaint(d, gp_Pnt2d(at.x, at.y)), r, r);
+            p.setBrush(ink);
+            p.drawEllipse(toPaint(d, gp_Pnt2d(anchor.x, anchor.y)), 0.6, 0.6);
+            p.setBrush(Qt::NoBrush);
+            p.setPen(ink);
+            drawText(p, d, at, QString::number(balloon.item), 3.5, 0.0, Qt::AlignHCenter | Qt::AlignVCenter);
+        }
+    }
+
+    // The parts list, on the title block: its header at the bottom, items counting upward.
+    if (d.partsList && !content.parts.empty()) {
+        constexpr double rowHeight = 6.0, itemWidth = 15.0, quantityWidth = 25.0, width = 130.0;
+        const double left = frame.right() - width;
+        const double bottom = frame.bottom() - 28.0; // the title block's top
+        auto row = [&](int index, const QString& item, const QString& name, const QString& quantity, bool header) {
+            const QRectF cell(left, bottom - rowHeight * (index + 1), width, rowHeight);
+            p.setPen(pen(ink, header ? kThick : kThin));
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(cell);
+            p.setPen(pen(ink, kThin));
+            p.drawLine(QPointF(left + itemWidth, cell.top()), QPointF(left + itemWidth, cell.bottom()));
+            p.drawLine(QPointF(cell.right() - quantityWidth, cell.top()), QPointF(cell.right() - quantityWidth, cell.bottom()));
+            p.setPen(ink);
+            const double baseline = d.height - cell.bottom() + 1.6;
+            const double size = header ? 2.8 : 3.0;
+            drawText(p, d, {left + itemWidth / 2.0, baseline}, item, size, 0.0, Qt::AlignHCenter | Qt::AlignBottom);
+            drawText(p, d, {left + itemWidth + 2.0, baseline}, name, size, 0.0, Qt::AlignLeft | Qt::AlignBottom);
+            drawText(p, d, {cell.right() - quantityWidth / 2.0, baseline}, quantity, size, 0.0,
+                     Qt::AlignHCenter | Qt::AlignBottom);
+        };
+        row(0, QCoreApplication::translate("DrawingSheet", "Item"), QCoreApplication::translate("DrawingSheet", "Part"),
+            QCoreApplication::translate("DrawingSheet", "Qty"), true);
+        for (std::size_t k = 0; k < content.parts.size(); ++k) {
+            const PartsListRow& part = content.parts[k];
+            row(static_cast<int>(k) + 1, QString::number(part.item), QString::fromStdString(part.name),
+                QString::number(part.quantity), false);
+        }
+    }
+
     // Notes.
     for (int i = 0; i < static_cast<int>(d.notes.size()); ++i) {
         const SheetNote& n = d.notes[i];

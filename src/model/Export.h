@@ -1,6 +1,7 @@
 #pragma once
 
 #include <TopoDS_Shape.hxx>
+#include <gp_Trsf.hxx>
 
 #include <array>
 #include <optional>
@@ -11,6 +12,24 @@
 std::string exportStep(const std::vector<TopoDS_Shape>& bodies, const std::string& path);
 // Binary STL, meshed finely enough for printing (0.05 mm, 0.5°).
 std::string exportStl(const std::vector<TopoDS_Shape>& bodies, const std::string& path);
+
+// STEP keeping an assembly's structure (M17): one product per part, placed as many times
+// as the instances say (each where `where` puts it), with names and colors; `name` names
+// the assembly.
+struct StepPart
+{
+    TopoDS_Shape shape; // as the part lies, unplaced
+    std::string name;
+    std::optional<std::array<double, 3>> color; // sRGB 0..1
+};
+struct StepInstance
+{
+    int part = 0; // index into the parts
+    gp_Trsf where;
+    std::string name;
+};
+std::string exportStepAssembly(const std::vector<StepPart>& parts, const std::vector<StepInstance>& instances,
+                               const std::string& name, const std::string& path);
 
 std::string exportIges(const std::vector<TopoDS_Shape>& bodies, const std::string& path);
 

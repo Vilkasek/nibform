@@ -84,6 +84,14 @@ std::optional<gp_Dir> planarNormal(const TopoDS_Face& face);
 
 double volumeOf(const TopoDS_Shape& shape);
 
+// Whether two shapes are certainly apart (their bounding boxes don't meet).
+bool apart(const TopoDS_Shape& a, const TopoDS_Shape& b);
+// The volume two solids share (0 when apart), whether they touch, and the shared solid
+// itself (empty when they share no volume).
+double overlap(const TopoDS_Shape& a, const TopoDS_Shape& b);
+bool touches(const TopoDS_Shape& a, const TopoDS_Shape& b);
+std::optional<TopoDS_Shape> commonOf(const TopoDS_Shape& a, const TopoDS_Shape& b);
+
 // Whether extruding sketch profiles by `distance` starts inside material: then Auto cuts.
 bool startsInside(const std::vector<TopoDS_Shape>& bodies, const std::vector<Profile>& profiles, double distance);
 

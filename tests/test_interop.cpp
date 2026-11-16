@@ -10,6 +10,14 @@
 #include "sketch/SketchOps.h"
 
 #include <BRepPrimAPI_MakeBox.hxx>
+#include <STEPCAFControl_Reader.hxx>
+#include <TCollection_AsciiString.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDataStd_Name.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 #include <TopExp_Explorer.hxx>
 
 #include <QFile>
@@ -18,6 +26,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <set>
 
 namespace {
 
@@ -337,9 +346,57 @@ void testClipboard()
 
 } // namespace
 
+// An assembly to STEP keeps its structure (M17): one product per part, placed per instance.
+void testStepAssembly()
+{
+    QTemporaryDir dir;
+    const std::string path = (dir.path() + QStringLiteral("/hinge.step")).toStdString();
+    gp_Trsf right, up;
+    right.SetTranslation(gp_Vec(50, 0, 0));
+    up.SetTranslation(gp_Vec(0, 0, 30));
+    const std::vector<StepPart> parts{{BRepPrimAPI_MakeBox(40, 20, 3).Shape(), "Leaf", std::array<double, 3>{0.8, 0.2, 0.2}},
+                                      {BRepPrimAPI_MakeBox(2, 2, 25).Shape(), "Pin", std::nullopt}};
+    const std::vector<StepInstance> instances{{0, gp_Trsf(), "Leaf:1"}, {0, right, "Leaf:2"}, {1, up, "Pin:1"}};
+    CHECK(exportStepAssembly(parts, instances, "Hinge", path).empty());
+
+    STEPCAFControl_Reader reader;
+    reader.SetNameMode(true);
+    Handle(TDocStd_Document) doc;
+    XCAFApp_Application::GetApplication()->NewDocument("MDTV-XCAF", doc);
+    CHECK(reader.ReadFile(path.c_str()) == IFSelect_RetDone && reader.Transfer(doc));
+    const Handle(XCAFDoc_ShapeTool) shapes = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+    TDF_LabelSequence roots;
+    shapes->GetFreeShapes(roots);
+    CHECK(roots.Length() == 1);
+    if (roots.Length() != 1)
+        return;
+    CHECK(shapes->IsAssembly(roots.Value(1)));
+    TDF_LabelSequence components;
+    shapes->GetComponents(roots.Value(1), components);
+    CHECK(components.Length() == 3);
+    // Two products behind the three instances, named, the second leaf 50 to the right.
+    std::set<std::string> names;
+    int moved = 0;
+    for (int i = 1; i <= components.Length(); ++i) {
+        TDF_Label product;
+        if (!shapes->GetReferredShape(components.Value(i), product))
+            continue;
+        Handle(TDataStd_Name) name;
+        if (product.FindAttribute(TDataStd_Name::GetID(), name))
+            names.insert(TCollection_AsciiString(name->Get()).ToCString());
+        const gp_XYZ offset = shapes->GetLocation(components.Value(i)).Transformation().TranslationPart();
+        moved += std::abs(offset.X() - 50.0) < 1e-6 ? 1 : 0;
+    }
+    CHECK(names == std::set<std::string>({"Leaf", "Pin"}));
+    CHECK(moved == 1);
+    // Read as plain solids, all three are there.
+    CHECK(importStep(path).size() == 3);
+}
+
 int main()
 {
     return runTests({
+        {"STEP assembly", testStepAssembly},
         {"shapes as text", testShapesAsText},
         {"STEP, IGES, STL round trips", testStepIgesStlRoundTrips},
         {"imports in the history", testImportsInTheHistory},

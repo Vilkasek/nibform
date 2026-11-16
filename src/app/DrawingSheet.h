@@ -19,6 +19,9 @@ struct SheetContent
     std::vector<ViewGeometry> views; // one per drawing view
     gp_Pnt modelMiddle;              // the bodies' middle (section planes are offset from it)
     QString units;                   // "mm" / "in", for the title block
+    // An assembly drawing: its parts list, and the balloons numbering the parts in each view.
+    std::vector<PartsListRow> parts;
+    std::vector<std::vector<Balloon>> balloons;
 };
 
 // What to show in the accent color while editing (none on paper).

@@ -666,6 +666,84 @@ PL["SketchEditor"].update({
       "Wyciągnięcie: wpisz, jak daleko od profilu się zaczyna (ujemne: w drugą stronę)  ·  Enter przechodzi do odległości",
 })
 
+# Assemblies (M17).
+PL.setdefault("AssemblyPanel", {}).update({
+  "Parts": "Części", "Part": "Część", "Grounded": "Unieruchomiona",
+  "Remove the picked part (and its joints)": "Usuń wybraną część (i jej więzy)",
+  "Joints": "Więzy", "Facing the same way": "Zwrócone w tę samą stronę",
+  "The two frames point the same way (by default they face each other, like touching faces)":
+      "Oba układy wskazują w tę samą stronę (domyślnie są zwrócone do siebie, jak stykające się ściany)",
+  "Limits": "Limity", "Lowest value": "Najmniejsza wartość", "Highest value": "Największa wartość",
+  "Check Range": "Sprawdź zakres",
+  "Moves the joint through its range looking for parts that collide":
+      "Przesuwa więz przez cały zakres, szukając kolidujących części",
+  "Remove Joint": "Usuń więz",
+  "Insert adds parts; Joint joins two (a face, round edge or corner of each); drag a part in the view to move it as its joints allow.":
+      "Wstaw dodaje części; Więz łączy dwie (ścianą, okrągłą krawędzią albo narożnikiem każdej); przeciągnij część w widoku, "
+      "by ruszyć ją tak, jak pozwalają więzy.",
+  "%1 (missing)": "%1 (brak)",
+  "Using the copy kept in the project: %1": "Używana kopia zapisana w projekcie: %1",
+})
+PL["DrawingSheet"].update({"Item": "Poz.", "Part": "Część", "Qty": "Szt."})
+PL["DrawingWidget"].update({"Assembly": "Złożenie"})
+PL["MainWindow"].update({
+  "Insert a part first: an assembly drawing shows the parts": "Najpierw wstaw część: rysunek złożenia pokazuje części",
+  "Assembly": "Złożenie", "No bodies in this project": "Brak brył w tym projekcie",
+  "From a Project File…": "Z pliku projektu…", "Insert a Part": "Wstaw część",
+  "This project's own bodies are in the list above": "Bryły tego projektu są na liście powyżej",
+  "Assembly (Ctrl+Shift+A): put parts together as components, join them so they move, check for collisions, explode":
+      "Złożenie (Ctrl+Shift+A): składaj części jako komponenty, łącz je więzami, by się ruszały, sprawdzaj kolizje, rozstrzelaj",
+  "ASSEMBLY": "ZŁOŻENIE", "Insert": "Wstaw",
+  "Insert a part: a body of this project, or another project file": "Wstaw część: bryłę tego projektu albo inny plik projektu",
+  "Joint": "Więz",
+  "Joint (J): tap a face, round edge or corner of one part, then of another: they meet there; pick the kind (rigid, revolute, slider, ...) and the value":
+      "Więz (J): dotknij ściany, okrągłej krawędzi albo narożnika jednej części, potem drugiej: spotkają się tam; "
+      "wybierz rodzaj (sztywny, obrotowy, suwak, …) i wartość",
+  "Ground": "Unieruchom", "Pick a part first": "Najpierw wybierz część",
+  "Ground: the picked part stays put (or moves again)": "Unieruchom: wybrana część zostaje w miejscu (albo znów się rusza)",
+  "Interference": "Kolizje", "Check where parts overlap: shown in red": "Sprawdź, gdzie części na siebie nachodzą: pokazane na czerwono",
+  "Explode": "Rozstrzel",
+  "Explode: the parts apart along their joints; drag them to arrange": "Rozstrzel: części odsunięte wzdłuż więzów; przeciągnij, by je ułożyć",
+  "Exploded Isometric": "Izometryczny rozstrzelony", "Parts List": "Lista części",
+})
+PL["Model"].update({
+  "No parts to export": "Brak części do eksportu",
+  "Could not prepare the assembly for STEP": "Nie udało się przygotować złożenia do STEP",
+  "A part this joint holds is gone": "Części, którą trzyma ten więz, już nie ma",
+  "A joint needs two different parts": "Więz potrzebuje dwóch różnych części",
+  "This joint closes a loop or joins two grounded parts: it is left out":
+      "Ten więz zamyka pętlę albo łączy dwie unieruchomione części: jest pomijany",
+  "The project has no body to use": "Projekt nie ma bryły do użycia",
+})
+PL["SketchEditor"].update({
+  "Joint: pick the kind, type the value  ·  Enter accepts, Esc drops it": "Więz: wybierz rodzaj, wpisz wartość  ·  Enter zatwierdza, Esc odrzuca",
+  "Joint: tap where the second part meets it (a face, round edge or corner)":
+      "Więz: dotknij miejsca, w którym styka się z nim druga część (ściany, okrągłej krawędzi albo narożnika)",
+  "Joint: tap a face, round edge or corner of the first part": "Więz: dotknij ściany, okrągłej krawędzi albo narożnika pierwszej części",
+  "Assembly: Insert adds a body of this project or another project file as a part":
+      "Złożenie: Wstaw dodaje jako część bryłę tego projektu albo inny plik projektu",
+  "Exploded: drag a part to move it apart  ·  Explode again puts them back":
+      "Rozstrzelone: przeciągnij część, by ją odsunąć  ·  ponowne Rozstrzel składa je z powrotem",
+  "Drag a part: it moves as its joints allow  ·  tap to pick it  ·  Joint joins two parts":
+      "Przeciągnij część: rusza się tak, jak pozwalają więzy  ·  dotknij, by ją wybrać  ·  Więz łączy dwie części",
+  "Rigid": "Sztywny", "Revolute": "Obrotowy", "Slider": "Suwak", "Cylindrical": "Walcowy", "Ball": "Kulisty", "Planar": "Płaski",
+  "Turn about X [°]": "Obrót wokół X [°]", "Turn about Y [°]": "Obrót wokół Y [°]", "X [mm]": "X [mm]", "Y [mm]": "Y [mm]",
+  "Part": "Część", "Missing body": "Brakująca bryła", "Body: %1": "Bryła: %1", "The file is gone": "Pliku już nie ma",
+  "%1 is grounded: it stays where it is": "%1 jest unieruchomiona: zostaje w miejscu",
+  "%1 is joined rigidly: drag the part it is joined to": "%1 jest połączona sztywno: przeciągnij część, z którą jest połączona",
+  "Pick a flat or round face, a round or straight edge, or a corner":
+      "Wybierz płaską albo okrągłą ścianę, okrągłą albo prostą krawędź, albo narożnik",
+  "Rigid: Enter keeps it": "Sztywny: Enter go zostawia",
+  "Facing": "Do siebie", "Same way": "W tę samą stronę",
+  "Can't use %1: %2": "Nie można użyć %1: %2",
+  "No parts overlap": "Żadne części na siebie nie nachodzą",
+  "No parts overlap; the closest are %1 and %2, %3 mm apart":
+      "Żadne części na siebie nie nachodzą; najbliżej są %1 i %2, w odległości %3 mm",
+  "%1 and %2 (%3 mm³)": "%1 i %2 (%3 mm³)", "Overlapping: %1": "Nachodzą na siebie: %1",
+  "%1 moves through its whole range without collisions": "%1 przechodzi cały zakres bez kolizji",
+  "%1: %2 and %3 collide at %4%5": "%1: %2 i %3 kolidują przy %4%5",
+})
+
 path = sys.argv[1] if len(sys.argv) > 1 else "translations/nibform_pl.ts"
 tree = ET.parse(path)
 missing = []

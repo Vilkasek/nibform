@@ -31,6 +31,7 @@ class DrawingWidget;
 class QDockWidget;
 class QTreeWidget;
 class RadialMenu;
+class AssemblyPanel;
 class ParametersPanel;
 class PatternPanel;
 struct PenSample;
@@ -66,6 +67,8 @@ private:
     // The Pattern panel: shown while a pattern is set up or changed.
     void buildPatternPanel();
     void buildParametersPanel();
+    void buildAssemblyPanel();
+    void fillInsertMenu(QMenu* menu); // the bodies to insert as parts, and a file
     void updatePatternPanel();
     void updateBodyList();
     void setUnits(LengthUnit unit);
@@ -186,6 +189,11 @@ private:
     QDockWidget* m_patternDock = nullptr;
     PatternPanel* m_patternPanel = nullptr;
     QDockWidget* m_parametersDock = nullptr;
+    QDockWidget* m_assemblyDock = nullptr;
+    AssemblyPanel* m_assemblyPanel = nullptr;
+    QToolBar* m_assemblyBar = nullptr;
+    QAction* m_assemblyAction = nullptr;
+    QAction* m_explodeAction = nullptr;
     ParametersPanel* m_parametersPanel = nullptr;
     bool m_fillingBodyList = false;
     QAction* m_sectionAction = nullptr;

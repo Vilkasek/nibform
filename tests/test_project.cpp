@@ -345,6 +345,63 @@ void testParametersRoundTrip()
     CHECK(edited && edited->parameters.parameters.size() == 2);
 }
 
+void testAssemblyRoundTrip()
+{
+    ProjectData project;
+    Assembly& a = project.assembly;
+    a.sources = {{ComponentSource::Kind::Body, 3, gp_Pnt(1, 2, 3), {}, {}, "Leaf"},
+                 {ComponentSource::Kind::File, 5, {}, "/parts/pin.nibform",
+                  std::make_shared<const std::string>("BREP"), "Pin"}};
+    a.components = {{1, 3, {}, true, false}, {2, 5, {0, -1, 0, 4, 1, 0, 0, 5, 0, 0, 1, 6}, false, true}};
+    Joint j;
+    j.id = 7;
+    j.kind = JointKind::Cylindrical;
+    j.a = {1, gp_Ax3(gp_Pnt(1, 0, 0), gp::DY(), gp::DZ())};
+    j.b = {2, gp_Ax3(gp_Pnt(0, 0, 2), -gp::DZ(), gp::DX())};
+    j.flip = true;
+    j.values = {45, 2.5, 0};
+    j.min = {-10, 0, 0};
+    j.max = {170, 8, 0};
+    j.limited = {true, true, false};
+    a.joints = {j};
+    a.explode[2] = gp_Vec(0, 0, 15);
+    a.exploded = true;
+    Drawing sheet;
+    sheet.assembly = true;
+    sheet.partsList = true;
+    SheetView apart;
+    apart.kind = ViewKind::Iso;
+    apart.exploded = true;
+    sheet.views = {apart};
+    project.drawings = {sheet};
+
+    const QByteArray json = projectToJson(project);
+    const auto loaded = projectFromJson(json);
+    CHECK(loaded.has_value());
+    if (!loaded)
+        return;
+    const Assembly& b = loaded->assembly;
+    CHECK(b.sources.size() == 2 && b.components.size() == 2 && b.joints.size() == 1);
+    if (b.sources.size() != 2 || b.components.size() != 2 || b.joints.size() != 1)
+        return;
+    CHECK(b.sources[0].kind == ComponentSource::Kind::Body && b.sources[0].inside.Distance(gp_Pnt(1, 2, 3)) < 1e-12);
+    CHECK(b.sources[1].kind == ComponentSource::Kind::File && b.sources[1].path == "/parts/pin.nibform");
+    CHECK(b.sources[1].cache && *b.sources[1].cache == "BREP" && b.sources[1].name == "Pin");
+    CHECK(b.components[0].grounded && b.components[0].matrix.empty());
+    CHECK(b.components[1].hidden && b.components[1].matrix == a.components[1].matrix);
+    const Joint& k = b.joints[0];
+    CHECK(k.id == 7 && k.kind == JointKind::Cylindrical && k.flip && k.a.component == 1 && k.b.component == 2);
+    CHECK(k.a.frame.Location().Distance(gp_Pnt(1, 0, 0)) < 1e-12 && k.a.frame.Direction().IsEqual(gp::DY(), 1e-12));
+    CHECK(k.a.frame.XDirection().IsEqual(gp::DZ(), 1e-12));
+    CHECK(k.values == j.values && k.min == j.min && k.max == j.max && k.limited == j.limited);
+    CHECK(b.exploded && b.explode.count(2) && b.explode.at(2).Z() == 15.0);
+    CHECK(loaded->drawings.size() == 1 && loaded->drawings[0].assembly && loaded->drawings[0].partsList);
+    CHECK(loaded->drawings.size() == 1 && loaded->drawings[0].views.size() == 1 && loaded->drawings[0].views[0].exploded);
+    CHECK(projectToJson(*loaded) == json);
+    // No assembly, no key: files without one stay as they were.
+    CHECK(!projectToJson(ProjectData{}).contains("assembly"));
+}
+
 void testDetailsRoundTrip()
 {
     // Threads, tapped holes, draft, ribs, emboss and varying fillets (M16).
@@ -529,6 +586,7 @@ void testRecoveryIgnoresRunningAndClosedSessions()
 int main()
 {
     return runTests({
+        {"assembly round trip", testAssemblyRoundTrip},
         {"round trip", testRoundTrip},
         {"toolkit geometry round trip", testToolkitGeometryRoundTrip},
         {"solid features round trip", testSolidFeaturesRoundTrip},

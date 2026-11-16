@@ -23,9 +23,13 @@ public:
 
     // Shows drawing `index` (making a first one when there is none), projected anew.
     void open(int index = 0);
+    // The part model's drawing, or the assembly's (made when there is none).
+    void openFor(bool assembly);
+    bool showsAssembly() const { return m_drawing.assembly; }
     void setTool(Tool tool);
     Tool tool() const { return m_tool; }
-    void addView(ViewKind kind);
+    void addView(ViewKind kind, bool exploded = false);
+    void togglePartsList();
     void setSheet(double width, double height);
     void editTitle();
     void deleteSelected();
@@ -82,6 +86,9 @@ private:
     std::vector<std::string> m_keys; // what each view was projected for
     std::vector<TopoDS_Shape> m_bodies; // what the views were projected from
     std::vector<ThreadMark> m_threads;  // and the threads on them
+    std::vector<TopoDS_Shape> m_apart;  // an assembly's parts apart (exploded views)
+    std::vector<PartsListRow> m_parts;
+    std::vector<std::vector<Balloon>> m_balloons; // by view
     gp_Pnt m_middle;
 
     double m_zoom = 3.0;   // widget px per sheet mm

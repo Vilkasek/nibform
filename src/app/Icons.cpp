@@ -551,6 +551,50 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         dot(p, {4, 20}, accent, 2.2);
         break;
     }
+    case Icon::Assembly: {
+        // Two blocks, one set on the other.
+        p.drawRect(QRectF(3, 13, 12, 8));
+        p.setPen(pen(accent, 1.8));
+        p.drawRect(QRectF(9, 4, 12, 8));
+        break;
+    }
+    case Icon::Joint: {
+        // Two leaves turning about a pin.
+        p.drawLine(QPointF(3, 18), QPointF(11, 13));
+        p.setPen(pen(accent, 1.8));
+        p.drawLine(QPointF(13, 13), QPointF(21, 5));
+        p.drawEllipse(QPointF(12, 13), 2.6, 2.6);
+        break;
+    }
+    case Icon::Ground: {
+        // A block on hatched ground.
+        p.drawLine(QPointF(3, 18), QPointF(21, 18));
+        for (int x = 5; x <= 19; x += 4)
+            p.drawLine(QPointF(x, 18), QPointF(x - 3, 22));
+        p.setPen(pen(accent, 1.8));
+        p.drawRect(QRectF(7, 7, 10, 11));
+        break;
+    }
+    case Icon::Interference: {
+        // Two squares overlapping, the shared part filled.
+        p.drawRect(QRectF(3, 3, 12, 12));
+        p.drawRect(QRectF(9, 9, 12, 12));
+        p.setPen(pen(accent, 1.4));
+        p.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 140));
+        p.drawRect(QRectF(9, 9, 6, 6));
+        p.setBrush(Qt::NoBrush);
+        break;
+    }
+    case Icon::Explode: {
+        // Parts moved apart along arrows.
+        p.drawRect(QRectF(8, 9, 8, 6));
+        p.setPen(pen(accent, 1.8));
+        p.drawLine(QPointF(12, 7), QPointF(12, 2));
+        arrowHead(p, {12, 1}, {12, 5}, accent);
+        p.drawLine(QPointF(12, 17), QPointF(12, 22));
+        arrowHead(p, {12, 23}, {12, 19}, accent);
+        break;
+    }
     case Icon::Note: {
         // Lines of text under a capital.
         p.drawLine(QPointF(5, 13), QPointF(19, 13));

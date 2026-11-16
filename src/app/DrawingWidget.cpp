@@ -4,6 +4,8 @@
 #include "viewer/UnitText.h"
 
 #include <BRepBndLib.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <Bnd_Box.hxx>
 
 #include <QGuiApplication>
@@ -30,7 +32,7 @@ std::string keyOf(const SheetView& v)
 {
     std::ostringstream key;
     key << static_cast<int>(v.kind) << '|' << static_cast<int>(v.base) << '|' << v.offset << '|' << v.hidden << '|'
-        << v.scale;
+        << v.scale << '|' << v.exploded;
     return key.str();
 }
 
@@ -77,6 +79,29 @@ void DrawingWidget::open(int index)
     fitSheet();
 }
 
+void DrawingWidget::openFor(bool assembly)
+{
+    const std::vector<Drawing>& drawings = m_editor->drawings();
+    for (int i = 0; i < static_cast<int>(drawings.size()); ++i) {
+        if (drawings[i].assembly == assembly) {
+            open(i);
+            return;
+        }
+    }
+    const int index = static_cast<int>(drawings.size());
+    if (assembly) {
+        std::vector<TopoDS_Shape> together, apart;
+        for (const auto& p : m_editor->placedComponents(false))
+            together.push_back(p.shape);
+        for (const auto& p : m_editor->placedComponents(true))
+            apart.push_back(p.shape);
+        m_editor->setDrawing(index, assemblyDrawing(together, apart, tr("Assembly").toStdString()));
+    } else {
+        m_editor->setDrawing(index, defaultDrawing(m_editor->visibleBodies(), tr("Part").toStdString()));
+    }
+    open(index);
+}
+
 void DrawingWidget::reload()
 {
     if (m_index < 0 || m_index >= static_cast<int>(m_editor->drawings().size()))
@@ -102,11 +127,28 @@ void DrawingWidget::reload()
 
 void DrawingWidget::regenerate()
 {
-    const std::vector<TopoDS_Shape> bodies = m_editor->visibleBodies();
-    const std::vector<ThreadMark> threads = m_editor->threads();
-    bool modelChanged = bodies.size() != m_bodies.size() || threads.size() != m_threads.size();
+    // An assembly drawing shows the parts where they sit (and apart in exploded views),
+    // with no threads called out.
+    std::vector<TopoDS_Shape> bodies, apart;
+    std::vector<SketchEditor::PlacedComponent> together, exploded;
+    if (m_drawing.assembly) {
+        together = m_editor->placedComponents(false);
+        exploded = m_editor->placedComponents(true);
+        for (const auto& p : together)
+            bodies.push_back(p.shape);
+        for (const auto& p : exploded)
+            apart.push_back(p.shape);
+    } else {
+        bodies = m_editor->visibleBodies();
+    }
+    const std::vector<ThreadMark> threads = m_drawing.assembly ? std::vector<ThreadMark>{} : m_editor->threads();
+    bool modelChanged = bodies.size() != m_bodies.size() || threads.size() != m_threads.size()
+                     || apart.size() != m_apart.size();
+    // Rebuilt bodies are new shapes; moved parts have new locations.
     for (std::size_t i = 0; !modelChanged && i < bodies.size(); ++i)
-        modelChanged = !bodies[i].IsSame(m_bodies[i]); // rebuilt bodies are new shapes
+        modelChanged = !bodies[i].IsEqual(m_bodies[i]);
+    for (std::size_t i = 0; !modelChanged && i < apart.size(); ++i)
+        modelChanged = !apart[i].IsEqual(m_apart[i]);
     // A cosmetic thread changes no body, only what the drawing says.
     for (std::size_t i = 0; !modelChanged && i < threads.size(); ++i) {
         const ThreadMark &a = threads[i], &b = m_threads[i];
@@ -115,6 +157,7 @@ void DrawingWidget::regenerate()
                     || threadCallout(a.spec) != threadCallout(b.spec);
     }
     m_bodies = bodies;
+    m_apart = apart;
     m_threads = threads;
     if (modelChanged) {
         Bnd_Box box;
@@ -133,11 +176,37 @@ void DrawingWidget::regenerate()
             QGuiApplication::setOverrideCursor(Qt::WaitCursor);
             waiting = true;
         }
-        m_geometry[i] = projectView(bodies, m_drawing.views[i], threads);
+        m_geometry[i] = projectView(m_drawing.views[i].exploded && m_drawing.assembly ? apart : bodies,
+                                    m_drawing.views[i], threads);
         m_keys[i] = key;
     }
     if (waiting)
         QGuiApplication::restoreOverrideCursor();
+
+    // The parts list, and balloons on the exploded views (on the first view if none is).
+    m_parts.clear();
+    m_balloons.assign(m_drawing.views.size(), {});
+    if (m_drawing.assembly) {
+        std::vector<std::pair<int, std::string>> parts;
+        for (const auto& p : together)
+            parts.emplace_back(p.source, p.name.toStdString());
+        std::map<int, int> itemOf;
+        m_parts = partsList(parts, &itemOf);
+        const bool anyExploded =
+            std::any_of(m_drawing.views.begin(), m_drawing.views.end(), [](const SheetView& v) { return v.exploded; });
+        for (std::size_t i = 0; i < m_drawing.views.size(); ++i) {
+            const SheetView& v = m_drawing.views[i];
+            if (v.kind == ViewKind::Section || (anyExploded ? !v.exploded : i != 0))
+                continue;
+            std::vector<std::pair<int, gp_Pnt2d>> anchors;
+            for (const auto& p : v.exploded ? exploded : together) {
+                GProp_GProps props;
+                BRepGProp::VolumeProperties(p.shape, props);
+                anchors.emplace_back(itemOf[p.source], projectPoint(v.kind, props.CentreOfMass()));
+            }
+            m_balloons[i] = placeBalloons(m_geometry[i], anchors, 12.0 / v.scale);
+        }
+    }
 
     // Dimensions follow what they measure (without an undo step of their own).
     bool followed = false;
@@ -169,6 +238,8 @@ SheetContent DrawingWidget::content() const
     c.views = m_geometry;
     c.modelMiddle = m_middle;
     c.units = QString::fromLatin1(lengthSymbol());
+    c.parts = m_parts;
+    c.balloons = m_balloons;
     return c;
 }
 
@@ -184,9 +255,16 @@ void DrawingWidget::setTool(Tool tool)
     update();
 }
 
-void DrawingWidget::addView(ViewKind kind)
+void DrawingWidget::togglePartsList()
+{
+    m_drawing.partsList = !m_drawing.partsList;
+    commit();
+}
+
+void DrawingWidget::addView(ViewKind kind, bool exploded)
 {
     SheetView v;
+    v.exploded = exploded && m_drawing.assembly;
     v.kind = kind == ViewKind::Section ? ViewKind::Section : kind;
     v.base = ViewKind::Front;
     v.at = gp_Pnt2d(m_drawing.width / 2.0, m_drawing.height / 2.0);

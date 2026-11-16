@@ -80,6 +80,8 @@ enum class ToolKind
     Text, // sketch text, placed and edited by the editor (SketchEditorDetails.cpp)
     // Model: moving, measuring and cutting open (SketchEditorInspect.cpp)
     Move, Measure, Section,
+    // Assembly: joining two components (SketchEditorAssembly.cpp)
+    Joint,
     // Model: solid features and construction geometry (SketchEditorSolids.cpp)
     Revolve, Sweep, Loft, Hole, BodyMirror, BodyLinearPattern, BodyCircularPattern,
     OffsetPlane, AnglePlane, ThreePointPlane, Axis,
@@ -92,12 +94,18 @@ inline bool isSolidTool(ToolKind kind)
     return kind >= ToolKind::Revolve;
 }
 
-// Whether the tool belongs to sketch mode (Select works in both).
+// Whether the tool belongs to the assembly mode (Select works in every mode).
+inline bool isAssemblyTool(ToolKind kind)
+{
+    return kind == ToolKind::Joint;
+}
+
+// Whether the tool belongs to sketch mode (Select works in every mode).
 inline bool isSketchTool(ToolKind kind)
 {
     return kind != ToolKind::Select && kind != ToolKind::PushPull && kind != ToolKind::Fillet
         && kind != ToolKind::Chamfer && kind != ToolKind::Shell && kind != ToolKind::Move
-        && kind != ToolKind::Measure && kind != ToolKind::Section && !isSolidTool(kind);
+        && kind != ToolKind::Measure && kind != ToolKind::Section && !isAssemblyTool(kind) && !isSolidTool(kind);
 }
 
 std::unique_ptr<SketchTool> makeTool(ToolKind kind, SketchToolHost& host);

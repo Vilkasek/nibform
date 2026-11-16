@@ -3,6 +3,7 @@
 #include "app/Icons.h"
 #include "app/Language.h"
 #include "app/DrawingWidget.h"
+#include "app/AssemblyPanel.h"
 #include "app/ParametersPanel.h"
 #include "app/PatternPanel.h"
 #include "app/RadialMenu.h"
@@ -82,6 +83,7 @@ QString toolId(ToolKind kind)
     case ToolKind::Move: return QStringLiteral("move");
     case ToolKind::Measure: return QStringLiteral("measure");
     case ToolKind::Section: return QStringLiteral("section");
+    case ToolKind::Joint: return QStringLiteral("joint");
     case ToolKind::Revolve: return QStringLiteral("revolve");
     case ToolKind::Sweep: return QStringLiteral("sweep");
     case ToolKind::Loft: return QStringLiteral("loft");
@@ -150,6 +152,7 @@ MainWindow::MainWindow(QWidget* parent)
     buildBodyList();
     buildPatternPanel();
     buildParametersPanel();
+    buildAssemblyPanel();
 
     m_hintLabel = new QLabel(this);
     m_dofLabel = new QLabel(this);
@@ -295,8 +298,10 @@ void MainWindow::showRadialMenu(const QPointF& pos)
 void MainWindow::enterDrawing()
 {
     settleModel();
-    if (m_editor->bodyCount() == 0) {
-        showMessage(tr("Make a body first: a drawing shows the bodies"));
+    const bool assembly = m_editor->mode() == EditorMode::Assembly;
+    if (assembly ? m_editor->placedComponents(false).empty() : m_editor->bodyCount() == 0) {
+        showMessage(assembly ? tr("Insert a part first: an assembly drawing shows the parts")
+                             : tr("Make a body first: a drawing shows the bodies"));
         return;
     }
     if (m_editor->mode() == EditorMode::Sketch)
@@ -304,7 +309,7 @@ void MainWindow::enterDrawing()
     m_editor->setTool(ToolKind::Select);
     m_drawingMode = true;
     m_stack->setCurrentWidget(m_drawingWidget);
-    m_drawingWidget->open(0);
+    m_drawingWidget->openFor(assembly);
     updateMode(m_editor->mode());
     m_drawingWidget->setFocus();
 }
@@ -500,6 +505,40 @@ void MainWindow::updateBodyList()
     }
 }
 
+void MainWindow::buildAssemblyPanel()
+{
+    m_assemblyDock = new QDockWidget(this);
+    m_assemblyDock->setObjectName(QStringLiteral("assemblyDock"));
+    m_assemblyDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable); // goes with the mode
+    m_assemblyPanel = new AssemblyPanel(m_editor, m_assemblyDock);
+    m_assemblyDock->setWindowTitle(tr("Assembly"));
+    m_assemblyDock->setWidget(m_assemblyPanel);
+    addDockWidget(Qt::RightDockWidgetArea, m_assemblyDock);
+    m_assemblyDock->hide();
+}
+
+void MainWindow::fillInsertMenu(QMenu* menu)
+{
+    menu->clear();
+    const QStringList bodies = m_editor->bodyNames();
+    for (int b = 0; b < bodies.size(); ++b)
+        menu->addAction(bodies[b], this, [this, b] { m_editor->insertBodyComponent(b); });
+    if (bodies.isEmpty())
+        menu->addAction(tr("No bodies in this project"))->setEnabled(false);
+    menu->addSeparator();
+    menu->addAction(tr("From a Project File…"), this, [this] {
+        const QString path = QFileDialog::getOpenFileName(this, tr("Insert a Part"), lastDirectory(),
+                                                          tr("Nibform projects (*.nibform)"));
+        if (path.isEmpty())
+            return;
+        if (QFileInfo(path).absoluteFilePath() == QFileInfo(m_path).absoluteFilePath() && !m_path.isEmpty()) {
+            showMessage(tr("This project's own bodies are in the list above"));
+            return;
+        }
+        m_editor->insertFileComponent(path);
+    });
+}
+
 void MainWindow::buildParametersPanel()
 {
     m_parametersDock = new QDockWidget(this);
@@ -605,11 +644,13 @@ void MainWindow::rebuildUi()
     delete m_contextBar;
     m_contextBar = nullptr;
     m_contextButtons.clear();
-    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_constraintBar, m_timelineBar, m_quickBar, m_drawingBar}) {
+    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_constraintBar, m_timelineBar, m_quickBar, m_drawingBar,
+                          m_assemblyBar}) {
         removeToolBar(bar);
         delete bar;
     }
     m_modelBar = m_sketchBar = m_viewBar = m_constraintBar = m_timelineBar = m_quickBar = m_drawingBar = nullptr;
+    m_assemblyBar = nullptr;
     delete m_uiRoot;
     setMenuBar(new QMenuBar(this)); // deletes the old one, its menus and their actions
     m_toolActions.clear();
@@ -741,8 +782,11 @@ void MainWindow::buildActions()
         connect(action, &QAction::triggered, this, [this, kind] { m_editor->setTool(kind); });
         m_toolActions[kind] = action;
         bindable(action, QStringLiteral("tool.") + toolId(kind),
-                 kind == ToolKind::Select ? tr("Edit") : isSketchTool(kind) ? tr("Sketch") : tr("Model"),
-                 kind == ToolKind::Select ? "global" : isSketchTool(kind) ? "sketch" : "model");
+                 kind == ToolKind::Select      ? tr("Edit")
+                 : isSketchTool(kind)          ? tr("Sketch")
+                 : isAssemblyTool(kind)        ? tr("Assembly")
+                                               : tr("Model"),
+                 kind == ToolKind::Select ? "global" : isSketchTool(kind) ? "sketch" : isAssemblyTool(kind) ? "assembly" : "model");
         return action;
     };
     QAction* select = makeTool(ToolKind::Select, tr("Select"), QKeySequence(Qt::Key_S), Icon::Select);
@@ -1023,6 +1067,70 @@ void MainWindow::buildActions()
     m_closeSketchAction = m_sketchBar->addAction(tr("Finish Sketch"), m_editor, &SketchEditor::closeSketch);
     m_modelBar->addSeparator();
     m_modelBar->addAction(m_drawingAction);
+    m_assemblyAction = new QAction(tr("Assembly"), m_uiRoot);
+    iconize(m_assemblyAction, Icon::Assembly);
+    m_assemblyAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
+    m_assemblyAction->setToolTip(tr("Assembly (Ctrl+Shift+A): put parts together as components, join them so they "
+                                    "move, check for collisions, explode"));
+    bindable(m_assemblyAction, QStringLiteral("model.assembly"), tr("Model"), "model");
+    connect(m_assemblyAction, &QAction::triggered, this, [this] {
+        settleModel();
+        m_editor->enterAssembly();
+        m_viewer->fitAll();
+    });
+    m_modelBar->addAction(m_assemblyAction);
+
+    // Assembly: parts put together, joined, checked, exploded.
+    m_assemblyBar = makeBar(tr("Assembly"));
+    insertToolBar(m_viewBar, m_assemblyBar); // where the model bar is, before the view's
+    badge(m_assemblyBar, tr("ASSEMBLY"), "assembly");
+    {
+        QAction* back = m_assemblyBar->addAction(tr("Back to Model"), this, [this] { m_editor->leaveAssembly(); });
+        iconize(back, Icon::CloseSketch);
+        if (QWidget* button = m_assemblyBar->widgetForAction(back))
+            button->setObjectName(QStringLiteral("closeSketch"));
+        m_assemblyBar->addSeparator();
+        m_assemblyBar->addAction(select);
+        auto* insert = new QToolButton(m_assemblyBar);
+        auto* insertAction = new QAction(tr("Insert"), insert);
+        iconize(insertAction, Icon::Import);
+        insertAction->setToolTip(tr("Insert a part: a body of this project, or another project file"));
+        auto* menu = new QMenu(insert);
+        connect(menu, &QMenu::aboutToShow, this, [this, menu] { fillInsertMenu(menu); });
+        insertAction->setMenu(menu);
+        insert->setDefaultAction(insertAction);
+        insert->setPopupMode(QToolButton::InstantPopup);
+        insert->setFocusPolicy(Qt::NoFocus);
+        insert->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        m_assemblyBar->addWidget(insert);
+        m_groupButtons.push_back(insert);
+        m_assemblyBar->addAction(makeTool(ToolKind::Joint, tr("Joint"), QKeySequence(Qt::Key_J), Icon::Joint));
+        tip(ToolKind::Joint, tr("Joint (J): tap a face, round edge or corner of one part, then of another: they meet "
+                                "there; pick the kind (rigid, revolute, slider, ...) and the value"));
+        m_assemblyBar->addSeparator();
+        QAction* ground = m_assemblyBar->addAction(tr("Ground"), this, [this] {
+            const int picked = m_editor->pickedComponent();
+            if (picked < 0) {
+                showMessage(tr("Pick a part first"));
+                return;
+            }
+            m_editor->setComponentGrounded(picked, !m_editor->assembly().components[picked].grounded);
+        });
+        iconize(ground, Icon::Ground);
+        ground->setToolTip(tr("Ground: the picked part stays put (or moves again)"));
+        QAction* interference = m_assemblyBar->addAction(tr("Interference"), m_editor, &SketchEditor::checkInterference);
+        iconize(interference, Icon::Interference);
+        interference->setToolTip(tr("Check where parts overlap: shown in red"));
+        m_explodeAction = m_assemblyBar->addAction(tr("Explode"), this, [this](bool on) { m_editor->setExploded(on); });
+        iconize(m_explodeAction, Icon::Explode);
+        m_explodeAction->setCheckable(true);
+        m_explodeAction->setChecked(m_editor->exploded());
+        m_explodeAction->setToolTip(tr("Explode: the parts apart along their joints; drag them to arrange"));
+        connect(m_editor, &SketchEditor::assemblyChanged, m_explodeAction,
+                [this] { m_explodeAction->setChecked(m_editor->exploded()); });
+        m_assemblyBar->addSeparator();
+        m_assemblyBar->addAction(m_drawingAction);
+    }
 
     // Drawing: the sheet's own bar.
     m_drawingBar = makeBar(tr("Drawing"));
@@ -1068,6 +1176,11 @@ void MainWindow::buildActions()
                                          std::pair(ViewKind::Iso, tr("Isometric")),
                                          std::pair(ViewKind::Section, tr("Section…"))})
             views->addAction(name, this, [this, kind] { m_drawingWidget->addView(kind); });
+        QAction* explodedView =
+            views->addAction(tr("Exploded Isometric"), this, [this] { m_drawingWidget->addView(ViewKind::Iso, true); });
+        connect(views, &QMenu::aboutToShow, explodedView, [this, explodedView] {
+            explodedView->setVisible(m_drawingWidget->showsAssembly());
+        });
         menuButton(tr("Add View"), Icon::Iso, views);
         auto* sheet = new QMenu(m_drawingBar);
         for (const auto& [name, w, h] : {std::tuple(tr("A4 Landscape"), 297.0, 210.0), std::tuple(tr("A4 Portrait"), 210.0, 297.0),
@@ -1076,6 +1189,8 @@ void MainWindow::buildActions()
             sheet->addAction(name, this, [this, w = w, h = h] { m_drawingWidget->setSheet(w, h); });
         sheet->addSeparator();
         sheet->addAction(tr("Title…"), m_drawingWidget, &DrawingWidget::editTitle);
+        QAction* parts = sheet->addAction(tr("Parts List"), m_drawingWidget, &DrawingWidget::togglePartsList);
+        connect(sheet, &QMenu::aboutToShow, parts, [this, parts] { parts->setVisible(m_drawingWidget->showsAssembly()); });
         menuButton(tr("Sheet"), Icon::Drawing, sheet);
         m_drawingBar->addSeparator();
         QAction* pdf = m_drawingBar->addAction(tr("PDF"), this, [this] { exportDrawing(true); });
@@ -1157,6 +1272,7 @@ void MainWindow::buildActions()
     bodyPanel->setText(tr("Body List"));
     views->addAction(bodyPanel);
     m_parametersDock->setWindowTitle(tr("Parameters"));
+    m_assemblyDock->setWindowTitle(tr("Assembly"));
     QAction* parametersPanel = m_parametersDock->toggleViewAction();
     parametersPanel->setText(tr("Parameters"));
     parametersPanel->setToolTip(tr("Named values to type into dimensions and features, and configurations"));
@@ -1885,7 +2001,18 @@ void MainWindow::exportBodies(ExportFormat format)
     rememberDirectory(path);
     const std::string file = path.toStdString();
     std::string error;
-    switch (format) {
+    if (m_editor->mode() == EditorMode::Assembly) {
+        // The parts where they sit; STEP keeps the assembly's structure.
+        std::vector<TopoDS_Shape> parts;
+        for (const auto& p : m_editor->placedComponents(false))
+            parts.push_back(p.shape);
+        const std::string name =
+            (m_path.isEmpty() ? tr("Assembly") : QFileInfo(m_path).completeBaseName()).toStdString();
+        error = format == ExportFormat::Step ? m_editor->exportAssemblyStep(file, name)
+              : format == ExportFormat::Iges ? exportIges(parts, file)
+              : format == ExportFormat::Stl  ? exportStl(parts, file)
+                                             : export3mf(m_editor->assemblyPrintBodies(), file, lengthUnit() == LengthUnit::Inch);
+    } else switch (format) {
     case ExportFormat::Step:
         error = exportStep(m_editor->bodies(), file);
         break;
@@ -2012,20 +2139,28 @@ void MainWindow::updateContextBar()
 void MainWindow::updateMode(EditorMode mode)
 {
     const bool sketch = mode == EditorMode::Sketch && !m_drawingMode;
-    m_modelBar->setVisible(!sketch && !m_drawingMode);
+    const bool assembly = mode == EditorMode::Assembly && !m_drawingMode;
+    m_modelBar->setVisible(!sketch && !assembly && !m_drawingMode);
+    m_assemblyBar->setVisible(assembly);
+    m_timelineBar->setVisible(mode != EditorMode::Assembly); // the assembly isn't in the history
+    if (m_assemblyDock)
+        m_assemblyDock->setVisible(assembly);
     m_sketchBar->setVisible(sketch);
     m_constraintBar->setVisible(sketch);
     m_drawingBar->setVisible(m_drawingMode);
     m_viewBar->setVisible(!m_drawingMode); // turns the 3D view; the sheet has Fit (F) and its own bar
     m_constraintMenu->setEnabled(sketch);
     m_sketchMenu->setEnabled(sketch);
-    m_bodiesMenu->setEnabled(!sketch && !m_drawingMode);
+    m_bodiesMenu->setEnabled(!sketch && !assembly && !m_drawingMode);
     // Hidden actions must not fire through their shortcuts either.
     for (const auto& [kind, action] : m_toolActions)
-        action->setEnabled(!m_drawingMode && (kind == ToolKind::Select || isSketchTool(kind) == sketch));
+        action->setEnabled(!m_drawingMode
+                           && (kind == ToolKind::Select
+                               || (isSketchTool(kind) == sketch && isAssemblyTool(kind) == assembly)));
     for (const auto& [command, action] : m_constraintActions)
         action->setEnabled(sketch);
-    m_newSketchAction->setEnabled(!sketch && !m_drawingMode);
+    m_newSketchAction->setEnabled(!sketch && !assembly && !m_drawingMode);
+    m_assemblyAction->setEnabled(!sketch && !assembly && !m_drawingMode);
     m_drawingAction->setEnabled(!sketch && !m_drawingMode);
     m_closeSketchAction->setEnabled(sketch);
     m_clearSketchAction->setEnabled(sketch);
@@ -2037,7 +2172,8 @@ void MainWindow::updateEditActions()
     m_undoAction->setEnabled(m_editor->canUndo());
     m_redoAction->setEnabled(m_editor->canRedo());
     m_deleteAction->setEnabled(m_drawingMode ? m_drawingWidget->hasSelection()
-                                             : !m_editor->selection().empty() || !m_editor->selectedBodies().empty());
+                                             : !m_editor->selection().empty() || !m_editor->selectedBodies().empty()
+                                                   || m_editor->pickedComponent() >= 0);
     m_copyAction->setEnabled(m_editor->canCopy());
     for (QAction* action : m_bodyActions)
         action->setEnabled(m_editor->selectedBodies().size() >= 2);

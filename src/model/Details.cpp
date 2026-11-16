@@ -74,7 +74,7 @@ std::optional<TopoDS_Shape> run(BRepAlgoAPI_BooleanOperation&& op, const TopoDS_
     return op.Shape();
 }
 
-bool touches(const TopoDS_Shape& a, const TopoDS_Shape& b)
+bool meets(const TopoDS_Shape& a, const TopoDS_Shape& b)
 {
     BRepExtrema_DistShapeShape distance(a, b);
     return distance.IsDone() && distance.Value() < kTouch;
@@ -86,7 +86,7 @@ std::optional<TopoDS_Shape> solidsTouching(const TopoDS_Shape& shape, const Topo
     TopoDS_Compound kept = compound();
     bool any = false;
     for (TopExp_Explorer it(shape, TopAbs_SOLID); it.More(); it.Next()) {
-        if (volumeOf(it.Current()) > 1e-6 && touches(it.Current(), what)) {
+        if (volumeOf(it.Current()) > 1e-6 && meets(it.Current(), what)) {
             BRep_Builder().Add(kept, it.Current());
             any = true;
         }
@@ -310,7 +310,7 @@ ModelResult embossProfiles(const std::vector<TopoDS_Shape>& bodies, int body, co
             return failure(bodies, QT_TRANSLATE_NOOP("Model", "Can't project the profiles onto the face"));
         std::vector<std::pair<double, TopoDS_Shape>> pieces; // how far from the pick along the column
         for (TopExp_Explorer it(*common, TopAbs_SOLID); it.More(); it.Next()) {
-            if (volumeOf(it.Current()) <= 1e-9 || !touches(it.Current(), target))
+            if (volumeOf(it.Current()) <= 1e-9 || !meets(it.Current(), target))
                 continue;
             Bnd_Box box;
             BRepBndLib::Add(it.Current(), box);

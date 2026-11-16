@@ -2,6 +2,73 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
 <context>
+    <name>AssemblyPanel</name>
+    <message>
+        <source>Parts</source>
+        <translation>Części</translation>
+    </message>
+    <message>
+        <source>Part</source>
+        <translation>Część</translation>
+    </message>
+    <message>
+        <source>Grounded</source>
+        <translation>Unieruchomiona</translation>
+    </message>
+    <message>
+        <source>Remove the picked part (and its joints)</source>
+        <translation>Usuń wybraną część (i jej więzy)</translation>
+    </message>
+    <message>
+        <source>Joints</source>
+        <translation>Więzy</translation>
+    </message>
+    <message>
+        <source>Facing the same way</source>
+        <translation>Zwrócone w tę samą stronę</translation>
+    </message>
+    <message>
+        <source>The two frames point the same way (by default they face each other, like touching faces)</source>
+        <translation>Oba układy wskazują w tę samą stronę (domyślnie są zwrócone do siebie, jak stykające się ściany)</translation>
+    </message>
+    <message>
+        <source>Limits</source>
+        <translation>Limity</translation>
+    </message>
+    <message>
+        <source>Lowest value</source>
+        <translation>Najmniejsza wartość</translation>
+    </message>
+    <message>
+        <source>Highest value</source>
+        <translation>Największa wartość</translation>
+    </message>
+    <message>
+        <source>Check Range</source>
+        <translation>Sprawdź zakres</translation>
+    </message>
+    <message>
+        <source>Moves the joint through its range looking for parts that collide</source>
+        <translation>Przesuwa więz przez cały zakres, szukając kolidujących części</translation>
+    </message>
+    <message>
+        <source>Remove Joint</source>
+        <translation>Usuń więz</translation>
+    </message>
+    <message>
+        <source>Insert adds parts; Joint joins two (a face, round edge or corner of each); drag a part in the view to move it as its joints allow.</source>
+        <translation>Wstaw dodaje części; Więz łączy dwie (ścianą, okrągłą krawędzią albo narożnikiem każdej); przeciągnij część w widoku, by ruszyć ją tak, jak pozwalają więzy.</translation>
+    </message>
+    <message>
+        <source>%1 (missing)</source>
+        <translation>%1 (brak)</translation>
+    </message>
+    <message>
+        <source>Using the copy kept in the project: %1</source>
+        <translation>Używana kopia zapisana w projekcie: %1</translation>
+    </message>
+</context>
+<context>
     <name>DrawingSheet</name>
     <message>
         <source>Scale</source>
@@ -23,12 +90,28 @@
         <source>Untitled</source>
         <translation>Bez tytułu</translation>
     </message>
+    <message>
+        <source>Item</source>
+        <translation>Poz.</translation>
+    </message>
+    <message>
+        <source>Part</source>
+        <translation>Część</translation>
+    </message>
+    <message>
+        <source>Qty</source>
+        <translation>Szt.</translation>
+    </message>
 </context>
 <context>
     <name>DrawingWidget</name>
     <message>
         <source>Part</source>
         <translation>Część</translation>
+    </message>
+    <message>
+        <source>Assembly</source>
+        <translation>Złożenie</translation>
     </message>
     <message>
         <source>Front</source>
@@ -176,6 +259,30 @@
     <message>
         <source>OpenGL error</source>
         <translation>Błąd OpenGL</translation>
+    </message>
+    <message>
+        <source>Insert a part first: an assembly drawing shows the parts</source>
+        <translation>Najpierw wstaw część: rysunek złożenia pokazuje części</translation>
+    </message>
+    <message>
+        <source>Assembly</source>
+        <translation>Złożenie</translation>
+    </message>
+    <message>
+        <source>No bodies in this project</source>
+        <translation>Brak brył w tym projekcie</translation>
+    </message>
+    <message>
+        <source>From a Project File…</source>
+        <translation>Z pliku projektu…</translation>
+    </message>
+    <message>
+        <source>Insert a Part</source>
+        <translation>Wstaw część</translation>
+    </message>
+    <message>
+        <source>This project's own bodies are in the list above</source>
+        <translation>Bryły tego projektu są na liście powyżej</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -442,6 +549,66 @@ a z dala od brył powstaje nowa bryła</translation>
     <message>
         <source>Finish Sketch</source>
         <translation>Zamknij szkic</translation>
+    </message>
+    <message>
+        <source>Assembly (Ctrl+Shift+A): put parts together as components, join them so they move, check for collisions, explode</source>
+        <translation>Złożenie (Ctrl+Shift+A): składaj części jako komponenty, łącz je więzami, by się ruszały, sprawdzaj kolizje, rozstrzelaj</translation>
+    </message>
+    <message>
+        <source>ASSEMBLY</source>
+        <translation>ZŁOŻENIE</translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <translation>Wstaw</translation>
+    </message>
+    <message>
+        <source>Insert a part: a body of this project, or another project file</source>
+        <translation>Wstaw część: bryłę tego projektu albo inny plik projektu</translation>
+    </message>
+    <message>
+        <source>Joint</source>
+        <translation>Więz</translation>
+    </message>
+    <message>
+        <source>Joint (J): tap a face, round edge or corner of one part, then of another: they meet there; pick the kind (rigid, revolute, slider, ...) and the value</source>
+        <translation>Więz (J): dotknij ściany, okrągłej krawędzi albo narożnika jednej części, potem drugiej: spotkają się tam; wybierz rodzaj (sztywny, obrotowy, suwak, …) i wartość</translation>
+    </message>
+    <message>
+        <source>Ground</source>
+        <translation>Unieruchom</translation>
+    </message>
+    <message>
+        <source>Pick a part first</source>
+        <translation>Najpierw wybierz część</translation>
+    </message>
+    <message>
+        <source>Ground: the picked part stays put (or moves again)</source>
+        <translation>Unieruchom: wybrana część zostaje w miejscu (albo znów się rusza)</translation>
+    </message>
+    <message>
+        <source>Interference</source>
+        <translation>Kolizje</translation>
+    </message>
+    <message>
+        <source>Check where parts overlap: shown in red</source>
+        <translation>Sprawdź, gdzie części na siebie nachodzą: pokazane na czerwono</translation>
+    </message>
+    <message>
+        <source>Explode</source>
+        <translation>Rozstrzel</translation>
+    </message>
+    <message>
+        <source>Explode: the parts apart along their joints; drag them to arrange</source>
+        <translation>Rozstrzel: części odsunięte wzdłuż więzów; przeciągnij, by je ułożyć</translation>
+    </message>
+    <message>
+        <source>Exploded Isometric</source>
+        <translation>Izometryczny rozstrzelony</translation>
+    </message>
+    <message>
+        <source>Parts List</source>
+        <translation>Lista części</translation>
     </message>
     <message>
         <source>Back to the model (Ctrl+Enter)</source>
@@ -1385,6 +1552,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Nie udało się zapisać pliku STEP</translation>
     </message>
     <message>
+        <source>No parts to export</source>
+        <translation>Brak części do eksportu</translation>
+    </message>
+    <message>
+        <source>Could not prepare the assembly for STEP</source>
+        <translation>Nie udało się przygotować złożenia do STEP</translation>
+    </message>
+    <message>
         <source>Could not mesh the bodies for STL</source>
         <translation>Nie udało się zbudować siatki do STL</translation>
     </message>
@@ -1924,6 +2099,22 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <source>The thread is too small for the cylinder: pick a larger size</source>
         <translation>Gwint jest za mały na ten walec: wybierz większy rozmiar</translation>
     </message>
+    <message>
+        <source>A part this joint holds is gone</source>
+        <translation>Części, którą trzyma ten więz, już nie ma</translation>
+    </message>
+    <message>
+        <source>A joint needs two different parts</source>
+        <translation>Więz potrzebuje dwóch różnych części</translation>
+    </message>
+    <message>
+        <source>This joint closes a loop or joins two grounded parts: it is left out</source>
+        <translation>Ten więz zamyka pętlę albo łączy dwie unieruchomione części: jest pomijany</translation>
+    </message>
+    <message>
+        <source>The project has no body to use</source>
+        <translation>Projekt nie ma bryły do użycia</translation>
+    </message>
 </context>
 <context>
     <name>OcctViewerWidget</name>
@@ -2345,6 +2536,30 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>%1: change the values in the panel  ·  Enter accepts  ·  Esc puts it back</source>
         <translation>%1: zmień wartości w panelu  ·  Enter zatwierdza  ·  Esc przywraca</translation>
+    </message>
+    <message>
+        <source>Joint: pick the kind, type the value  ·  Enter accepts, Esc drops it</source>
+        <translation>Więz: wybierz rodzaj, wpisz wartość  ·  Enter zatwierdza, Esc odrzuca</translation>
+    </message>
+    <message>
+        <source>Joint: tap where the second part meets it (a face, round edge or corner)</source>
+        <translation>Więz: dotknij miejsca, w którym styka się z nim druga część (ściany, okrągłej krawędzi albo narożnika)</translation>
+    </message>
+    <message>
+        <source>Joint: tap a face, round edge or corner of the first part</source>
+        <translation>Więz: dotknij ściany, okrągłej krawędzi albo narożnika pierwszej części</translation>
+    </message>
+    <message>
+        <source>Assembly: Insert adds a body of this project or another project file as a part</source>
+        <translation>Złożenie: Wstaw dodaje jako część bryłę tego projektu albo inny plik projektu</translation>
+    </message>
+    <message>
+        <source>Exploded: drag a part to move it apart  ·  Explode again puts them back</source>
+        <translation>Rozstrzelone: przeciągnij część, by ją odsunąć  ·  ponowne Rozstrzel składa je z powrotem</translation>
+    </message>
+    <message>
+        <source>Drag a part: it moves as its joints allow  ·  tap to pick it  ·  Joint joins two parts</source>
+        <translation>Przeciągnij część: rusza się tak, jak pozwalają więzy  ·  dotknij, by ją wybrać  ·  Więz łączy dwie części</translation>
     </message>
     <message>
         <source>Move: type the offset or the turn  ·  Enter goes on</source>
@@ -3177,6 +3392,114 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Corner setback [mm] (where 3+ edges meet; 0: none)</source>
         <translation>Odsunięcie naroża [mm] (gdzie spotykają się 3+ krawędzie; 0: brak)</translation>
+    </message>
+    <message>
+        <source>Rigid</source>
+        <translation>Sztywny</translation>
+    </message>
+    <message>
+        <source>Revolute</source>
+        <translation>Obrotowy</translation>
+    </message>
+    <message>
+        <source>Slider</source>
+        <translation>Suwak</translation>
+    </message>
+    <message>
+        <source>Cylindrical</source>
+        <translation>Walcowy</translation>
+    </message>
+    <message>
+        <source>Ball</source>
+        <translation>Kulisty</translation>
+    </message>
+    <message>
+        <source>Planar</source>
+        <translation>Płaski</translation>
+    </message>
+    <message>
+        <source>Turn about X [°]</source>
+        <translation>Obrót wokół X [°]</translation>
+    </message>
+    <message>
+        <source>Turn about Y [°]</source>
+        <translation>Obrót wokół Y [°]</translation>
+    </message>
+    <message>
+        <source>X [mm]</source>
+        <translation>X [mm]</translation>
+    </message>
+    <message>
+        <source>Y [mm]</source>
+        <translation>Y [mm]</translation>
+    </message>
+    <message>
+        <source>Part</source>
+        <translation>Część</translation>
+    </message>
+    <message>
+        <source>Missing body</source>
+        <translation>Brakująca bryła</translation>
+    </message>
+    <message>
+        <source>Body: %1</source>
+        <translation>Bryła: %1</translation>
+    </message>
+    <message>
+        <source>The file is gone</source>
+        <translation>Pliku już nie ma</translation>
+    </message>
+    <message>
+        <source>%1 is grounded: it stays where it is</source>
+        <translation>%1 jest unieruchomiona: zostaje w miejscu</translation>
+    </message>
+    <message>
+        <source>%1 is joined rigidly: drag the part it is joined to</source>
+        <translation>%1 jest połączona sztywno: przeciągnij część, z którą jest połączona</translation>
+    </message>
+    <message>
+        <source>Pick a flat or round face, a round or straight edge, or a corner</source>
+        <translation>Wybierz płaską albo okrągłą ścianę, okrągłą albo prostą krawędź, albo narożnik</translation>
+    </message>
+    <message>
+        <source>Rigid: Enter keeps it</source>
+        <translation>Sztywny: Enter go zostawia</translation>
+    </message>
+    <message>
+        <source>Facing</source>
+        <translation>Do siebie</translation>
+    </message>
+    <message>
+        <source>Same way</source>
+        <translation>W tę samą stronę</translation>
+    </message>
+    <message>
+        <source>Can't use %1: %2</source>
+        <translation>Nie można użyć %1: %2</translation>
+    </message>
+    <message>
+        <source>No parts overlap</source>
+        <translation>Żadne części na siebie nie nachodzą</translation>
+    </message>
+    <message>
+        <source>No parts overlap; the closest are %1 and %2, %3 mm apart</source>
+        <translation>Żadne części na siebie nie nachodzą; najbliżej są %1 i %2, w odległości %3 mm</translation>
+    </message>
+    <message>
+        <source>%1 and %2 (%3 mm³)</source>
+        <translation>%1 i %2 (%3 mm³)</translation>
+    </message>
+    <message>
+        <source>Overlapping: %1</source>
+        <translation>Nachodzą na siebie: %1</translation>
+    </message>
+    <message>
+        <source>%1 moves through its whole range without collisions</source>
+        <translation>%1 przechodzi cały zakres bez kolizji</translation>
+    </message>
+    <message>
+        <source>%1: %2 and %3 collide at %4%5</source>
+        <translation>%1: %2 i %3 kolidują przy %4%5</translation>
     </message>
 </context>
 <context>

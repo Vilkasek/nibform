@@ -1,6 +1,7 @@
 #pragma once
 
 #include "model/Drawing.h"
+#include "model/Assembly.h"
 #include "model/Features.h"
 #include "model/Parameters.h"
 #include "sketch/Sketch.h"
@@ -25,6 +26,7 @@ struct ProjectData
     std::vector<BodyStyle> bodyStyles; // names, visibility, colors of bodies
     std::vector<Drawing> drawings;
     ParameterTable parameters; // and the configurations
+    Assembly assembly;         // components and joints (M17)
 };
 
 QByteArray projectToJson(const ProjectData& project);

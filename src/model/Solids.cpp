@@ -142,6 +142,8 @@ void appendSolids(std::vector<TopoDS_Shape>& out, const TopoDS_Shape& shape)
     }
 }
 
+} // namespace
+
 // Whether two shapes are certainly apart (their boxes don't meet): then neither overlap()
 // nor touches() needs to run a boolean or a distance search on them.
 bool apart(const TopoDS_Shape& a, const TopoDS_Shape& b)
@@ -168,6 +170,18 @@ bool touches(const TopoDS_Shape& a, const TopoDS_Shape& b)
     BRepExtrema_DistShapeShape distance(a, b);
     return distance.IsDone() && distance.Value() < 1e-6;
 }
+
+std::optional<TopoDS_Shape> commonOf(const TopoDS_Shape& a, const TopoDS_Shape& b)
+{
+    if (apart(a, b))
+        return std::nullopt;
+    const auto common = boolean(BooleanKind::Intersect, a, b);
+    if (!common || volumeOf(*common) <= kMinVolume)
+        return std::nullopt;
+    return common;
+}
+
+namespace {
 
 // Applies `round` (a fillet or chamfer maker filled with the body's edges) body by body.
 template <typename Maker>

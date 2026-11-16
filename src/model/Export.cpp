@@ -8,6 +8,16 @@
 #include <Interface_Static.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
+#include <STEPCAFControl_Writer.hxx>
+#include <Standard_Failure.hxx>
+#include <TCollection_ExtendedString.hxx>
+#include <TDataStd_Name.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <Quantity_Color.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 #include <StlAPI_Writer.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
@@ -63,6 +73,50 @@ std::string exportStep(const std::vector<TopoDS_Shape>& bodies, const std::strin
     }
     if (writer.Write(path.c_str()) != IFSelect_RetDone)
         return QT_TRANSLATE_NOOP("Model", "Could not write the STEP file");
+    return {};
+}
+
+std::string exportStepAssembly(const std::vector<StepPart>& parts, const std::vector<StepInstance>& instances,
+                               const std::string& name, const std::string& path)
+{
+    if (instances.empty())
+        return QT_TRANSLATE_NOOP("Model", "No parts to export");
+    try {
+        Handle(TDocStd_Document) doc;
+        XCAFApp_Application::GetApplication()->NewDocument("MDTV-XCAF", doc);
+        const Handle(XCAFDoc_ShapeTool) shapes = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        const Handle(XCAFDoc_ColorTool) colors = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+        // A product per part, then the assembly placing them.
+        std::vector<TDF_Label> products;
+        for (const StepPart& part : parts) {
+            const TDF_Label label = shapes->AddShape(part.shape, false);
+            TDataStd_Name::Set(label, TCollection_ExtendedString(part.name.c_str(), true));
+            if (part.color)
+                colors->SetColor(label, Quantity_Color((*part.color)[0], (*part.color)[1], (*part.color)[2], Quantity_TOC_sRGB),
+                                 XCAFDoc_ColorGen);
+            products.push_back(label);
+        }
+        const TDF_Label assembly = shapes->NewShape();
+        TDataStd_Name::Set(assembly, TCollection_ExtendedString(name.c_str(), true));
+        for (const StepInstance& instance : instances) {
+            if (instance.part < 0 || instance.part >= static_cast<int>(products.size()))
+                continue;
+            const TDF_Label component = shapes->AddComponent(assembly, products[instance.part], TopLoc_Location(instance.where));
+            if (!component.IsNull())
+                TDataStd_Name::Set(component, TCollection_ExtendedString(instance.name.c_str(), true));
+        }
+        shapes->UpdateAssemblies();
+        STEPCAFControl_Writer writer;
+        writer.SetNameMode(true);
+        writer.SetColorMode(true);
+        Interface_Static::SetCVal("write.step.unit", "MM");
+        if (!writer.Transfer(doc, STEPControl_AsIs))
+            return QT_TRANSLATE_NOOP("Model", "Could not prepare the assembly for STEP");
+        if (writer.Write(path.c_str()) != IFSelect_RetDone)
+            return QT_TRANSLATE_NOOP("Model", "Could not write the STEP file");
+    } catch (const Standard_Failure&) {
+        return QT_TRANSLATE_NOOP("Model", "Could not prepare the assembly for STEP");
+    }
     return {};
 }
 

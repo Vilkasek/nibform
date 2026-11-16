@@ -158,6 +158,28 @@ ProjectData plateProject()
             }
         }
     }
+    // An assembly (M17): the plate twice and a part from another file, joined.
+    Assembly& assembly = project.assembly;
+    assembly.sources = {{ComponentSource::Kind::Body, 1, gp_Pnt(1, 1, 1), {}, {}, "Plate"},
+                 {ComponentSource::Kind::File, 2, {}, "/tmp/nibform-missing-part.nibform",
+                  std::make_shared<const std::string>(shapeToText(BRepPrimAPI_MakeBox(2, 2, 2).Shape())), ""}};
+    assembly.components = {{1, 1, {}, true, false}, {2, 1, {1, 0, 0, 30, 0, 1, 0, 0, 0, 0, 1, 0}, false, false},
+                    {3, 2, {}, false, true}};
+    Joint hinge;
+    hinge.id = 1;
+    hinge.kind = JointKind::Revolute;
+    hinge.a = {1, gp_Ax3(gp_Pnt(0, 0, 5), gp::DZ(), gp::DX())};
+    hinge.b = {2, gp_Ax3(gp_Pnt(0, 0, 0), -gp::DZ(), gp::DX())};
+    hinge.values = {30, 0, 0};
+    hinge.limited = {true, false, false};
+    hinge.max = {90, 0, 0};
+    Joint ball = hinge;
+    ball.id = 2;
+    ball.kind = JointKind::Ball;
+    ball.b.component = 3;
+    assembly.joints = {hinge, ball};
+    assembly.explode[3] = gp_Vec(0, 0, 20);
+    assembly.exploded = true;
     return project;
 }
 
@@ -624,7 +646,15 @@ void checkInput(const QByteArray& text, bool tryRebuild, Stats& stats, int caseN
     bool same = again->sketches.size() == project->sketches.size()
              && again->features.size() == project->features.size()
              && again->bodyStyles.size() == project->bodyStyles.size()
-             && again->drawings.size() == project->drawings.size();
+             && again->drawings.size() == project->drawings.size()
+             && again->assembly.sources.size() == project->assembly.sources.size()
+             && again->assembly.components.size() == project->assembly.components.size()
+             && again->assembly.joints.size() == project->assembly.joints.size()
+             && again->assembly.explode.size() == project->assembly.explode.size();
+    for (std::size_t i = 0; same && i < project->assembly.components.size(); ++i) {
+        const Component &a = project->assembly.components[i], &b = again->assembly.components[i];
+        same = a.id == b.id && a.source == b.source && a.matrix == b.matrix && a.grounded == b.grounded;
+    }
     for (std::size_t i = 0; same && i < project->features.size(); ++i) {
         const Feature &a = project->features[i], &b = again->features[i];
         same = a.kind == b.kind && a.id == b.id && a.count == b.count && a.matrix == b.matrix
@@ -826,6 +856,44 @@ void testMatricesOfWrongLength()
     CHECK(plain && plain->features[7].matrix.size() == 12 && trsfOf(plain->features[7].matrix));
 }
 
+void testDamagedAssembly()
+{
+    const auto plain = loadEdited([](QJsonObject&) {});
+    CHECK(plain && plain->assembly.components.size() == 3 && plain->assembly.joints.size() == 2);
+    CHECK(plain && plain->assembly.sources.size() == 2 && plain->assembly.sources[1].cache);
+    // A joint to a part that isn't there, a part of a source that isn't there, a motion
+    // that isn't rigid, frames with parallel axes: each is left out, the rest loads.
+    const auto project = loadEdited([](QJsonObject& root) {
+        QJsonObject a = root.value("assembly").toObject();
+        QJsonArray components = a.value("components").toArray();
+        QJsonObject stretched = components.at(1).toObject();
+        stretched.insert("matrix", QJsonArray{2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0});
+        components.replace(1, stretched);
+        QJsonObject orphan = components.at(0).toObject();
+        orphan.insert("id", 9);
+        orphan.insert("source", 77);
+        components.append(orphan);
+        a.insert("components", components);
+        QJsonArray joints = a.value("joints").toArray();
+        QJsonObject lost = joints.at(0).toObject();
+        lost.insert("b", 42);
+        joints.replace(0, lost);
+        QJsonObject skew = joints.at(1).toObject();
+        skew.insert("aFrame", QJsonObject{{"at", QJsonArray{0, 0, 0}}, {"z", QJsonArray{0, 0, 1}}, {"x", QJsonArray{0, 0, 2}}});
+        joints.replace(1, skew);
+        a.insert("joints", joints);
+        root.insert("assembly", a);
+    });
+    CHECK(project.has_value());
+    if (!project)
+        return;
+    CHECK(project->assembly.components.size() == 3);
+    CHECK(project->assembly.components[1].matrix.empty());
+    CHECK(project->assembly.joints.empty());
+    // A solve of what is left can't fail.
+    CHECK(solveAssembly(project->assembly).placements.size() == 3);
+}
+
 void testSketchIdsAfterDamage()
 {
     // A next id below the ids in use would hand out one of them again.
@@ -959,6 +1027,7 @@ int main(int argc, char** argv)
         {"zero pick directions", testZeroPickDirections},
         {"pattern counts are limited", testPatternCountsAreLimited},
         {"matrices of wrong length", testMatricesOfWrongLength},
+        {"damaged assembly", testDamagedAssembly},
         {"sketch ids after damage", testSketchIdsAfterDamage},
         {"numbers too large", testNumbersTooLarge},
         {"curves with no shape", testCurvesWithNoShape},

@@ -196,6 +196,8 @@ void SketchEditor::showThreads()
     if (!m_threadPrs.IsNull())
         ctx->Remove(m_threadPrs, false);
     m_threadPrs.Nullify();
+    if (mode() == EditorMode::Assembly)
+        return; // the part model steps aside
     TopoDS_Compound shapes;
     BRep_Builder().MakeCompound(shapes);
     bool any = false;

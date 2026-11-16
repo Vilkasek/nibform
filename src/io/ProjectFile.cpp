@@ -59,6 +59,9 @@ constexpr std::array<const char*, 5> kDatumKinds{"offsetPlane", "anglePlane", "t
                                                  "twoPointAxis"};
 constexpr std::array<const char*, 4> kOperations{"auto", "new", "join", "cut"};
 constexpr std::array<const char*, 3> kBooleans{"union", "subtract", "intersect"};
+constexpr std::array<const char*, 2> kSourceKinds{"body", "file"};
+constexpr std::array<const char*, kJointKinds> kJointKindNames{"rigid", "revolute", "slider",
+                                                               "cylindrical", "ball", "planar"};
 
 QJsonArray xyz(const gp_XYZ& v)
 {
@@ -110,6 +113,153 @@ std::optional<gp_Dir> toDir(const QJsonValue& v)
 gp_Dir toDir(const QJsonValue& v, const gp_Dir& fallback)
 {
     return toDir(v).value_or(fallback);
+}
+
+QJsonObject frameToJson(const gp_Ax3& frame)
+{
+    return {{"at", xyz(frame.Location().XYZ())},
+            {"z", xyz(frame.Direction().XYZ())},
+            {"x", xyz(frame.XDirection().XYZ())}};
+}
+
+// A frame, if the file holds a proper one (two directions at a right angle, or near it).
+std::optional<gp_Ax3> frameFromJson(const QJsonValue& v)
+{
+    const QJsonObject o = v.toObject();
+    const auto z = toDir(o.value("z")), x = toDir(o.value("x"));
+    if (!z || !x || std::abs(z->Dot(*x)) > 0.999)
+        return std::nullopt;
+    return gp_Ax3(gp_Pnt(toXYZ(o.value("at"))), *z, *x);
+}
+
+QJsonArray threeNumbers(const std::array<double, 3>& v)
+{
+    return {v[0], v[1], v[2]};
+}
+
+std::array<double, 3> threeNumbers(const QJsonValue& v)
+{
+    const QJsonArray a = v.toArray();
+    return {a.at(0).toDouble(), a.at(1).toDouble(), a.at(2).toDouble()};
+}
+
+QJsonObject assemblyToJson(const Assembly& assembly)
+{
+    QJsonArray sources, components, joints, explode;
+    for (const ComponentSource& s : assembly.sources) {
+        QJsonObject o{{"id", s.id}, {"kind", nameOf(s.kind, kSourceKinds)}, {"name", QString::fromStdString(s.name)}};
+        if (s.kind == ComponentSource::Kind::Body) {
+            o.insert("inside", xyz(s.inside.XYZ()));
+        } else {
+            o.insert("path", QString::fromStdString(s.path));
+            if (s.cache)
+                o.insert("cache", QString::fromStdString(*s.cache));
+        }
+        sources.append(o);
+    }
+    for (const Component& c : assembly.components) {
+        QJsonArray matrix;
+        for (double v : c.matrix)
+            matrix.append(v);
+        components.append(QJsonObject{{"id", c.id},
+                                      {"source", c.source},
+                                      {"matrix", matrix},
+                                      {"grounded", c.grounded},
+                                      {"hidden", c.hidden}});
+    }
+    for (const Joint& j : assembly.joints) {
+        joints.append(QJsonObject{{"id", j.id},
+                                  {"kind", nameOf(j.kind, kJointKindNames)},
+                                  {"a", j.a.component},
+                                  {"aFrame", frameToJson(j.a.frame)},
+                                  {"b", j.b.component},
+                                  {"bFrame", frameToJson(j.b.frame)},
+                                  {"flip", j.flip},
+                                  {"values", threeNumbers(j.values)},
+                                  {"min", threeNumbers(j.min)},
+                                  {"max", threeNumbers(j.max)},
+                                  {"limited", QJsonArray{j.limited[0], j.limited[1], j.limited[2]}}});
+    }
+    for (const auto& [id, offset] : assembly.explode)
+        explode.append(QJsonObject{{"component", id}, {"offset", xyz(offset.XYZ())}});
+    return {{"sources", sources},
+            {"components", components},
+            {"joints", joints},
+            {"explode", explode},
+            {"exploded", assembly.exploded}};
+}
+
+// What an assembly in a file holds that still makes sense: parts whose source is there,
+// joints between two such parts with proper frames; the rest is left out.
+Assembly assemblyFromJson(const QJsonObject& o)
+{
+    Assembly a;
+    for (const auto& v : o.value("sources").toArray()) {
+        const QJsonObject j = v.toObject();
+        ComponentSource s;
+        s.id = j.value("id").toInt();
+        const auto kind = fromName<ComponentSource::Kind>(j.value("kind").toString(), kSourceKinds);
+        if (s.id <= 0 || !kind || a.source(s.id))
+            continue;
+        s.kind = *kind;
+        s.name = j.value("name").toString().toStdString();
+        s.inside = gp_Pnt(toXYZ(j.value("inside")));
+        s.path = j.value("path").toString().toStdString();
+        if (const QString cache = j.value("cache").toString(); !cache.isEmpty())
+            s.cache = std::make_shared<const std::string>(cache.toStdString());
+        if (s.kind == ComponentSource::Kind::File && s.path.empty())
+            continue;
+        a.sources.push_back(std::move(s));
+    }
+    for (const auto& v : o.value("components").toArray()) {
+        const QJsonObject j = v.toObject();
+        Component c;
+        c.id = j.value("id").toInt();
+        c.source = j.value("source").toInt();
+        if (c.id <= 0 || !a.source(c.source) || a.component(c.id))
+            continue;
+        if (const QJsonArray m = j.value("matrix").toArray(); m.size() == 12) {
+            for (const auto& x : m)
+                c.matrix.push_back(x.toDouble());
+            if (!trsfOf(c.matrix))
+                c.matrix.clear(); // not a rigid motion: where the source is
+        }
+        c.grounded = j.value("grounded").toBool(false);
+        c.hidden = j.value("hidden").toBool(false);
+        a.components.push_back(std::move(c));
+    }
+    for (const auto& v : o.value("joints").toArray()) {
+        const QJsonObject j = v.toObject();
+        Joint joint;
+        joint.id = j.value("id").toInt();
+        const auto kind = fromName<JointKind>(j.value("kind").toString(), kJointKindNames);
+        const auto fa = frameFromJson(j.value("aFrame")), fb = frameFromJson(j.value("bFrame"));
+        joint.a.component = j.value("a").toInt();
+        joint.b.component = j.value("b").toInt();
+        const bool known = std::any_of(a.joints.begin(), a.joints.end(), [&](const Joint& k) { return k.id == joint.id; });
+        if (joint.id <= 0 || known || !kind || !fa || !fb || !a.component(joint.a.component)
+            || !a.component(joint.b.component) || joint.a.component == joint.b.component)
+            continue;
+        joint.kind = *kind;
+        joint.a.frame = *fa;
+        joint.b.frame = *fb;
+        joint.flip = j.value("flip").toBool(false);
+        joint.values = threeNumbers(j.value("values"));
+        joint.min = threeNumbers(j.value("min"));
+        joint.max = threeNumbers(j.value("max"));
+        const QJsonArray limited = j.value("limited").toArray();
+        for (int i = 0; i < 3; ++i)
+            joint.limited[i] = limited.at(i).toBool(false);
+        a.joints.push_back(std::move(joint));
+    }
+    for (const auto& v : o.value("explode").toArray()) {
+        const QJsonObject j = v.toObject();
+        const int id = j.value("component").toInt();
+        if (a.component(id))
+            a.explode[id] = gp_Vec(toXYZ(j.value("offset")));
+    }
+    a.exploded = o.value("exploded").toBool(false);
+    return a;
 }
 
 void sketchError(QString* error)
@@ -541,7 +691,8 @@ QByteArray projectToJson(const ProjectData& project)
         for (const SheetView& v : d.views) {
             views.append(QJsonObject{{"kind", nameOf(v.kind, kViewKinds)}, {"at", xy(v.at)},          {"scale", v.scale},
                                      {"base", nameOf(v.base, kViewKinds)}, {"offset", v.offset},     {"label", QString::fromStdString(v.label)},
-                                     {"hidden", v.hidden}});
+                                     {"hidden", v.hidden},
+                                     {"exploded", v.exploded}});
         }
         for (const SheetDimension& m : d.dimensions) {
             dimensions.append(QJsonObject{{"kind", nameOf(m.kind, kDimensionKinds)}, {"view", m.view},
@@ -550,11 +701,19 @@ QByteArray projectToJson(const ProjectData& project)
         }
         for (const SheetNote& n : d.notes)
             notes.append(QJsonObject{{"at", xy(n.at)}, {"text", QString::fromStdString(n.text)}, {"height", n.height}});
-        drawings.append(QJsonObject{{"title", QString::fromStdString(d.title)}, {"width", d.width}, {"height", d.height},
-                                    {"views", views}, {"dimensions", dimensions}, {"notes", notes}});
+        drawings.append(QJsonObject{{"title", QString::fromStdString(d.title)},
+                                    {"width", d.width},
+                                    {"height", d.height},
+                                    {"views", views},
+                                    {"dimensions", dimensions},
+                                    {"notes", notes},
+                                    {"assembly", d.assembly},
+                                    {"partsList", d.partsList}});
     }
     QJsonObject root{{"format", kFormat},     {"version", kVersion}, {"sketches", sketches},
                      {"features", features}, {"bodies", styles},    {"drawings", drawings}};
+    if (!project.assembly.empty())
+        root.insert("assembly", assemblyToJson(project.assembly)); // M17: older versions skip it
     if (!project.parameters.empty()) {
         // Older versions of the app skip these and keep the values as they were last set.
         const ParameterTable& table = project.parameters;
@@ -630,6 +789,8 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
         d.title = o.value("title").toString().toStdString();
         d.width = o.value("width").toDouble(297.0);
         d.height = o.value("height").toDouble(210.0);
+        d.assembly = o.value("assembly").toBool(false); // M17
+        d.partsList = o.value("partsList").toBool(false);
         for (const auto& w : o.value("views").toArray()) {
             const QJsonObject j = w.toObject();
             SheetView view;
@@ -640,6 +801,7 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
             view.offset = j.value("offset").toDouble();
             view.label = j.value("label").toString().toStdString();
             view.hidden = j.value("hidden").toBool(true);
+            view.exploded = j.value("exploded").toBool(false);
             if (view.scale > 0.0)
                 d.views.push_back(view);
         }
@@ -685,6 +847,7 @@ std::optional<ProjectData> projectFromJson(const QByteArray& json, QString* erro
             project.parameters.configurations.push_back(std::move(c));
     }
     project.parameters.active = root.value("activeConfiguration").toString().toStdString();
+    project.assembly = assemblyFromJson(root.value("assembly").toObject());
     // Older files: ids in history order, after the highest one, which must leave room
     // for them.
     long long highest = 0, unnumbered = 0;

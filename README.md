@@ -25,7 +25,7 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 
 [Installing](#installing) · [Building](#building) · [Getting started](#getting-started) ·
 [Sketching](#sketching) · [Constraints and dimensions](#constraints-and-dimensions) ·
-[Bodies](#bodies) · [History and projects](#history-and-projects) · [Parameters](#parameters) ·
+[Bodies](#bodies) · [History and projects](#history-and-projects) · [Parameters](#parameters) · [Assemblies](#assemblies) ·
 [Import and export](#import-and-export) · [Drawings](#drawings) · [Controls](#controls) ·
 [Pen, touch and tablet](#pen-touch-and-tablet) · [Language](#language) ·
 [Development](#development) · [Plan](#plan)
@@ -250,6 +250,50 @@ renames or deletes it. The table and configurations go to and from **CSV** (one 
 configuration; a spreadsheet's `;` and decimal commas are fine). All of it is saved with the project
 and undone like any other change.
 
+## Assemblies
+
+**Assembly** (`Ctrl+Shift+A`, on the model bar) puts parts together: the window turns to the
+"ASSEMBLY" mode with its own bar and panel, and the part model steps aside (*Back to Model*
+returns to it). The assembly is kept with the project, beside the history, and undone like the rest.
+
+- **Insert** adds a part: a **body** of this project – it follows the history, so changing the
+  body changes every copy – or **another project file** (its shown bodies). A file is watched and
+  read again when it changes; a copy is kept in the project, used (and marked in the panel) when
+  the file is gone. The first part is **grounded**; *Ground* fixes or frees the picked one.
+- **Joint** (`J`): tap a face, round edge or corner of one part, then of another – they meet there
+  (a flat face's middle, a round edge's or face's axis, a corner), facing each other like touching
+  faces (*Same way* turns one round). Two round picks make a revolute joint, anything else a rigid
+  one; the value field picks the kind and the value:
+
+  | Joint | Moves | Values |
+  |---|---|---|
+  | Rigid | not at all | – |
+  | Revolute | turns about the axis | angle |
+  | Slider | slides along it | distance |
+  | Cylindrical | both | angle, distance |
+  | Ball | turns any way about the point | turns about X, Y, Z |
+  | Planar | slides in the plane, turns in it | X, Y, angle |
+
+  Joints place the parts outward from the grounded ones; one that would close a loop or join two
+  grounded parts is left out (shown red in the panel).
+- **Dragging** a part moves it as its joints allow – the values that bring the point grabbed under
+  the pointer, within the limits; the parts joined to it follow. A part with no joint slides along
+  the screen.
+- **The panel** lists the parts (shown, grounded; `Delete` removes the picked one with its joints)
+  and the joints: kind, which way they face, each value on a slider the model follows live,
+  **limits**, and **Check Range** – the joint moved through its range, stopping at the first
+  collision and showing it.
+- **Interference** shows where parts overlap, in red, and says how much – or, when none do, which
+  two come closest and the clearance between them. **Explode** moves the
+  parts apart along their joints (each clears the one it is joined to and its siblings); drag them
+  to arrange; *Explode* again puts them back.
+- **Drawing** from the assembly opens its own sheet: the parts together and apart, isometric, with
+  **balloons** numbering the items on the exploded view and a **parts list** (item, part, quantity)
+  on the title block. *Add View → Exploded Isometric* adds more, *Sheet → Parts List* shows or
+  hides it.
+- **Export** from the assembly: **STEP keeps its structure** – a product per part, named and
+  colored, placed once per copy; IGES, STL and 3MF get the parts where they sit.
+
 ## Import and export
 
 - **Open** a STEP, IGES or STL file (or `nibform part.step`): it becomes a new project whose history
@@ -354,7 +398,7 @@ little as possible; degrees of freedom come from the Jacobian's null space (SVD)
 **Tests**: `ctest --test-dir build`, or one suite: `./build/test_sketch`, `test_solver`,
 `test_trim`, `test_offset`, `test_model`, `test_features`, `test_project`, `test_project_fuzz`,
 `test_input`, `test_value_editor`, `test_toolkit`, `test_freehand`, `test_solid_features`,
-`test_inspect`, `test_interop`, `test_drawing`, `test_rebuild`, `test_parameters`, `test_details`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
+`test_inspect`, `test_interop`, `test_drawing`, `test_rebuild`, `test_parameters`, `test_details`, `test_assembly`. `-DNIBFORM_BUILD_TESTS=OFF` skips them (and Qt Test).
 `./build/bench_rebuild [pockets…]` times rebuilds of long histories (a plate with that many
 pockets and holes; 100 makes 227 features): a full replay, by kind of feature, and cached
 rebuilds after an edit early, midway and at the end.
@@ -371,6 +415,7 @@ rebuilds after an edit early, midway and at the end.
 | `NIBFORM_INVERT_SCROLL=1` | inverts the scroll pan / orbit direction |
 | `NIBFORM_GL_CORE=1` | the OpenGL core profile (the compatibility one is the default: in core, Mesa draws 1 px lines) |
 | `NIBFORM_AUTOSAVE_SECONDS=5` | autosaves more often than every minute |
+| `NIBFORM_SAVE_HINGE=hinge.nibform` | `test_assembly` saves its hinge project there, to open in the app |
 
 **Translations**: the sources are in English; the Polish text lives in `translations/nibform_pl.ts`
 (Qt Linguist) and is built into the app. After changing user-facing strings:
@@ -414,7 +459,7 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M14** – speed and robustness: background and incremental rebuild, large models
 - [x] **M15** – parameters: a parameter table, expressions in values, configurations
 - [x] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
-- [ ] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
+- [x] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
 - [ ] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF
 - [ ] **M19** – scripting: Python API, console, headless runs, macros, plugins
 - [ ] **M20** – versions and sharing: named versions, branch and merge, comments, synced folders, web viewer

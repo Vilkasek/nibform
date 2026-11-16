@@ -10,6 +10,7 @@
 #include <BRepPrimAPI_MakeCylinder.hxx>
 
 #include <cmath>
+#include <map>
 
 namespace {
 
@@ -174,9 +175,52 @@ void testDimensionsFollowTheModel()
 
 } // namespace
 
+// Assembly drawings (M17): the parts list, balloons, and the default sheet.
+void testPartsListAndBalloons()
+{
+    std::map<int, int> itemOf;
+    const auto rows = partsList({{7, "Leaf"}, {3, "Pin"}, {7, "Leaf"}, {9, "Washer"}, {3, "Pin"}, {3, "Pin"}}, &itemOf);
+    CHECK(rows.size() == 3);
+    if (rows.size() == 3) {
+        CHECK(rows[0].item == 1 && rows[0].name == "Leaf" && rows[0].quantity == 2);
+        CHECK(rows[1].item == 2 && rows[1].name == "Pin" && rows[1].quantity == 3);
+        CHECK(rows[2].item == 3 && rows[2].quantity == 1);
+    }
+    CHECK(itemOf[7] == 1 && itemOf[3] == 2 && itemOf[9] == 3);
+
+    ViewGeometry g;
+    g.min = gp_Pnt2d(-10, -10);
+    g.max = gp_Pnt2d(10, 10);
+    const auto balloons = placeBalloons(g, {{1, gp_Pnt2d(5, 0)}, {2, gp_Pnt2d(-5, 0)}, {1, gp_Pnt2d(0, 5)}}, 8.0);
+    CHECK(balloons.size() == 2); // one per item
+    if (balloons.size() == 2) {
+        CHECK(balloons[0].item == 1 && near(balloons[0].at, gp_Pnt2d(18, 0), 1e-9)); // out past the edge
+        CHECK(balloons[1].item == 2 && near(balloons[1].at, gp_Pnt2d(-18, 0), 1e-9));
+        CHECK(near(balloons[0].anchor, gp_Pnt2d(5, 0)));
+    }
+}
+
+void testAssemblyDrawing()
+{
+    const TopoDS_Shape a = BRepPrimAPI_MakeBox(40, 20, 10).Shape();
+    const TopoDS_Shape b = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 10), 40, 20, 10).Shape();
+    const TopoDS_Shape bApart = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 50), 40, 20, 10).Shape();
+    const Drawing d = assemblyDrawing({a, b}, {a, bApart}, "Stack");
+    CHECK(d.assembly && d.partsList && d.views.size() == 2);
+    if (d.views.size() != 2)
+        return;
+    CHECK(!d.views[0].exploded && d.views[1].exploded);
+    CHECK(d.views[0].at.X() < d.views[1].at.X()); // side by side
+    // The exploded view is taller: the parts are apart.
+    const ViewGeometry together = projectView({a, b}, d.views[0]), apart = projectView({a, bApart}, d.views[1]);
+    CHECK(apart.max.Y() - apart.min.Y() > together.max.Y() - together.min.Y() + 30.0);
+}
+
 int main()
 {
     return runTests({
+        {"parts list and balloons", testPartsListAndBalloons},
+        {"assembly drawing", testAssemblyDrawing},
         {"view directions", testViewDirections},
         {"top view sees the hole", testTopViewSeesTheHole},
         {"front view hides the hole", testFrontViewHidesTheHole},

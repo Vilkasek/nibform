@@ -7,6 +7,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Pnt2d.hxx>
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -30,6 +31,9 @@ struct SheetView
     double offset = 0.0;
     std::string label;
     bool hidden = true; // draw hidden edges (dashed)
+    // An assembly drawing's view of the parts apart (as the exploded view has them), with
+    // balloons numbering them.
+    bool exploded = false;
 };
 
 struct SheetDimension
@@ -60,6 +64,10 @@ struct Drawing
     std::vector<SheetView> views;
     std::vector<SheetDimension> dimensions;
     std::vector<SheetNote> notes;
+    // Of the assembly's parts instead of the part model's bodies (M17), with a parts list
+    // (above the title block).
+    bool assembly = false;
+    bool partsList = false;
 };
 
 using Polyline2d = std::vector<gp_Pnt2d>;
@@ -99,6 +107,30 @@ gp_Ax2 viewAxes(ViewKind kind);
 // Where a model point lands in a view (view coordinates).
 gp_Pnt2d projectPoint(ViewKind kind, const gp_Pnt& p);
 
+// A parts list (bill of materials) row: the parts made from one source.
+struct PartsListRow
+{
+    int item = 0; // numbered in the order the parts come
+    std::string name;
+    int quantity = 0;
+};
+// The rows for parts given by their source (id, name) in order; `itemOf` gets each
+// source's item number.
+std::vector<PartsListRow> partsList(const std::vector<std::pair<int, std::string>>& parts,
+                                    std::map<int, int>* itemOf = nullptr);
+
+// A balloon: an item number in a circle at `at`, its leader ending at `anchor` (view
+// coordinates).
+struct Balloon
+{
+    int item = 0;
+    gp_Pnt2d anchor, at;
+};
+// One balloon per item, on the first part of it (`anchors`: item and where the part is in
+// the view), set out from the view's middle by `distance` (view mm) so the leaders fan out.
+std::vector<Balloon> placeBalloons(const ViewGeometry& view, const std::vector<std::pair<int, gp_Pnt2d>>& anchors,
+                                   double distance);
+
 // Projects the bodies as the view sees them, hidden edges apart; a section view cuts them
 // first. The threads on them are drawn and called out (not in section or isometric views).
 ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetView& view,
@@ -120,6 +152,10 @@ std::string scaleText(double scale);
 // A new drawing of the bodies: front, top (below it), left (right of it) and isometric
 // views on an A4 / A3 sheet, at a standard scale that fits.
 Drawing defaultDrawing(const std::vector<TopoDS_Shape>& bodies, const std::string& title);
+// A new drawing of an assembly: the parts together and apart (isometric views side by
+// side, balloons on the exploded one) and the parts list.
+Drawing assemblyDrawing(const std::vector<TopoDS_Shape>& together, const std::vector<TopoDS_Shape>& apart,
+                        const std::string& title);
 
 // Where the dimension's points are now: the corner / circle center of the view nearest
 // to each stored point. False when the view has nothing near enough (the dimension lost

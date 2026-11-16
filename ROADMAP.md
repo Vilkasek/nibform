@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M16 and i18n are done (see the README). Next: assemblies (M17).
+M0–M17 and i18n are done (see the README). Next: sheet metal (M18).
 M21 collects the extra variants of the everyday tools.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
@@ -138,7 +138,7 @@ The finishing features a part for real use needs.
 **Done when:** a 3D-printed enclosure gets its screw bosses with threads, a ribbed wall,
 draft and an engraved label, all editable afterwards.
 
-## M17 – Assemblies
+## M17 – Assemblies ✓
 
 Several parts that fit and move together.
 

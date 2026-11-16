@@ -93,6 +93,7 @@ SketchEditor::Snapshot SketchEditor::snapshot() const
     s.features = m_features;
     s.drawings = m_drawings;
     s.parameters = m_parameters;
+    s.assembly = m_assembly;
     return s;
 }
 
@@ -130,6 +131,9 @@ void SketchEditor::restore(Snapshot snapshot)
     m_parameters = std::move(snapshot.parameters);
     if (parameters)
         emit parametersChanged();
+    m_assembly = std::move(snapshot.assembly);
+    refreshAssembly();
+    emit assemblyChanged();
     emit drawingsChanged();
     rebuildModel();
     refreshSketches();
@@ -440,6 +444,11 @@ void SketchEditor::refreshBodies()
     m_meshTimer->start(); // new bodies seen up close get finer meshes too
     if (!m_move.bodies.empty())
         endMove(); // the bodies it held are rebuilt
+    if (mode() == EditorMode::Assembly) {
+        for (const Handle(AIS_Shape)& prs : m_bodyPrs)
+            ctx->Erase(prs, false);
+        refreshAssembly(); // components of bodies follow them
+    }
     updateSelectionModes();
     emit selectionChanged();
     emit bodiesChanged();
@@ -592,6 +601,14 @@ void SketchEditor::showRegions()
 {
     const auto& ctx = m_viewer->aisContext();
     m_usedRegions = usedRegions();
+    if (mode() == EditorMode::Assembly) {
+        for (Handle(AIS_Shape)* prs : {&m_regionPrs, &m_selectedRegionPrs}) {
+            if (!prs->IsNull())
+                ctx->Remove(*prs, false);
+            prs->Nullify();
+        }
+        return;
+    }
     TopoDS_Compound plain = compound(), picked = compound();
     bool anyPlain = false, anyPicked = false;
     for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
@@ -1771,6 +1788,7 @@ ProjectData SketchEditor::project() const
     data.bodyStyles = m_bodyStyles;
     data.drawings = m_drawings;
     data.parameters = m_parameters;
+    data.assembly = m_assembly;
     return data;
 }
 
@@ -1790,7 +1808,7 @@ void SketchEditor::loadProject(ProjectData project)
     m_nextSketchId = 1;
     m_bodyStyles = std::move(project.bodyStyles);
     Snapshot loaded{std::move(project.sketches), std::move(project.features), std::move(project.drawings),
-                    std::move(project.parameters)};
+                    std::move(project.parameters), std::move(project.assembly)};
     restore(std::move(loaded));
     m_undo.clear();
     m_redo.clear();

@@ -24,6 +24,8 @@ void SketchEditor::showReferences()
     for (const Handle(AIS_Shape)& prs : m_referencePrs)
         ctx->Remove(prs, false);
     m_referencePrs.clear();
+    if (mode() == EditorMode::Assembly)
+        return;
     for (const TopoDS_Shape& shape : m_context.references) {
         Handle(AIS_Shape) prs = new AIS_Shape(shape);
         prs->SetColor(m_colors.inactive);
