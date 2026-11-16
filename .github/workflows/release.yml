@@ -78,7 +78,7 @@ jobs:
           # Errors become annotations, readable without the logs.
           { cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNIBFORM_BUILD_TESTS=OFF \
               -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_PREFIX_PATH="$HOME/occt;$QT_ROOT_DIR" && cmake --build build; } 2>&1 | tee build.log \
-            || { grep -iE "error|not found|could not" build.log | head -40 | sed 's/^/::error::/'; exit 1; }
+            || { grep -E "error:|Error|undefined reference" build.log | head -60 | sed 's/^/::error::/'; exit 1; }
           DESTDIR=$PWD/AppDir cmake --install build
 
       - name: Make the AppImage
@@ -177,9 +177,10 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNIBFORM_BUILD_TESTS=OFF `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" 2>&1 | Tee-Object build.log
-          if ($LASTEXITCODE -eq 0) { cmake --build build 2>&1 | Tee-Object -Append build.log }
+          # -k 0: every file that fails, not just the first.
+          if ($LASTEXITCODE -eq 0) { cmake --build build -- -k 0 2>&1 | Tee-Object -Append build.log }
           if ($LASTEXITCODE -ne 0) {
-            Select-String -Path build.log -Pattern 'error|not found|could not' | Select-Object -First 40 |
+            Select-String -Path build.log -Pattern 'error C|error LNK|fatal error|CMake Error' | Select-Object -First 60 |
               ForEach-Object { "::error::$($_.Line)" }
             exit 1
           }
@@ -223,7 +224,7 @@ jobs:
           { cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNIBFORM_BUILD_TESTS=OFF \
               -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix opencascade);$(brew --prefix eigen)" \
               && cmake --build build; } 2>&1 | tee build.log \
-            || { grep -iE "error|not found|could not" build.log | head -40 | sed 's/^/::error::/'; exit 1; }
+            || { grep -E "error:|Error|undefined reference" build.log | head -60 | sed 's/^/::error::/'; exit 1; }
 
       - name: Package
         run: |

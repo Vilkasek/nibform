@@ -13,6 +13,7 @@
 #include <Message.hxx>
 #include <Message_Messenger.hxx>
 #include <Message_Printer.hxx>
+#include <NCollection_Sequence.hxx>
 #include <NCollection_String.hxx>
 #include <Standard_Failure.hxx>
 #include <TColStd_SequenceOfHAsciiString.hxx>
@@ -55,13 +56,13 @@ Glyphs makeGlyphs(const SketchText& text)
     // A missing family falls back to another one; OCCT says so on the console every time.
     const Handle(Message_Messenger)& messenger = Message::DefaultMessenger();
     std::vector<Message_Gravity> levels;
-    for (Message_SequenceOfPrinters::Iterator it(messenger->Printers()); it.More(); it.Next()) {
+    for (NCollection_Sequence<Handle(Message_Printer)>::Iterator it(messenger->Printers()); it.More(); it.Next()) {
         levels.push_back(it.Value()->GetTraceLevel());
         it.Value()->SetTraceLevel(Message_Fail);
     }
     const bool found = font.FindAndInit(family.c_str(), aspect, text.height, Font_StrictLevel_Any);
     std::size_t i = 0;
-    for (Message_SequenceOfPrinters::Iterator it(messenger->Printers()); it.More(); it.Next())
+    for (NCollection_Sequence<Handle(Message_Printer)>::Iterator it(messenger->Printers()); it.More(); it.Next())
         it.Value()->SetTraceLevel(levels[i++]);
     if (!found)
         return out;
