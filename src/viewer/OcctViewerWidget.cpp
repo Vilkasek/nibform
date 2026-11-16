@@ -435,7 +435,8 @@ Aspect_Drawable OcctViewerWidget::nativeDrawable() const
     // Use the top-level window: Qt creates it with a GLX-compatible visual.
     // Calling winId() on this widget would turn it into a native child window
     // without depth/stencil, which glXMakeCurrent() later rejects.
-    return static_cast<Aspect_Drawable>(window()->winId());
+    // An integer handle on X11 and macOS, a pointer (HWND) on Windows.
+    return (Aspect_Drawable)window()->winId();
 }
 
 Graphic3d_Vec2i OcctViewerWidget::toPixels(const QPointF& p) const
