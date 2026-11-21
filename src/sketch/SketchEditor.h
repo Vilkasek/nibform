@@ -346,6 +346,11 @@ public:
 
     ProjectData project() const;
     void loadProject(ProjectData project); // replaces everything; undo starts empty
+    // What a script made of the project: in its place, as one undo step (body names and
+    // colors stay).
+    void applyProject(const ProjectData& project);
+    // Rebuilds everything from the start (scripts were allowed to run, say).
+    void rebuildFresh();
     void newProject();
     bool isModified() const { return m_changes != m_savedChanges; }
     void markSaved() { m_savedChanges = m_changes; emit historyChanged(); }
@@ -599,6 +604,7 @@ private:
     QString sheetHint() const;
     void showFlatPatterns();
     bool m_flatShown = false;
+    bool m_freshBuild = false; // the next build forgets the cached steps
     Handle(AIS_Shape) m_flatPrs, m_flatBendPrs;
     bool wantsBaseDatums() const;
     std::optional<Datum> datumById(int id) const;

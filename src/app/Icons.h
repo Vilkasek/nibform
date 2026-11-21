@@ -17,6 +17,7 @@ enum class Icon
     Thread, Draft, Rib, Emboss, Text,
     Assembly, Joint, Ground, Interference, Explode,
     SheetBase, Flange, Hem, Tab, Relief, SheetConvert, FlatPattern,
+    Script, Console,
 };
 
 // Toolbar icons drawn in code, so they follow the theme: lines in `ink`, the part that

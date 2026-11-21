@@ -160,6 +160,7 @@ MainWindow::MainWindow(QWidget* parent)
     buildBodyList();
     buildPatternPanel();
     buildParametersPanel();
+    buildScriptConsole();
     buildAssemblyPanel();
 
     m_hintLabel = new QLabel(this);
@@ -287,6 +288,8 @@ void MainWindow::showRadialMenu(const QPointF& pos)
                    toolAction(ToolKind::PushPull), toolAction(ToolKind::Revolve), toolAction(ToolKind::Hole),
                    toolAction(ToolKind::Fillet),   toolAction(ToolKind::Shell),   m_undoAction,
                    m_fitAction};
+        for (QAction* plugin : pluginActions()) // the first few plugin commands
+            actions.push_back(plugin);
     }
     // Icons as the bars draw them, except the one made for the orange Finish button.
     const bool dark = resolvesToDark(m_theme);
@@ -608,6 +611,7 @@ void MainWindow::buildUi()
     buildActions();
     buildContextBar();
 
+    buildScriptsMenu();
     QMenu* help = menuBar()->addMenu(tr("&Help"));
     help->addAction(tr("About Nibform"), this, &MainWindow::showAbout);
     help->addAction(tr("About Qt"), qApp, &QApplication::aboutQt);
@@ -1676,6 +1680,7 @@ void MainWindow::updateTimeline()
                         : item.kind == Feature::Kind::Tab     ? Icon::Tab
                         : item.kind == Feature::Kind::Relief  ? Icon::Relief
                         : item.kind == Feature::Kind::SheetConvert ? Icon::SheetConvert
+                        : item.kind == Feature::Kind::Script  ? Icon::Script
                         : item.kind == Feature::Kind::Mirror  ? Icon::BodyMirror
                         : item.kind == Feature::Kind::Pattern ? Icon::CircularPattern
                         : item.kind == Feature::Kind::Datum   ? Icon::Plane
@@ -1902,6 +1907,7 @@ void MainWindow::openPath(const QString& path)
         return;
     }
     m_editor->loadProject(std::move(*project));
+    trustProjectScripts(true); // its scripts run once allowed
     settleModel(); // to frame what was opened
     m_path = path;
     m_recovery->clear();
@@ -1982,6 +1988,7 @@ bool MainWindow::offerRecovery()
         if (box.clickedButton() != restore)
             return false; // kept for the next start
         m_editor->loadProject(std::move(work.project));
+        trustProjectScripts(true);
         m_editor->markUnsaved();
         m_path = work.sourcePath;
         // Ours now: written under this session before the old file goes.

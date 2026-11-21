@@ -936,6 +936,29 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
     case Feature::Kind::Hem:
     case Feature::Kind::Relief:
         return sheetPrompts(feature);
+    case Feature::Kind::Script:
+        // Each of the generator's values, of its kind.
+        for (const ScriptValue& v : feature.script.values) {
+            FeaturePrompt value;
+            const std::string name = v.name;
+            const QString shown = QString::fromStdString(name).replace(QLatin1Char('_'), QLatin1Char(' '));
+            const ValueKind kind = v.kind;
+            value.label = [shown, kind] {
+                return kind == ValueKind::Length ? tr("%1 [mm]").arg(shown)
+                     : kind == ValueKind::Angle  ? tr("%1 [°]").arg(shown)
+                                                 : shown;
+            };
+            value.min = -1e9;
+            value.max = 1e9;
+            value.get = [name](const Feature& f) { return f.script.value(name) ? f.script.value(name)->value : 0.0; };
+            value.set = [name](Feature& f, double x) {
+                if (ScriptValue* sv = f.script.value(name))
+                    sv->value = x;
+            };
+            value.field = "values." + name;
+            prompts.push_back(value);
+        }
+        break;
     case Feature::Kind::Datum:
         if (feature.datum == Feature::DatumKind::OffsetPlane || feature.datum == Feature::DatumKind::AnglePlane) {
             const bool offset = feature.datum == Feature::DatumKind::OffsetPlane;

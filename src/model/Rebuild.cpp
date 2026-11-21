@@ -87,7 +87,7 @@ std::uint64_t chainKey(std::uint64_t previous, const std::string& key)
 // are known: 64-bit libstdc++, as on the development machine and in CI.) A feature's
 // `expressions` are left out on purpose: they only set its values, which are in the key.
 #if defined(__GLIBCXX__) && __SIZEOF_POINTER__ == 8
-static_assert(sizeof(Feature) == 696, "Feature changed: is the new field in featureKey()?");
+static_assert(sizeof(Feature) == 768, "Feature changed: is the new field in featureKey()?");
 static_assert(sizeof(SketchEntity) == 72, "SketchEntity changed: is the new field in sketchGeometryKey()?");
 static_assert(sizeof(SketchPoint) == 24, "SketchPoint changed: is the new field in sketchGeometryKey()?");
 static_assert(sizeof(SketchText) == 88, "SketchText changed: is the new field in sketchGeometryKey()?");
@@ -256,6 +256,15 @@ std::string RebuildCache::featureKey(const Feature& f, const SketchLookup& sketc
     w.num(f.flange.gap);
     w.flag(f.flange.inside);
     w.flag(f.flange.square);
+    w.raw(importHash(f.script.source));
+    w.raw(f.script.source ? f.script.source->size() : std::size_t(0));
+    w.text(f.script.name);
+    w.raw(f.script.values.size());
+    for (const ScriptValue& v : f.script.values) {
+        w.text(v.name);
+        w.num(v.value);
+        w.kind(v.kind);
+    }
 
     if (f.kind == Feature::Kind::Sketch)
         usesSketch(f.sketch);
@@ -422,6 +431,8 @@ void BackgroundRebuilder::run()
             m_running = job.first;
         }
         const int ticket = job.first;
+        if (job.second.fresh)
+            m_cache.clear();
         const auto& sketches = job.second.sketches;
         SketchLookup lookup = [&sketches](int id) -> const Sketch* {
             for (const auto& [sid, sketch] : sketches) {

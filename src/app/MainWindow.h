@@ -68,6 +68,16 @@ private:
     void buildPatternPanel();
     void buildParametersPanel();
     void buildAssemblyPanel();
+    // Scripting (M19, MainWindowScripts.cpp; without Python, only the menu saying so).
+    void buildScriptConsole();
+    void buildScriptsMenu();
+    void startScripting();
+    void runScriptFile();
+    void toggleMacro(bool on);
+    void reloadPlugins();
+    void trustProjectScripts(bool ask);
+    void updatePluginButton();
+    std::vector<QAction*> pluginActions(); // for the radial menu
     void fillInsertMenu(QMenu* menu); // the bodies to insert as parts, and a file
     void updatePatternPanel();
     void updateBodyList();
@@ -191,6 +201,15 @@ private:
     QDockWidget* m_patternDock = nullptr;
     PatternPanel* m_patternPanel = nullptr;
     QDockWidget* m_parametersDock = nullptr;
+    QDockWidget* m_scriptDock = nullptr;
+    class ScriptConsole* m_scriptConsole = nullptr;
+    QMenu* m_scriptsMenu = nullptr;
+    QAction* m_recordAction = nullptr;
+    QAction* m_pluginButton = nullptr; // on the model bar, while there are plugins
+    QMenu* m_pluginMenu = nullptr;
+    std::vector<QAction*> m_pluginActions;
+    std::shared_ptr<class ScriptDocument> m_scriptDoc;          // the project as scripts see it
+    std::shared_ptr<struct ProjectData> m_recordingFrom;        // a macro being recorded: the project before
     QDockWidget* m_assemblyDock = nullptr;
     AssemblyPanel* m_assemblyPanel = nullptr;
     QToolBar* m_assemblyBar = nullptr;

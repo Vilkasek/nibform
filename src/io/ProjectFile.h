@@ -40,6 +40,13 @@ QByteArray bodiesClipboard(const std::string& shape);
 std::optional<std::string> bodiesFromClipboard(const QByteArray& data);
 inline const char* kClipboardMime = "application/x-nibform";
 
+// One sketch or one feature as the project file has it (JSON text), and back: what a
+// recorded macro replays.
+QByteArray sketchToJsonText(int id, const Sketch& sketch);
+std::optional<ProjectData::SketchEntry> sketchFromJsonText(const QByteArray& json, QString* error = nullptr);
+QByteArray featureToJsonText(const Feature& feature);
+std::optional<Feature> featureFromJsonText(const QByteArray& json, QString* error = nullptr);
+
 // Returns an error message, empty on success.
 QString saveProject(const QString& path, const ProjectData& project);
 std::optional<ProjectData> loadProject(const QString& path, QString* error = nullptr);

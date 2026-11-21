@@ -87,6 +87,7 @@ public:
     {
         std::vector<std::pair<int, Sketch>> sketches; // by id: copies, the editor keeps editing its own
         std::vector<Feature> features;
+        bool fresh = false; // forget what was built before (something outside the history changed: scripts were trusted)
     };
     struct Done
     {

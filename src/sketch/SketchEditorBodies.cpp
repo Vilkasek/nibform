@@ -189,6 +189,7 @@ void SketchEditor::requestBuild(std::vector<Feature> features, std::function<voi
     for (const Slot& slot : m_slots)
         job.sketches.emplace_back(slot.id, slot.sketch);
     job.features = std::move(features);
+    job.fresh = std::exchange(m_freshBuild, false);
     const std::size_t total = job.features.size();
     m_buildShow = std::move(show);
     m_buildTicket = m_builder->request(std::move(job));
@@ -1568,6 +1569,19 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             base = tr("Sheet Metal");
             item.detail = lengthShort(f.sheet.thickness);
             break;
+        case Feature::Kind::Script: {
+            base = f.label.empty() ? QString::fromStdString(f.script.name) : QString::fromStdString(f.label);
+            QStringList values;
+            for (const ScriptValue& v : f.script.values) {
+                values << (v.kind == ValueKind::Length ? lengthShort(v.value)
+                           : v.kind == ValueKind::Angle ? mm(v.value) + QStringLiteral("°")
+                                                        : QString::number(v.value, 'g', 6));
+                if (values.size() == 2)
+                    break;
+            }
+            item.detail = values.join(QStringLiteral(" · "));
+            break;
+        }
         case Feature::Kind::Move:
             base = f.copy ? tr("Copy") : tr("Move");
             break;
@@ -1632,7 +1646,7 @@ void SketchEditor::activateTimelineItem(int index)
         || feature.kind == Feature::Kind::Rib || feature.kind == Feature::Kind::Emboss
         || feature.kind == Feature::Kind::SheetBase || feature.kind == Feature::Kind::SheetConvert
         || feature.kind == Feature::Kind::Flange || feature.kind == Feature::Kind::Hem
-        || feature.kind == Feature::Kind::Relief) {
+        || feature.kind == Feature::Kind::Relief || feature.kind == Feature::Kind::Script) {
         editFeature(index);
         return;
     }
@@ -1868,6 +1882,24 @@ void SketchEditor::loadProject(ProjectData project)
     m_changes = m_savedChanges = 0;
     setTool(ToolKind::Select);
     emit historyChanged();
+}
+
+void SketchEditor::applyProject(const ProjectData& project)
+{
+    if (mode() == EditorMode::Sketch)
+        closeSketch();
+    endValueSession(true);
+    resetInteraction();
+    clearModelSelection();
+    pushUndo();
+    restore(Snapshot{project.sketches, project.features, project.drawings, project.parameters, project.assembly});
+    emit historyChanged();
+}
+
+void SketchEditor::rebuildFresh()
+{
+    m_freshBuild = true;
+    rebuildModel();
 }
 
 void SketchEditor::newProject()

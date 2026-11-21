@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nibform – pen-first CAD</title>
-<meta name="description" content="Sketch with a stylus, constrain, push and pull solids, make drawings and assemblies. A free, native parametric CAD app for Linux, Windows and macOS, made for pen tablets.">
+<meta name="description" content="Sketch with a stylus, constrain, push and pull solids, bend sheet metal, script it in Python, make drawings and assemblies. A free, native parametric CAD app for Linux, Windows and macOS, made for pen tablets.">
 <meta property="og:title" content="Nibform – pen-first CAD">
 <meta property="og:description" content="Sketch with a pen, constrain, push and pull solids. Free and open source: Linux, Windows, macOS.">
 <meta property="og:image" content="https://vilkasek.github.io/nibform/img/og.png">
@@ -364,8 +364,8 @@ footer nav { margin-left: 0; gap: 18px; flex-wrap: wrap; }
       <div class="center">
         <p class="eyebrow" lang="en">Everything in the box</p><p class="eyebrow" lang="pl">Wszystko w zestawie</p>
         <h2 lang="en">A complete CAD workflow</h2><h2 lang="pl">Pełny proces CAD</h2>
-        <p class="sub" lang="en">Sketch, model, assemble, draw and export, all in one app.</p>
-        <p class="sub" lang="pl">Szkic, bryła, złożenie, rysunek i eksport w jednej aplikacji.</p>
+        <p class="sub" lang="en">Sketch, model, bend, assemble, draw, script and export, all in one app.</p>
+        <p class="sub" lang="pl">Szkic, bryła, blacha, złożenie, rysunek, skrypty i eksport w jednej aplikacji.</p>
       </div>
       <div class="grid">
         <div class="card">
@@ -403,6 +403,18 @@ footer nav { margin-left: 0; gap: 18px; flex-wrap: wrap; }
           <h3 lang="en">Assemblies</h3><h3 lang="pl">Złożenia</h3>
           <p lang="en">Six joint types, motion with limits, interference checks, exploded views and a parts list.</p>
           <p lang="pl">Sześć rodzajów przegubów, ruch z ograniczeniami, wykrywanie kolizji, widoki rozstrzelone i lista części.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M3 20h9a4 4 0 004-4V4"/><path d="M8 4h11"/><path d="M16 4v3" stroke-dasharray="2 2"/></svg></div>
+          <h3 lang="en">Sheet metal</h3><h3 lang="pl">Blacha</h3>
+          <p lang="en">Base and edge flanges, hems, tabs, reliefs, shelled parts converted; the flat pattern kept up to date, as DXF for the laser cutter.</p>
+          <p lang="pl">Kołnierze bazowe i krawędziowe, zawinięcia, występy, podcięcia, konwersja skorup; aktualne rozwinięcie, w DXF do lasera.</p>
+        </div>
+        <div class="card">
+          <div class="icon o"><svg viewBox="0 0 24 24"><path d="M8 4H6v6l-2 2 2 2v6h2M16 4h2v6l2 2-2 2v6h-2"/><path d="M10 9h4M10 13h3"/></svg></div>
+          <h3 lang="en">Python scripting</h3><h3 lang="pl">Skrypty w Pythonie</h3>
+          <p lang="en">A console, a Python API to sketches, features and parameters, generated features that stay editable, macros, plugins and headless batch runs.</p>
+          <p lang="pl">Konsola, API w Pythonie do szkiców, operacji i parametrów, generowane operacje, które da się dalej edytować, makra, wtyczki i zadania wsadowe bez okna.</p>
         </div>
         <div class="card">
           <div class="icon o"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 15h18M14 15v6"/><path d="M7 7h4v4H7z"/></svg></div>
@@ -544,8 +556,8 @@ sudo cmake --install build</pre>
     <div class="wrap">
       <p class="eyebrow" lang="en">Roadmap</p><p class="eyebrow" lang="pl">Plan</p>
       <h2 lang="en">Moving fast, in the open</h2><h2 lang="pl">Rozwijany szybko i otwarcie</h2>
-      <p class="sub" lang="en">Seventeen milestones done. Sheet metal is next.</p>
-      <p class="sub" lang="pl">Siedemnaście kamieni milowych za nami. Następna jest blacha.</p>
+      <p class="sub" lang="en">Nineteen milestones done. Versions and sharing are next.</p>
+      <p class="sub" lang="pl">Dziewiętnaście kamieni milowych za nami. Następne są wersje i współdzielenie.</p>
       <div class="road">
         <div class="ms"><b>M0</b><span lang="en">Qt window, 3D view, navigation</span><span lang="pl">okno Qt, widok 3D, nawigacja</span></div>
         <div class="ms"><b>M1</b><span lang="en">Pen sketching, snapping</span><span lang="pl">szkicowanie rysikiem, przyciąganie</span></div>
@@ -565,8 +577,8 @@ sudo cmake --install build</pre>
         <div class="ms"><b>M15</b><span lang="en">Parameters, configurations</span><span lang="pl">parametry, konfiguracje</span></div>
         <div class="ms"><b>M16</b><span lang="en">Threads, text, draft, ribs</span><span lang="pl">gwinty, tekst, pochylenia, żebra</span></div>
         <div class="ms"><b>M17</b><span lang="en">Assemblies</span><span lang="pl">złożenia</span></div>
-        <div class="ms next"><b>M18</b><span lang="en">Sheet metal</span><span lang="pl">blacha</span></div>
-        <div class="ms next"><b>M19</b><span lang="en">Python scripting</span><span lang="pl">skrypty w Pythonie</span></div>
+        <div class="ms"><b>M18</b><span lang="en">Sheet metal</span><span lang="pl">blacha</span></div>
+        <div class="ms"><b>M19</b><span lang="en">Python scripting</span><span lang="pl">skrypty w Pythonie</span></div>
         <div class="ms next"><b>M20</b><span lang="en">Versions and sharing</span><span lang="pl">wersje i współdzielenie</span></div>
       </div>
       <p class="note" style="margin-top:22px"><a href="https://github.com/Vilkasek/nibform/blob/main/ROADMAP.md"><span lang="en">The whole roadmap</span><span lang="pl">Cały plan</span> →</a></p>

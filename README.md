@@ -16,6 +16,8 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 - **Parametric history**: every step can be edited later; the model rebuilds from it.
 - **Sheet metal**: base flanges, edge flanges, hems, tabs, reliefs, shelled bodies converted; the
   flat pattern kept up to date, as a DXF for the laser cutter and a drawing view with bend notes.
+- **Python scripting**: a console, an API to sketches, features and parameters, generated features
+  that stay editable, macros, plugins, and `nibform --run` for batch jobs.
 - **Move, measure, section**: a move gizmo and face-to-face alignment, measurements with mass
   properties, a section view.
 - **Exchange**: STEP, IGES and STL in; STEP, IGES, STL and 3MF out; DXF and SVG sketches.
@@ -28,7 +30,7 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 [Installing](#installing) · [Building](#building) · [Getting started](#getting-started) ·
 [Sketching](#sketching) · [Constraints and dimensions](#constraints-and-dimensions) ·
 [Bodies](#bodies) · [History and projects](#history-and-projects) · [Parameters](#parameters) · [Sheet metal](#sheet-metal) ·
-[Assemblies](#assemblies) ·
+[Assemblies](#assemblies) · [Scripting](#scripting) ·
 [Import and export](#import-and-export) · [Drawings](#drawings) · [Controls](#controls) ·
 [Pen, touch and tablet](#pen-touch-and-tablet) · [Language](#language) ·
 [Development](#development) · [Plan](#plan)
@@ -56,7 +58,7 @@ Each way gives a menu entry and an icon, and `.nibform` projects open from the f
 ## Building
 
 ```sh
-sudo pacman -S --needed qt6-base qt6-svg qt6-tools opencascade eigen cmake ninja
+sudo pacman -S --needed qt6-base qt6-svg qt6-tools opencascade eigen cmake ninja python pybind11
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build   # optional: the tests
@@ -64,7 +66,8 @@ ctest --test-dir build   # optional: the tests
 ```
 
 Other distributions work too, with Qt 6 (Widgets, OpenGL, Svg, PrintSupport, LinguistTools),
-OpenCASCADE 7.9, Eigen 3 and CMake 3.24+. Arch's OpenCASCADE is built against GLX, so the app
+OpenCASCADE 7.9, Eigen 3 and CMake 3.24+; Python 3 and pybind11 for scripting (without them it
+builds without it, or turn it off with `-DNIBFORM_SCRIPTING=OFF`). Arch's OpenCASCADE is built against GLX, so the app
 forces `QT_QPA_PLATFORM=xcb` itself (on Wayland it runs through XWayland).
 
 ## Getting started
@@ -339,6 +342,30 @@ returns to it). The assembly is kept with the project, beside the history, and u
 - **Export** from the assembly: **STEP keeps its structure** – a product per part, named and
   colored, placed once per copy; IGES, STL and 3MF get the parts where they sit.
 
+## Scripting
+
+Nibform runs **Python** scripts on a project (when built with Python 3 and pybind11):
+
+- **Script Console** (*Scripts*, `Ctrl+Alt+P`): Python a line at a time; `nf` is the `nibform`
+  module, `nf.document()` the project in the window. *Run Script…* runs a file. What a script
+  changes is one step to undo.
+- **The API**: sketches with curves, relations and dimensions; features (extrude, revolve,
+  fillet, shell, holes, sheet metal…); parameters and configurations; rebuilding, bodies and
+  their measures; export and saving. Values can be expressions of the parameters.
+- **Generated features**: a Python function (`@nf.generator`) that makes a solid becomes a
+  feature of the history – its code kept in the project, its values edited like any other
+  feature's and following parameters.
+- **Macros**: *Record Macro*, do the work, stop: it becomes a script that does it again.
+- **Plugins**: `.py` files in the plugin folder add commands (*Scripts → Plugins*, a *Plugins*
+  button on the model bar, the radial menu) and generators.
+- **Headless**: `nibform --run script.py [arguments]` runs a script with no window, for batch
+  jobs – such as exporting every configuration of a project to STEP.
+- A project's scripts from elsewhere run only once you allow them.
+
+The guide and the API: [docs/scripting.md](docs/scripting.md). Examples in
+[examples/](examples/): a spur gear generator from module and tooth count (`gear.py`), and the
+batch export of configurations (`export_configurations.py`).
+
 ## Import and export
 
 - **Open** a STEP, IGES or STL file (or `nibform part.step`): it becomes a new project whose history
@@ -511,7 +538,7 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
 - [x] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
 - [x] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF
-- [ ] **M19** – scripting: Python API, console, headless runs, macros, plugins
+- [x] **M19** – scripting: Python API, console, headless runs, macros, plugins
 - [ ] **M20** – versions and sharing: named versions, branch and merge, comments, synced folders, web viewer
 
 Details, scope and "done when" for each: [ROADMAP.md](ROADMAP.md).

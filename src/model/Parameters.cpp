@@ -298,6 +298,12 @@ std::optional<FeatureField> featureField(const Feature& f, const std::string& ke
     if (f.kind == K::Hole && key == "hole.thread.length")
         return FeatureField{ValueKind::Length, 0.0, 1e5, false};
 
+    // A script's values, each of its own kind.
+    if (f.kind == K::Script && key.rfind("values.", 0) == 0) {
+        if (const ScriptValue* v = f.script.value(key.substr(7)))
+            return FeatureField{v->kind, -1e9, 1e9, false};
+        return std::nullopt;
+    }
     // Sheet metal: the rules on what makes the sheet, the shape on its flanges.
     if ((f.kind == K::SheetBase || f.kind == K::SheetConvert) && (key == "sheet.thickness" || key == "sheet.radius"))
         return FeatureField{ValueKind::Length, key == "sheet.radius" ? 0.0 : 0.01, 1e3, false};
@@ -342,6 +348,8 @@ std::optional<double> featureValue(const Feature& f, const std::string& key)
         return f.thread.length;
     if (key == "hole.thread.length")
         return f.hole.thread.length;
+    if (key.rfind("values.", 0) == 0)
+        return f.script.value(key.substr(7))->value;
     if (key == "sheet.thickness")
         return f.sheet.thickness;
     if (key == "sheet.radius")
@@ -383,7 +391,10 @@ void setFeatureValue(Feature& f, const std::string& key, double value)
         f.thread.length = value;
     else if (key == "hole.thread.length")
         f.hole.thread.length = value;
-    else if (key == "sheet.thickness")
+    else if (key.rfind("values.", 0) == 0) {
+        if (ScriptValue* v = f.script.value(key.substr(7)))
+            v->value = value;
+    } else if (key == "sheet.thickness")
         f.sheet.thickness = value;
     else if (key == "sheet.radius")
         f.sheet.radius = value;

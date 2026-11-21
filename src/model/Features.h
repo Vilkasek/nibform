@@ -99,6 +99,26 @@ struct SketchPointRef
 // held to it too.
 constexpr int kMaxPatternCount = 500;
 
+// One input of a script's generator: a length, an angle or a plain number.
+struct ScriptValue
+{
+    std::string name;
+    double value = 0.0;
+    ValueKind kind = ValueKind::Number;
+    bool operator==(const ScriptValue&) const = default;
+};
+
+// A generator written in Python (M19): the function `name`, whose code is `source` (kept
+// with the project, so it rebuilds anywhere), called with the values.
+struct ScriptCall
+{
+    std::shared_ptr<const std::string> source;
+    std::string name;
+    std::vector<ScriptValue> values;
+    const ScriptValue* value(const std::string& name) const;
+    ScriptValue* value(const std::string& name);
+};
+
 struct Feature
 {
     enum class Kind
@@ -131,6 +151,7 @@ struct Feature
         Tab,          // regions on a side of a sheet, as thick as it
         Relief,       // a corner relief `value` across at `points[0]` (`flange.square`)
         SheetConvert, // the shelled body of `faces[0]` (a side of a wall, which stays) to sheet metal
+        Script,       // the solid a script's generator makes from its values (M19), with `operation`
     };
     enum class PatternKind { Linear, Circular };
     enum class DatumKind { OffsetPlane, AnglePlane, ThreePointPlane, Axis, TwoPointAxis };
@@ -184,6 +205,8 @@ struct Feature
     // Sheet metal
     SheetSpec sheet;
     FlangeSpec flange;
+    // Script: its generator and values (a value follows a parameter as "values.<name>").
+    ScriptCall script;
     // Values typed as expressions, by field (see featureField() in Parameters.h): they
     // follow the parameters. A value without one is a plain number.
     std::map<std::string, Expression> expressions;
@@ -207,6 +230,11 @@ std::optional<int> bodyContaining(const std::vector<TopoDS_Shape>& bodies, const
 // For each body, the style that belongs to it (index into `styles`) or -1; a style goes
 // to one body at most, earlier styles first.
 std::vector<int> matchBodyStyles(const std::vector<TopoDS_Shape>& bodies, const std::vector<BodyStyle>& styles);
+
+// Runs a script's generator (the scripting layer sets it; the core knows no Python):
+// the solid it makes, or empty with `error` set. Called from the rebuild's thread too.
+using ScriptRunner = std::function<std::optional<TopoDS_Shape>(const ScriptCall& call, std::string& error)>;
+void setScriptRunner(ScriptRunner runner);
 
 // A sheet metal body: the rules it is bent by (from the feature that made it), and its
 // fixed face (the side that stays as it lies when it is unfolded), by which the body is

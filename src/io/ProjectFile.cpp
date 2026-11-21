@@ -44,11 +44,11 @@ constexpr std::array<const char*, 19> kConstraintKinds{
     "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
     "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
     "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
-constexpr std::array<const char*, 26> kFeatureKinds{"sketch",    "extrude", "fillet", "chamfer", "combine", "delete",
+constexpr std::array<const char*, 27> kFeatureKinds{"sketch",    "extrude", "fillet", "chamfer", "combine", "delete",
                                                     "shell",     "revolve", "sweep",  "loft",    "mirror",  "pattern",
                                                     "hole",      "datum",   "move",   "import",  "thread",  "draft",
                                                     "rib",       "emboss",  "sheet",  "flange",  "hem",     "tab",
-                                                    "relief",    "sheetConvert"};
+                                                    "relief",    "sheetConvert", "script"};
 constexpr std::array<const char*, 3> kThreadStandards{"metric", "unc", "unf"};
 constexpr std::array<const char*, 9> kViewKinds{"front", "back", "top", "bottom", "right", "left", "iso", "section", "flat"};
 constexpr std::array<const char*, 5> kDimensionKinds{"distance", "horizontal", "vertical", "radius", "diameter"};
@@ -575,6 +575,14 @@ QJsonObject featureToJson(const Feature& f)
         {"edges", edges},
         {"bodies", bodies},
     };
+    if (f.kind == Feature::Kind::Script) {
+        QJsonArray values;
+        for (const ScriptValue& v : f.script.values)
+            values.append(QJsonObject{{"name", QString::fromStdString(v.name)}, {"value", v.value}, {"kind", nameOf(v.kind, kValueKinds)}});
+        out.insert("script", QJsonObject{{"source", f.script.source ? QString::fromStdString(*f.script.source) : QString()},
+                                         {"name", QString::fromStdString(f.script.name)},
+                                         {"values", values}});
+    }
     if (!f.expressions.empty()) {
         QJsonObject expressions;
         for (const auto& [key, e] : f.expressions)
@@ -689,6 +697,23 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
         f.flange.inside = fl.value("inside").toBool(false);
         f.flange.square = fl.value("square").toBool(false);
     }
+    // Added with scripting (M19).
+    if (o.contains("script")) {
+        const QJsonObject sc = o.value("script").toObject();
+        if (const QString source = sc.value("source").toString(); !source.isEmpty())
+            f.script.source = std::make_shared<const std::string>(source.toStdString());
+        f.script.name = sc.value("name").toString().toStdString();
+        for (const auto& v : sc.value("values").toArray()) {
+            const QJsonObject vo = v.toObject();
+            ScriptValue value;
+            value.name = vo.value("name").toString().toStdString();
+            const double number = vo.value("value").toDouble();
+            value.value = std::isfinite(number) ? number : 0.0;
+            value.kind = fromName<ValueKind>(vo.value("kind").toString(), kValueKinds).value_or(ValueKind::Number);
+            if (!value.name.empty() && !f.script.value(value.name))
+                f.script.values.push_back(value);
+        }
+    }
     const QJsonObject expressions = o.value("expressions").toObject();
     for (auto it = expressions.begin(); it != expressions.end(); ++it) {
         Expression e = expressionFromJson(it.value());
@@ -699,6 +724,38 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
 }
 
 } // namespace
+
+QByteArray sketchToJsonText(int id, const Sketch& sketch)
+{
+    return QJsonDocument(sketchToJson(id, sketch)).toJson(QJsonDocument::Compact);
+}
+
+std::optional<ProjectData::SketchEntry> sketchFromJsonText(const QByteArray& json, QString* error)
+{
+    const QJsonDocument doc = QJsonDocument::fromJson(json);
+    if (!doc.isObject()) {
+        if (error)
+            *error = QCoreApplication::translate("ProjectFile", "Not a sketch");
+        return std::nullopt;
+    }
+    return sketchFromJson(doc.object(), error);
+}
+
+QByteArray featureToJsonText(const Feature& feature)
+{
+    return QJsonDocument(featureToJson(feature)).toJson(QJsonDocument::Compact);
+}
+
+std::optional<Feature> featureFromJsonText(const QByteArray& json, QString* error)
+{
+    const QJsonDocument doc = QJsonDocument::fromJson(json);
+    if (!doc.isObject()) {
+        if (error)
+            *error = QCoreApplication::translate("ProjectFile", "Not a feature");
+        return std::nullopt;
+    }
+    return featureFromJson(doc.object(), error);
+}
 
 QByteArray projectToJson(const ProjectData& project)
 {

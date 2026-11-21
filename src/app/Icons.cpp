@@ -666,6 +666,24 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         p.drawRect(QRectF(8, 8, 8, 8));
         break;
     }
+    case Icon::Script: {
+        // A page of code: braces around lines.
+        p.drawPolyline(QPolygonF({{8, 3}, {5, 3}, {5, 10}, {3, 12}, {5, 14}, {5, 21}, {8, 21}}));
+        p.drawPolyline(QPolygonF({{16, 3}, {19, 3}, {19, 10}, {21, 12}, {19, 14}, {19, 21}, {16, 21}}));
+        p.setPen(pen(accent, 1.8));
+        p.drawLine(QPointF(9, 8), QPointF(15, 8));
+        p.drawLine(QPointF(9, 12), QPointF(13, 12));
+        p.drawLine(QPointF(9, 16), QPointF(15, 16));
+        break;
+    }
+    case Icon::Console: {
+        // A terminal with a prompt.
+        p.drawRoundedRect(QRectF(3, 4, 18, 16), 2, 2);
+        p.setPen(pen(accent, 1.8));
+        p.drawPolyline(QPolygonF({{7, 9}, {10, 12}, {7, 15}}));
+        p.drawLine(QPointF(12, 15), QPointF(17, 15));
+        break;
+    }
     case Icon::Note: {
         // Lines of text under a capital.
         p.drawLine(QPointF(5, 13), QPointF(19, 13));

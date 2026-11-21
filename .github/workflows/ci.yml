@@ -13,6 +13,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm --needed base-devel git cmake ninja qt6-base qt6-svg qt6-tools qt6-declarative opencascade eigen ttf-dejavu \
+            python pybind11 \
             desktop-file-utils appstream
       - uses: actions/checkout@v4
       - name: Configure

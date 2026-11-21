@@ -11,6 +11,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(NIBFORM_BUILD_TESTS "Build the tests" ON)
+option(NIBFORM_SCRIPTING "Python scripting (needs Python 3 and pybind11)" ON)
 include(GNUInstallDirs)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Svg PrintSupport LinguistTools)
@@ -125,6 +126,9 @@ add_executable(nibform WIN32 MACOSX_BUNDLE
   src/app/ShortcutsDialog.cpp
   src/app/ShortcutsDialog.h
   src/app/RadialMenu.h
+  src/app/ScriptConsole.cpp
+  src/app/ScriptConsole.h
+  src/app/MainWindowScripts.cpp
   src/app/Theme.cpp
   src/app/Theme.h
   src/sketch/SketchEditor.cpp
@@ -151,6 +155,26 @@ add_executable(nibform WIN32 MACOSX_BUNDLE
   src/viewer/ValueEditor.h
   src/viewer/ViewerInteraction.h
 )
+# Scripting (M19): Python embedded, with the nibform module. Without it the app builds and
+# runs as before; scripted features in a project then say they can't run.
+if(NIBFORM_SCRIPTING)
+  find_package(Python3 COMPONENTS Interpreter Development.Embed)
+  find_package(pybind11 CONFIG)
+  if(NOT Python3_FOUND OR NOT pybind11_FOUND)
+    message(WARNING "Python 3 (embedding) or pybind11 not found: building without scripting")
+    set(NIBFORM_SCRIPTING OFF)
+  endif()
+endif()
+if(NIBFORM_SCRIPTING)
+  add_library(nibform_script STATIC src/script/ScriptDocument.cpp src/script/ScriptDocument.h
+    src/script/ScriptEngine.cpp src/script/ScriptEngine.h)
+  target_compile_options(nibform_script PRIVATE ${NIBFORM_WARNINGS})
+  set_target_properties(nibform_script PROPERTIES CXX_VISIBILITY_PRESET hidden) # as pybind11 wants
+  target_compile_definitions(nibform_script PRIVATE QT_NO_KEYWORDS) # Python has a `slots` too
+  target_link_libraries(nibform_script PUBLIC nibform_io PRIVATE pybind11::embed)
+  target_link_libraries(nibform PRIVATE nibform_script)
+  target_compile_definitions(nibform PRIVATE NIBFORM_HAS_SCRIPTING)
+endif()
 target_compile_definitions(nibform PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 target_compile_options(nibform PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(nibform PRIVATE
@@ -170,9 +194,13 @@ target_link_libraries(nibform PRIVATE
 # The window icon (drawn from docs/assets/logo.svg: rsvg-convert -w 256 -h 256).
 qt_add_resources(nibform "app_icon" PREFIX "/" BASE src/app FILES src/app/nibform.png)
 
+set(NIBFORM_TRANSLATED nibform nibform_core nibform_io)
+if(NIBFORM_SCRIPTING)
+  list(APPEND NIBFORM_TRANSLATED nibform_script)
+endif()
 qt_add_translations(TARGETS nibform
   TS_FILES translations/nibform_pl.ts
-  SOURCE_TARGETS nibform nibform_core nibform_io
+  SOURCE_TARGETS ${NIBFORM_TRANSLATED}
   RESOURCE_PREFIX /i18n
   LUPDATE_OPTIONS -no-obsolete -locations none)
 
@@ -195,6 +223,11 @@ install(FILES docs/assets/logo.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hi
 install(FILES src/app/nibform.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
         RENAME ${NIBFORM_APP_ID}.png)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/nibform)
+if(NIBFORM_SCRIPTING)
+  # The scripting API's guide and examples (M19).
+  install(FILES docs/scripting.md DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/nibform)
+  install(DIRECTORY examples/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/nibform/examples FILES_MATCHING PATTERN "*.py")
+endif()
 
 if(NOT NIBFORM_BUILD_TESTS)
   return()
@@ -225,6 +258,15 @@ add_executable(test_sheet_metal tests/test_sheet_metal.cpp tests/Check.h)
 target_compile_options(test_sheet_metal PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_sheet_metal PRIVATE nibform_io)
 add_test(NAME sheet_metal COMMAND test_sheet_metal)
+
+# Scripting (M19): the Python API, the gear generator and the batch export of the examples.
+if(NIBFORM_SCRIPTING)
+  add_executable(test_scripting tests/test_scripting.cpp tests/Check.h)
+  target_compile_options(test_scripting PRIVATE ${NIBFORM_WARNINGS})
+  target_link_libraries(test_scripting PRIVATE nibform_script)
+  target_compile_definitions(test_scripting PRIVATE NIBFORM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_test(NAME scripting COMMAND test_scripting)
+endif()
 
 # Assemblies (M17): components, joints, interference, the hinge (saved as a project to
 # look at with NIBFORM_SAVE_HINGE=path).

@@ -884,6 +884,62 @@ PL["MainWindow"].update({
   "Exported %1 (%2 × %3 mm)": "Wyeksportowano %1 (%2 × %3 mm)",
 })
 
+# Scripting (M19).
+PL["MainWindow"].update({
+  "Python didn't start: %1": "Python się nie uruchomił: %1",
+  "&Scripts": "&Skrypty", "Scripts": "Skrypty", "Script Console": "Konsola skryptów",
+  "Run Script…": "Uruchom skrypt…",
+  "Runs a Python file on the project (as one step to undo)":
+      "Uruchamia plik Pythona na projekcie (jako jeden krok do cofnięcia)",
+  "Record Macro": "Nagrywaj makro",
+  "What you add to the project while recording becomes a script that adds it again":
+      "To, co dodasz do projektu podczas nagrywania, staje się skryptem, który doda to ponownie",
+  "Insert Generated Feature": "Wstaw generowaną operację",
+  "None yet: plugins and scripts add them (nibform.generator)":
+      "Jeszcze żadnych: dodają je wtyczki i skrypty (nibform.generator)",
+  "Plugins": "Wtyczki", "None: put .py files in the plugin folder": "Brak: umieść pliki .py w folderze wtyczek",
+  "Reload Plugins": "Wczytaj wtyczki ponownie", "Open Plugin Folder": "Otwórz folder wtyczek",
+  "Trust This Project's Scripts": "Zaufaj skryptom tego projektu",
+  "Lets the generated features of a project from elsewhere run their Python code":
+      "Pozwala generowanym operacjom projektu z innego źródła uruchamiać ich kod w Pythonie",
+  "Commands added by plugins (Scripts → Plugins)": "Polecenia dodane przez wtyczki (Skrypty → Wtyczki)",
+  "%1 failed: see the script console": "%1 się nie powiódł: zajrzyj do konsoli skryptów",
+  "A plugin failed to load: see the script console": "Nie udało się wczytać wtyczki: zajrzyj do konsoli skryptów",
+  "Run Script": "Uruchom skrypt", "Python scripts (*.py)": "Skrypty Pythona (*.py)",
+  "Running %1\n": "Uruchamiam %1\n", "Ran %1": "Uruchomiono %1",
+  "Recording a macro: add sketches and features, then Scripts → Record Macro again":
+      "Nagrywanie makra: dodaj szkice i operacje, potem znów Skrypty → Nagrywaj makro",
+  "Save Macro": "Zapisz makro", "Saved the macro to %1": "Zapisano makro w %1",
+  "Could not write %1": "Nie udało się zapisać %1",
+  "This project has no scripts": "Ten projekt nie ma skryptów",
+  "This project's scripts already run": "Skrypty tego projektu już działają",
+  "Run This Project's Scripts?": "Uruchomić skrypty tego projektu?",
+  "This project has generated features: Python code kept in the file, which runs on this computer with your rights when the model is built.\n\nLet it run only if you trust where the project comes from. Until then those features are left out of the model.":
+      "Ten projekt ma generowane operacje: kod w Pythonie zapisany w pliku, który przy budowaniu modelu działa "
+      "na tym komputerze z Twoimi uprawnieniami.\n\nPozwól na to tylko wtedy, gdy ufasz źródłu projektu. "
+      "Do tego czasu te operacje są pomijane w modelu.",
+  "Run the Scripts": "Uruchom skrypty", "Not Now": "Nie teraz",
+  "This build has no Python scripting": "Ta wersja nie obsługuje skryptów w Pythonie",
+})
+PL["Model"].update({
+  "Scripts can't run here (this build has no Python)": "Skrypty nie mogą tu działać (ta wersja nie ma Pythona)",
+  "The script made nothing": "Skrypt nic nie utworzył",
+  "The script made no solid": "Skrypt nie utworzył bryły",
+  "Scripts aren't running": "Skrypty nie działają",
+  "The project's scripts aren't trusted yet: allow them to run (Scripts → Trust This Project's Scripts)":
+      "Skryptom projektu jeszcze nie zaufano: pozwól im działać (Skrypty → Zaufaj skryptom tego projektu)",
+})
+PL["ProjectFile"].update({"Not a sketch": "To nie jest szkic", "Not a feature": "To nie jest operacja"})
+PL["ScriptConsole"] = {
+  "Run File…": "Uruchom plik…", "Stop Recording": "Zatrzymaj nagrywanie", "Record Macro": "Nagrywaj makro",
+  "What you do while recording becomes a script that does it again":
+      "To, co zrobisz podczas nagrywania, staje się skryptem, który zrobi to ponownie",
+  "Clear": "Wyczyść", "Python: doc = nf.document(), help(nf) …": "Python: doc = nf.document(), help(nf) …",
+  "Nibform scripting: `nf` is the nibform module, nf.document() the project in the window.\n":
+      "Skrypty Nibform: `nf` to moduł nibform, nf.document() to projekt w oknie.\n",
+}
+PL["SketchEditor"].update({"%1 [mm]": "%1 [mm]", "%1 [°]": "%1 [°]"})
+
 path = sys.argv[1] if len(sys.argv) > 1 else "translations/nibform_pl.ts"
 tree = ET.parse(path)
 missing = []

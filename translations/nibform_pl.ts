@@ -1648,6 +1648,148 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <source> [button]</source>
         <translation> [przycisk]</translation>
     </message>
+    <message>
+        <source>Python didn't start: %1</source>
+        <translation>Python się nie uruchomił: %1</translation>
+    </message>
+    <message>
+        <source>&amp;Scripts</source>
+        <translation>&amp;Skrypty</translation>
+    </message>
+    <message>
+        <source>Script Console</source>
+        <translation>Konsola skryptów</translation>
+    </message>
+    <message>
+        <source>Scripts</source>
+        <translation>Skrypty</translation>
+    </message>
+    <message>
+        <source>Run Script…</source>
+        <translation>Uruchom skrypt…</translation>
+    </message>
+    <message>
+        <source>Runs a Python file on the project (as one step to undo)</source>
+        <translation>Uruchamia plik Pythona na projekcie (jako jeden krok do cofnięcia)</translation>
+    </message>
+    <message>
+        <source>Record Macro</source>
+        <translation>Nagrywaj makro</translation>
+    </message>
+    <message>
+        <source>What you add to the project while recording becomes a script that adds it again</source>
+        <translation>To, co dodasz do projektu podczas nagrywania, staje się skryptem, który doda to ponownie</translation>
+    </message>
+    <message>
+        <source>Insert Generated Feature</source>
+        <translation>Wstaw generowaną operację</translation>
+    </message>
+    <message>
+        <source>None yet: plugins and scripts add them (nibform.generator)</source>
+        <translation>Jeszcze żadnych: dodają je wtyczki i skrypty (nibform.generator)</translation>
+    </message>
+    <message>
+        <source>Plugins</source>
+        <translation>Wtyczki</translation>
+    </message>
+    <message>
+        <source>None: put .py files in the plugin folder</source>
+        <translation>Brak: umieść pliki .py w folderze wtyczek</translation>
+    </message>
+    <message>
+        <source>Reload Plugins</source>
+        <translation>Wczytaj wtyczki ponownie</translation>
+    </message>
+    <message>
+        <source>Open Plugin Folder</source>
+        <translation>Otwórz folder wtyczek</translation>
+    </message>
+    <message>
+        <source>Trust This Project's Scripts</source>
+        <translation>Zaufaj skryptom tego projektu</translation>
+    </message>
+    <message>
+        <source>Lets the generated features of a project from elsewhere run their Python code</source>
+        <translation>Pozwala generowanym operacjom projektu z innego źródła uruchamiać ich kod w Pythonie</translation>
+    </message>
+    <message>
+        <source>Commands added by plugins (Scripts → Plugins)</source>
+        <translation>Polecenia dodane przez wtyczki (Skrypty → Wtyczki)</translation>
+    </message>
+    <message>
+        <source>%1 failed: see the script console</source>
+        <translation>%1 się nie powiódł: zajrzyj do konsoli skryptów</translation>
+    </message>
+    <message>
+        <source>A plugin failed to load: see the script console</source>
+        <translation>Nie udało się wczytać wtyczki: zajrzyj do konsoli skryptów</translation>
+    </message>
+    <message>
+        <source>Run Script</source>
+        <translation>Uruchom skrypt</translation>
+    </message>
+    <message>
+        <source>Python scripts (*.py)</source>
+        <translation>Skrypty Pythona (*.py)</translation>
+    </message>
+    <message>
+        <source>Running %1
+</source>
+        <translation>Uruchamiam %1
+</translation>
+    </message>
+    <message>
+        <source>Ran %1</source>
+        <translation>Uruchomiono %1</translation>
+    </message>
+    <message>
+        <source>Recording a macro: add sketches and features, then Scripts → Record Macro again</source>
+        <translation>Nagrywanie makra: dodaj szkice i operacje, potem znów Skrypty → Nagrywaj makro</translation>
+    </message>
+    <message>
+        <source>Save Macro</source>
+        <translation>Zapisz makro</translation>
+    </message>
+    <message>
+        <source>Saved the macro to %1</source>
+        <translation>Zapisano makro w %1</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Nie udało się zapisać %1</translation>
+    </message>
+    <message>
+        <source>This project has no scripts</source>
+        <translation>Ten projekt nie ma skryptów</translation>
+    </message>
+    <message>
+        <source>This project's scripts already run</source>
+        <translation>Skrypty tego projektu już działają</translation>
+    </message>
+    <message>
+        <source>Run This Project's Scripts?</source>
+        <translation>Uruchomić skrypty tego projektu?</translation>
+    </message>
+    <message>
+        <source>This project has generated features: Python code kept in the file, which runs on this computer with your rights when the model is built.
+
+Let it run only if you trust where the project comes from. Until then those features are left out of the model.</source>
+        <translation>Ten projekt ma generowane operacje: kod w Pythonie zapisany w pliku, który przy budowaniu modelu działa na tym komputerze z Twoimi uprawnieniami.
+
+Pozwól na to tylko wtedy, gdy ufasz źródłu projektu. Do tego czasu te operacje są pomijane w modelu.</translation>
+    </message>
+    <message>
+        <source>Run the Scripts</source>
+        <translation>Uruchom skrypty</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>Nie teraz</translation>
+    </message>
+    <message>
+        <source>This build has no Python scripting</source>
+        <translation>Ta wersja nie obsługuje skryptów w Pythonie</translation>
+    </message>
 </context>
 <context>
     <name>Model</name>
@@ -1878,6 +2020,18 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>The face it was converted from is gone</source>
         <translation>Ściana, od której przekonwertowano bryłę, zniknęła</translation>
+    </message>
+    <message>
+        <source>Scripts can't run here (this build has no Python)</source>
+        <translation>Skrypty nie mogą tu działać (ta wersja nie ma Pythona)</translation>
+    </message>
+    <message>
+        <source>The script made nothing</source>
+        <translation>Skrypt nic nie utworzył</translation>
+    </message>
+    <message>
+        <source>The script made no solid</source>
+        <translation>Skrypt nie utworzył bryły</translation>
     </message>
     <message>
         <source>The plane it was made from is gone</source>
@@ -2435,6 +2589,14 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <source>The unfolded sheet doesn't come out as one piece (does it overlap itself?)</source>
         <translation>Rozwinięta blacha nie wychodzi w jednym kawałku (czy nie nachodzi na siebie?)</translation>
     </message>
+    <message>
+        <source>Scripts aren't running</source>
+        <translation>Skrypty nie działają</translation>
+    </message>
+    <message>
+        <source>The project's scripts aren't trusted yet: allow them to run (Scripts → Trust This Project's Scripts)</source>
+        <translation>Skryptom projektu jeszcze nie zaufano: pozwól im działać (Skrypty → Zaufaj skryptom tego projektu)</translation>
+    </message>
 </context>
 <context>
     <name>OcctViewerWidget</name>
@@ -2728,6 +2890,14 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Nieznany rodzaj operacji: %1</translation>
     </message>
     <message>
+        <source>Not a sketch</source>
+        <translation>To nie jest szkic</translation>
+    </message>
+    <message>
+        <source>Not a feature</source>
+        <translation>To nie jest operacja</translation>
+    </message>
+    <message>
         <source>Not a Nibform project file</source>
         <translation>To nie jest plik projektu Nibform</translation>
     </message>
@@ -2750,6 +2920,39 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Can't open %1: %2</source>
         <translation>Nie można otworzyć %1: %2</translation>
+    </message>
+</context>
+<context>
+    <name>ScriptConsole</name>
+    <message>
+        <source>Run File…</source>
+        <translation>Uruchom plik…</translation>
+    </message>
+    <message>
+        <source>Stop Recording</source>
+        <translation>Zatrzymaj nagrywanie</translation>
+    </message>
+    <message>
+        <source>Record Macro</source>
+        <translation>Nagrywaj makro</translation>
+    </message>
+    <message>
+        <source>What you do while recording becomes a script that does it again</source>
+        <translation>To, co zrobisz podczas nagrywania, staje się skryptem, który zrobi to ponownie</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Wyczyść</translation>
+    </message>
+    <message>
+        <source>Python: doc = nf.document(), help(nf) …</source>
+        <translation>Python: doc = nf.document(), help(nf) …</translation>
+    </message>
+    <message>
+        <source>Nibform scripting: `nf` is the nibform module, nf.document() the project in the window.
+</source>
+        <translation>Skrypty Nibform: `nf` to moduł nibform, nf.document() to projekt w oknie.
+</translation>
     </message>
 </context>
 <context>
@@ -3368,6 +3571,14 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>Height [mm]</source>
         <translation>Wysokość [mm]</translation>
+    </message>
+    <message>
+        <source>%1 [mm]</source>
+        <translation>%1 [mm]</translation>
+    </message>
+    <message>
+        <source>%1 [°]</source>
+        <translation>%1 [°]</translation>
     </message>
     <message>
         <source>Offset [mm]</source>

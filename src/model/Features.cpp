@@ -501,6 +501,39 @@ std::optional<PlaneRef> planeUnder(const gp_Ax3& plane, const std::vector<TopoDS
     return PlaneRef{PlaneRef::Kind::Face, facePick(*best), 0};
 }
 
+const ScriptValue* ScriptCall::value(const std::string& n) const
+{
+    for (const ScriptValue& v : values) {
+        if (v.name == n)
+            return &v;
+    }
+    return nullptr;
+}
+
+ScriptValue* ScriptCall::value(const std::string& n)
+{
+    for (ScriptValue& v : values) {
+        if (v.name == n)
+            return &v;
+    }
+    return nullptr;
+}
+
+namespace {
+
+ScriptRunner& scriptRunner()
+{
+    static ScriptRunner runner;
+    return runner;
+}
+
+} // namespace
+
+void setScriptRunner(ScriptRunner runner)
+{
+    scriptRunner() = std::move(runner);
+}
+
 std::vector<SheetFound> findSheets(const std::vector<TopoDS_Shape>& bodies, const ModelContext& context)
 {
     std::vector<SheetFound> out;
@@ -1156,6 +1189,20 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
         if (result.ok())
             result.sheet = SheetBody{f.id, f.sheet, f.faces.front()};
         return result;
+    }
+    case Feature::Kind::Script: {
+        const ScriptRunner& run = scriptRunner();
+        if (!run)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Scripts can't run here (this build has no Python)"));
+        std::string error;
+        const auto solid = run(f.script, error);
+        if (!solid) {
+            missing.error = error.empty() ? QT_TRANSLATE_NOOP("Model", "The script made nothing") : error;
+            return missing;
+        }
+        if (solid->IsNull() || volumeOf(*solid) <= 0.0)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The script made no solid"));
+        return wrap(applyTool(bodies, *solid, f.operation));
     }
     case Feature::Kind::Datum: {
         FeatureResult result;

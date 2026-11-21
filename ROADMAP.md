@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M18 and i18n are done (see the README). Next: scripting (M19).
+M0–M19 and i18n are done (see the README). Next: versions and sharing (M20).
 M21 collects the extra variants of the everyday tools.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
@@ -166,7 +166,7 @@ Parts bent from a flat sheet.
 **Done when:** a bent bracket with flanges and holes unfolds to a DXF that a laser shop
 can cut and bend to the right size.
 
-## M19 – Scripting
+## M19 – Scripting ✓
 
 Automating what the UI does.
 
