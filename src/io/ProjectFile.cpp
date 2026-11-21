@@ -44,12 +44,13 @@ constexpr std::array<const char*, 19> kConstraintKinds{
     "horizontal", "vertical",  "parallel",          "perpendicular",   "equal",    "tangent", "concentric",
     "pointOn",    "midpoint",  "fixed",             "distance",        "radius",   "diameter", "angle",
     "pointLine",  "lineLine",  "horizontalDistance", "verticalDistance", "symmetric"};
-constexpr std::array<const char*, 20> kFeatureKinds{"sketch", "extrude", "fillet", "chamfer", "combine", "delete",
-                                                    "shell",  "revolve", "sweep",  "loft",    "mirror",  "pattern",
-                                                    "hole",   "datum",   "move",   "import",  "thread",  "draft",
-                                                    "rib",    "emboss"};
+constexpr std::array<const char*, 26> kFeatureKinds{"sketch",    "extrude", "fillet", "chamfer", "combine", "delete",
+                                                    "shell",     "revolve", "sweep",  "loft",    "mirror",  "pattern",
+                                                    "hole",      "datum",   "move",   "import",  "thread",  "draft",
+                                                    "rib",       "emboss",  "sheet",  "flange",  "hem",     "tab",
+                                                    "relief",    "sheetConvert"};
 constexpr std::array<const char*, 3> kThreadStandards{"metric", "unc", "unf"};
-constexpr std::array<const char*, 8> kViewKinds{"front", "back", "top", "bottom", "right", "left", "iso", "section"};
+constexpr std::array<const char*, 9> kViewKinds{"front", "back", "top", "bottom", "right", "left", "iso", "section", "flat"};
 constexpr std::array<const char*, 5> kDimensionKinds{"distance", "horizontal", "vertical", "radius", "diameter"};
 constexpr std::array<const char*, 4> kAxisKinds{"none", "edge", "sketchLine", "datum"};
 constexpr std::array<const char*, 3> kPlaneKinds{"none", "face", "datum"};
@@ -559,6 +560,12 @@ QJsonObject featureToJson(const Feature& f)
         {"shape", f.shape ? QString::fromStdString(*f.shape) : QString()},
         {"label", QString::fromStdString(f.label)},
         {"reference", f.reference},
+        {"sheet", QJsonObject{{"thickness", f.sheet.thickness}, {"radius", f.sheet.radius}, {"kFactor", f.sheet.kFactor}}},
+        {"flange", QJsonObject{{"angle", f.flange.angle},
+                               {"inset", f.flange.inset},
+                               {"gap", f.flange.gap},
+                               {"inside", f.flange.inside},
+                               {"square", f.flange.square}}},
         {"sketch", f.sketch},
         {"value", f.value},
         {"operation", nameOf(f.operation, kOperations)},
@@ -660,6 +667,28 @@ std::optional<Feature> featureFromJson(const QJsonObject& o, QString* error)
         f.shape = std::make_shared<const std::string>(shape.toStdString());
     f.label = o.value("label").toString().toStdString();
     f.reference = o.value("reference").toBool(false);
+    // Added with sheet metal (M18). Sizes that make no sheet (a damaged file) fall back.
+    if (o.contains("sheet")) {
+        const QJsonObject sh = o.value("sheet").toObject();
+        const SheetSpec defaults;
+        auto positive = [&](const char* key, double fallback) {
+            const double v = sh.value(key).toDouble(fallback);
+            return std::isfinite(v) && v > 0.0 && v < 1e4 ? v : fallback;
+        };
+        f.sheet.thickness = positive("thickness", defaults.thickness);
+        f.sheet.radius = positive("radius", defaults.radius);
+        const double k = sh.value("kFactor").toDouble(defaults.kFactor);
+        f.sheet.kFactor = std::isfinite(k) && k >= 0.0 && k <= 1.0 ? k : defaults.kFactor;
+    }
+    if (o.contains("flange")) {
+        const QJsonObject fl = o.value("flange").toObject();
+        const FlangeSpec defaults;
+        f.flange.angle = std::clamp(fl.value("angle").toDouble(defaults.angle), 0.0, 180.0);
+        f.flange.inset = std::max(0.0, fl.value("inset").toDouble(0.0));
+        f.flange.gap = std::max(0.0, fl.value("gap").toDouble(defaults.gap));
+        f.flange.inside = fl.value("inside").toBool(false);
+        f.flange.square = fl.value("square").toBool(false);
+    }
     const QJsonObject expressions = o.value("expressions").toObject();
     for (auto it = expressions.begin(); it != expressions.end(); ++it) {
         Expression e = expressionFromJson(it.value());

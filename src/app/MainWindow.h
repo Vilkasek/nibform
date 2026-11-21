@@ -106,6 +106,7 @@ private:
     bool saveAs();
     enum class ExportFormat { Step, Iges, Stl, ThreeMf };
     void exportBodies(ExportFormat format);
+    void exportFlatPattern();
     // Waits (with a busy cursor) for a rebuild in progress.
     void settleModel();
     void importModel();
@@ -160,6 +161,7 @@ private:
     QString m_hint;   // the editor's current hint, shown again after a message
     QTimer m_messageTimer;
     QAction* m_exportStepAction = nullptr;
+    QAction* m_exportFlatAction = nullptr;
     QAction* m_exportStlAction = nullptr;
     QAction* m_exportIgesAction = nullptr;
     QAction* m_export3mfAction = nullptr;

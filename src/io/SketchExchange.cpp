@@ -1,5 +1,12 @@
 #include "io/SketchExchange.h"
 
+#include <BRepAdaptor_Curve.hxx>
+#include <BRep_Tool.hxx>
+#include <TopExp.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Vertex.hxx>
+
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
@@ -151,6 +158,106 @@ QByteArray sketchToDxf(const Sketch& sketch)
                 point(11, sketch.pos(p));
             break;
         }
+        }
+    }
+    pair(out, 0, QStringLiteral("ENDSEC"));
+    pair(out, 0, QStringLiteral("EOF"));
+    return out.toUtf8();
+}
+
+QByteArray flatPatternToDxf(const FlatPattern& flat, bool bendLines)
+{
+    QString out;
+    pair(out, 0, QStringLiteral("SECTION"));
+    pair(out, 2, QStringLiteral("HEADER"));
+    pair(out, 9, QStringLiteral("$ACADVER"));
+    pair(out, 1, QStringLiteral("AC1009"));
+    pair(out, 9, QStringLiteral("$INSUNITS"));
+    pair(out, 70, QStringLiteral("4")); // millimetres
+    pair(out, 0, QStringLiteral("ENDSEC"));
+    pair(out, 0, QStringLiteral("SECTION"));
+    pair(out, 2, QStringLiteral("ENTITIES"));
+    auto point = [&](int code, double x, double y) {
+        pair(out, code, num(x));
+        pair(out, code + 10, num(y));
+        pair(out, code + 20, QStringLiteral("0"));
+    };
+    auto line = [&](const QString& layer, int color, double x0, double y0, double x1, double y1) {
+        pair(out, 0, QStringLiteral("LINE"));
+        pair(out, 8, layer);
+        pair(out, 62, QString::number(color));
+        point(10, x0, y0);
+        point(11, x1, y1);
+    };
+    const QString cut = QStringLiteral("CUT");
+    if (!flat.face.IsNull()) {
+        for (TopExp_Explorer it(flat.face, TopAbs_EDGE); it.More(); it.Next()) {
+            const TopoDS_Edge edge = TopoDS::Edge(it.Current());
+            if (BRep_Tool::Degenerated(edge))
+                continue;
+            const BRepAdaptor_Curve c(edge);
+            const double f = c.FirstParameter(), l = c.LastParameter();
+            if (c.GetType() == GeomAbs_Line) {
+                const gp_Pnt a = c.Value(f), b = c.Value(l);
+                line(cut, 7, a.X(), a.Y(), b.X(), b.Y());
+            } else if (c.GetType() == GeomAbs_Circle) {
+                const gp_Circ circle = c.Circle();
+                const gp_Pnt center = circle.Location();
+                if (std::abs(l - f - 2.0 * kPi) < 1e-9) {
+                    pair(out, 0, QStringLiteral("CIRCLE"));
+                    pair(out, 8, cut);
+                    pair(out, 62, QStringLiteral("7"));
+                    point(10, center.X(), center.Y());
+                    pair(out, 40, num(circle.Radius()));
+                    continue;
+                }
+                // Counterclockwise seen from above, as DXF draws arcs.
+                gp_Pnt a = c.Value(f), b = c.Value(l);
+                if (circle.Axis().Direction().Z() < 0.0)
+                    std::swap(a, b);
+                pair(out, 0, QStringLiteral("ARC"));
+                pair(out, 8, cut);
+                pair(out, 62, QStringLiteral("7"));
+                point(10, center.X(), center.Y());
+                pair(out, 40, num(circle.Radius()));
+                pair(out, 50, num(std::atan2(a.Y() - center.Y(), a.X() - center.X()) * 180.0 / kPi));
+                pair(out, 51, num(std::atan2(b.Y() - center.Y(), b.X() - center.X()) * 180.0 / kPi));
+            } else {
+                // Anything else (a hole rolled out of a bend): short straight pieces, 0.01 mm close.
+                constexpr int kPieces = 64;
+                gp_Pnt prev = c.Value(f);
+                for (int i = 1; i <= kPieces; ++i) {
+                    const gp_Pnt next = c.Value(f + (l - f) * i / kPieces);
+                    line(cut, 7, prev.X(), prev.Y(), next.X(), next.Y());
+                    prev = next;
+                }
+            }
+        }
+    }
+    if (bendLines) {
+        const QString bend = QStringLiteral("BEND");
+        for (const FlatBend& b : flat.bends) {
+            line(bend, 1, b.a.X(), b.a.Y(), b.b.X(), b.b.Y());
+            // The note along the line, at its middle, a little off it.
+            const gp_Vec2d along(b.a, b.b);
+            if (along.Magnitude() < 1e-9)
+                continue;
+            const double height = 2.5;
+            const gp_Vec2d dir = along.Normalized();
+            const gp_Pnt2d at = gp_Pnt2d((b.a.XY() + b.b.XY()) / 2.0).Translated(gp_Vec2d(-dir.Y(), dir.X()) * 1.0);
+            double angle = std::atan2(dir.Y(), dir.X()) * 180.0 / kPi;
+            if (angle > 90.0 || angle <= -90.0)
+                angle += 180.0; // readable, not upside down
+            pair(out, 0, QStringLiteral("TEXT"));
+            pair(out, 8, bend);
+            pair(out, 62, QStringLiteral("1"));
+            point(10, at.X(), at.Y());
+            pair(out, 40, num(height));
+            pair(out, 1, QStringLiteral("%1 %2%%d R%3")
+                             .arg(b.up ? QStringLiteral("UP") : QStringLiteral("DOWN"))
+                             .arg(QString::number(b.angle, 'g', 4))
+                             .arg(QString::number(b.radius, 'g', 4)));
+            pair(out, 50, num(angle));
         }
     }
     pair(out, 0, QStringLiteral("ENDSEC"));
@@ -853,6 +960,11 @@ QString writeFile(const QString& path, const QByteArray& data)
 QString exportSketchDxf(const Sketch& sketch, const QString& path)
 {
     return writeFile(path, sketchToDxf(sketch));
+}
+
+QString exportFlatPatternDxf(const FlatPattern& flat, const QString& path)
+{
+    return writeFile(path, flatPatternToDxf(flat));
 }
 
 QString exportSketchSvg(const Sketch& sketch, const QString& path)

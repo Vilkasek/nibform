@@ -87,7 +87,7 @@ std::uint64_t chainKey(std::uint64_t previous, const std::string& key)
 // are known: 64-bit libstdc++, as on the development machine and in CI.) A feature's
 // `expressions` are left out on purpose: they only set its values, which are in the key.
 #if defined(__GLIBCXX__) && __SIZEOF_POINTER__ == 8
-static_assert(sizeof(Feature) == 640, "Feature changed: is the new field in featureKey()?");
+static_assert(sizeof(Feature) == 696, "Feature changed: is the new field in featureKey()?");
 static_assert(sizeof(SketchEntity) == 72, "SketchEntity changed: is the new field in sketchGeometryKey()?");
 static_assert(sizeof(SketchPoint) == 24, "SketchPoint changed: is the new field in sketchGeometryKey()?");
 static_assert(sizeof(SketchText) == 88, "SketchText changed: is the new field in sketchGeometryKey()?");
@@ -248,6 +248,14 @@ std::string RebuildCache::featureKey(const Feature& f, const SketchLookup& sketc
     w.raw(f.shape ? f.shape->size() : std::size_t(0));
     w.text(f.label);
     w.flag(f.reference);
+    w.num(f.sheet.thickness);
+    w.num(f.sheet.radius);
+    w.num(f.sheet.kFactor);
+    w.num(f.flange.angle);
+    w.num(f.flange.inset);
+    w.num(f.flange.gap);
+    w.flag(f.flange.inside);
+    w.flag(f.flange.square);
 
     if (f.kind == Feature::Kind::Sketch)
         usesSketch(f.sketch);

@@ -91,6 +91,18 @@
         <translation>Bez tytułu</translation>
     </message>
     <message>
+        <source>UP %1° R%2</source>
+        <translation>W GÓRĘ %1° R%2</translation>
+    </message>
+    <message>
+        <source>DOWN %1° R%2</source>
+        <translation>W DÓŁ %1° R%2</translation>
+    </message>
+    <message>
+        <source>FLAT PATTERN</source>
+        <translation>ROZWINIĘCIE</translation>
+    </message>
+    <message>
         <source>Item</source>
         <translation>Poz.</translation>
     </message>
@@ -305,6 +317,10 @@
         <translation>Zapisz jako…</translation>
     </message>
     <message>
+        <source>Flat Pattern (DXF)…</source>
+        <translation>Rozwinięcie (DXF)…</translation>
+    </message>
+    <message>
         <source>Quit</source>
         <translation>Zakończ</translation>
     </message>
@@ -447,6 +463,54 @@
     <message>
         <source>Emboss (Shift+E): tap sketch regions (a letter takes its whole text), then the face to raise or sink them on, flat or curved</source>
         <translation>Wytłoczenie (Shift+E): dotknij obszarów szkicu (litera zaznacza cały tekst), potem ściany, na której mają się wypukłić albo wgłębić, płaskiej lub zakrzywionej</translation>
+    </message>
+    <message>
+        <source>Base Flange</source>
+        <translation>Kołnierz bazowy</translation>
+    </message>
+    <message>
+        <source>Flange</source>
+        <translation>Kołnierz</translation>
+    </message>
+    <message>
+        <source>Hem</source>
+        <translation>Zawinięcie</translation>
+    </message>
+    <message>
+        <source>Tab</source>
+        <translation>Występ</translation>
+    </message>
+    <message>
+        <source>Corner Relief</source>
+        <translation>Podcięcie naroża</translation>
+    </message>
+    <message>
+        <source>Convert to Sheet Metal</source>
+        <translation>Konwertuj na blachę</translation>
+    </message>
+    <message>
+        <source>Base Flange: tap a sketch region for a flat sheet, or an open sketch line to bend along; then its thickness, bend radius and k-factor (from parameters too)</source>
+        <translation>Kołnierz bazowy: dotknij obszaru szkicu, by zrobić płaską blachę, albo otwartej linii szkicu, by wygiąć wzdłuż niej; potem jej grubość, promień gięcia i współczynnik K (także z parametrów)</translation>
+    </message>
+    <message>
+        <source>Flange: tap an edge along an end of a sheet; set its length (outside), angle and inset, the bend added outside or the material kept inside (with bend reliefs)</source>
+        <translation>Kołnierz: dotknij krawędzi wzdłuż końca blachy; ustaw długość (zewnętrzną), kąt i odsunięcie, gięcie dodane na zewnątrz albo materiał zachowany wewnątrz (z podcięciami gięcia)</translation>
+    </message>
+    <message>
+        <source>Hem: tap an edge along an end of a sheet to fold it back flat over itself</source>
+        <translation>Zawinięcie: dotknij krawędzi wzdłuż końca blachy, by zawinąć ją płasko na nią samą</translation>
+    </message>
+    <message>
+        <source>Tab: tap a sketch region drawn on a side of a sheet; it is added as thick as the sheet</source>
+        <translation>Występ: dotknij obszaru szkicu narysowanego na stronie blachy; zostaje dodany w grubości blachy</translation>
+    </message>
+    <message>
+        <source>Corner Relief: tap the corner where two bends meet; a round or square hole makes room for them</source>
+        <translation>Podcięcie naroża: dotknij narożnika, w którym spotykają się dwa gięcia; okrągły albo kwadratowy otwór robi na nie miejsce</translation>
+    </message>
+    <message>
+        <source>Convert to Sheet Metal: tap the outside of the wall of a shelled body that stays; the walls are bent to it and ripped apart at the corners</source>
+        <translation>Konwertuj na blachę: dotknij zewnętrznej strony ścianki skorupy, która zostaje na miejscu; pozostałe ścianki zostają do niej wygięte i rozcięte w narożnikach</translation>
     </message>
     <message>
         <source>Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or face of them and then where it goes; Enter types offsets and applies (or copies)</source>
@@ -607,6 +671,14 @@ a z dala od brył powstaje nowa bryła</translation>
         <translation>Izometryczny rozstrzelony</translation>
     </message>
     <message>
+        <source>Flat Pattern</source>
+        <translation>Rozwinięcie</translation>
+    </message>
+    <message>
+        <source>There are no sheet metal bodies to lay flat</source>
+        <translation>Nie ma brył z blachy do rozwinięcia</translation>
+    </message>
+    <message>
         <source>Parts List</source>
         <translation>Lista części</translation>
     </message>
@@ -645,6 +717,26 @@ a z dala od brył powstaje nowa bryła</translation>
     <message>
         <source>Theme</source>
         <translation>Motyw</translation>
+    </message>
+    <message>
+        <source>Sheet Metal</source>
+        <translation>Blacha</translation>
+    </message>
+    <message>
+        <source>Show Flat Pattern</source>
+        <translation>Pokaż rozwinięcie</translation>
+    </message>
+    <message>
+        <source>Each sheet metal body laid flat beside the model, its bend lines marked; it follows the changes</source>
+        <translation>Każda bryła z blachy rozłożona płasko obok modelu, z zaznaczonymi liniami gięcia; nadąża za zmianami</translation>
+    </message>
+    <message>
+        <source>Export Flat Pattern (DXF)…</source>
+        <translation>Eksportuj rozwinięcie (DXF)…</translation>
+    </message>
+    <message>
+        <source>The outline to cut, and the bend lines with their direction, angle and radius</source>
+        <translation>Obrys do wycięcia oraz linie gięcia z kierunkiem, kątem i promieniem</translation>
     </message>
     <message>
         <source>A line or 2 points: distance · a point and a line: distance to the line · 2 parallel lines: gap · 2 other lines: angle · circle: diameter · arc: radius
@@ -1521,6 +1613,26 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Wyeksportowano %1</translation>
     </message>
     <message>
+        <source>Export Flat Pattern</source>
+        <translation>Eksportuj rozwinięcie</translation>
+    </message>
+    <message>
+        <source>There are no sheet metal bodies: start with a Base Flange, or convert a shelled body.</source>
+        <translation>Nie ma brył z blachy: zacznij od kołnierza bazowego albo przekonwertuj skorupę.</translation>
+    </message>
+    <message>
+        <source>Sheet metal body:</source>
+        <translation>Bryła z blachy:</translation>
+    </message>
+    <message>
+        <source>%1 doesn't unfold: %2</source>
+        <translation>%1 nie daje się rozwinąć: %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 (%2 × %3 mm)</source>
+        <translation>Wyeksportowano %1 (%2 × %3 mm)</translation>
+    </message>
+    <message>
         <source>Sketch on Face</source>
         <translation>Szkic na ścianie</translation>
     </message>
@@ -1612,6 +1724,10 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
         <translation>Nie udało się naciąć gwintu</translation>
     </message>
     <message>
+        <source>The face the sketch was drawn on is gone</source>
+        <translation>Ściana, na której narysowano szkic, zniknęła</translation>
+    </message>
+    <message>
         <source>The sketch region that was extruded is gone</source>
         <translation>Nie ma już obszaru szkicu, który był wyciągany</translation>
     </message>
@@ -1633,7 +1749,7 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     </message>
     <message>
         <source>The sketch region it was made from is gone</source>
-        <translation>Obszar szkicu, z którego powstała, zniknął</translation>
+        <translation>Obszar szkicu, z którego to powstało, zniknął</translation>
     </message>
     <message>
         <source>The axis is gone</source>
@@ -1726,6 +1842,42 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>Pick the face to emboss on</source>
         <translation>Wybierz ścianę do wytłoczenia</translation>
+    </message>
+    <message>
+        <source>The sheet needs a thickness</source>
+        <translation>Blacha musi mieć grubość</translation>
+    </message>
+    <message>
+        <source>The sheet's line is gone</source>
+        <translation>Linia blachy zniknęła</translation>
+    </message>
+    <message>
+        <source>Pick the edge to bend a flange from</source>
+        <translation>Wybierz krawędź, z której wygiąć kołnierz</translation>
+    </message>
+    <message>
+        <source>The edge it was bent from is gone</source>
+        <translation>Krawędź, z której to wygięto, zniknęła</translation>
+    </message>
+    <message>
+        <source>That isn't sheet metal: start with a base flange, or convert a shelled body</source>
+        <translation>To nie jest blacha: zacznij od kołnierza bazowego albo przekonwertuj skorupę</translation>
+    </message>
+    <message>
+        <source>Draw the tab on a side of a sheet metal body</source>
+        <translation>Narysuj występ na stronie bryły z blachy</translation>
+    </message>
+    <message>
+        <source>Tap the corner for the relief</source>
+        <translation>Dotknij narożnika, w którym ma być podcięcie</translation>
+    </message>
+    <message>
+        <source>Pick a side of a wall of the shelled body</source>
+        <translation>Wybierz stronę ścianki skorupy</translation>
+    </message>
+    <message>
+        <source>The face it was converted from is gone</source>
+        <translation>Ściana, od której przekonwertowano bryłę, zniknęła</translation>
     </message>
     <message>
         <source>The plane it was made from is gone</source>
@@ -2114,6 +2266,174 @@ Bez zaznaczenia: narzędzie, dotknij tego, co zwymiarować</translation>
     <message>
         <source>The project has no body to use</source>
         <translation>Projekt nie ma bryły do użycia</translation>
+    </message>
+    <message>
+        <source>The sheet needs a thickness and a depth</source>
+        <translation>Blacha musi mieć grubość i głębokość</translation>
+    </message>
+    <message>
+        <source>A sheet's path takes lines and arcs only</source>
+        <translation>Ścieżka blachy może się składać tylko z linii i łuków</translation>
+    </message>
+    <message>
+        <source>The sheet's path is empty</source>
+        <translation>Ścieżka blachy jest pusta</translation>
+    </message>
+    <message>
+        <source>A sheet's path must be open: pick a closed region for a flat sheet</source>
+        <translation>Ścieżka blachy musi być otwarta: na płaską blachę wybierz zamknięty obszar</translation>
+    </message>
+    <message>
+        <source>Where an arc meets the next piece of a sheet's path, it must be smooth</source>
+        <translation>Tam, gdzie łuk styka się z następnym odcinkiem ścieżki blachy, przejście musi być gładkie</translation>
+    </message>
+    <message>
+        <source>A sheet's path can't fold straight back on itself</source>
+        <translation>Ścieżka blachy nie może zawracać na samą siebie</translation>
+    </message>
+    <message>
+        <source>The bend radius must be more than zero</source>
+        <translation>Promień gięcia musi być większy od zera</translation>
+    </message>
+    <message>
+        <source>The bends don't fit between the corners of the sheet's path</source>
+        <translation>Gięcia nie mieszczą się między narożnikami ścieżki blachy</translation>
+    </message>
+    <message>
+        <source>The sheet's outline doesn't close (is the thickness more than the bend radius?)</source>
+        <translation>Obrys blachy się nie zamyka (czy grubość nie jest większa od promienia gięcia?)</translation>
+    </message>
+    <message>
+        <source>The sheet crosses itself</source>
+        <translation>Blacha przecina samą siebie</translation>
+    </message>
+    <message>
+        <source>The sheet this was bent from is gone</source>
+        <translation>Blacha, z której to wygięto, zniknęła</translation>
+    </message>
+    <message>
+        <source>A hem needs a gap</source>
+        <translation>Zawinięcie potrzebuje szczeliny</translation>
+    </message>
+    <message>
+        <source>Pick a straight edge along an end of the sheet</source>
+        <translation>Wybierz prostą krawędź wzdłuż końca blachy</translation>
+    </message>
+    <message>
+        <source>The edge isn't on the sheet</source>
+        <translation>Ta krawędź nie należy do blachy</translation>
+    </message>
+    <message>
+        <source>Pick an edge along an end of the sheet (where its thickness shows)</source>
+        <translation>Wybierz krawędź wzdłuż końca blachy (tam, gdzie widać jej grubość)</translation>
+    </message>
+    <message>
+        <source>The inset leaves nothing of the flange</source>
+        <translation>Przy takim odsunięciu z kołnierza nic nie zostaje</translation>
+    </message>
+    <message>
+        <source>A flange's angle is more than 0° and less than 180°</source>
+        <translation>Kąt kołnierza musi być większy od 0° i mniejszy od 180°</translation>
+    </message>
+    <message>
+        <source>The flange is shorter than its bend</source>
+        <translation>Kołnierz jest krótszy niż jego gięcie</translation>
+    </message>
+    <message>
+        <source>Could not shape the flange</source>
+        <translation>Nie udało się ukształtować kołnierza</translation>
+    </message>
+    <message>
+        <source>Could not make room for the bend</source>
+        <translation>Nie udało się zrobić miejsca na gięcie</translation>
+    </message>
+    <message>
+        <source>Could not join the flange to the sheet</source>
+        <translation>Nie udało się połączyć kołnierza z blachą</translation>
+    </message>
+    <message>
+        <source>The sheet this was cut from is gone</source>
+        <translation>Blacha, z której to wycięto, zniknęła</translation>
+    </message>
+    <message>
+        <source>A relief needs a size</source>
+        <translation>Podcięcie musi mieć rozmiar</translation>
+    </message>
+    <message>
+        <source>Tap a corner of a flat side of the sheet</source>
+        <translation>Dotknij narożnika płaskiej strony blachy</translation>
+    </message>
+    <message>
+        <source>Could not cut the relief</source>
+        <translation>Nie udało się wyciąć podcięcia</translation>
+    </message>
+    <message>
+        <source>The body to convert is gone</source>
+        <translation>Bryła do konwersji zniknęła</translation>
+    </message>
+    <message>
+        <source>Pick a flat side of a wall</source>
+        <translation>Wybierz płaską stronę ścianki</translation>
+    </message>
+    <message>
+        <source>The face isn't on the body</source>
+        <translation>Ta ściana nie należy do bryły</translation>
+    </message>
+    <message>
+        <source>The walls aren't as thick as the sheet: shell the body with that thickness first</source>
+        <translation>Ścianki nie mają grubości blachy: najpierw zrób skorupę o tej grubości</translation>
+    </message>
+    <message>
+        <source>Only flat walls meeting along straight edges can be converted</source>
+        <translation>Konwertować można tylko płaskie ścianki stykające się wzdłuż prostych krawędzi</translation>
+    </message>
+    <message>
+        <source>Walls that meet flat can't be ripped</source>
+        <translation>Ścianek leżących w jednej płaszczyźnie nie da się rozciąć</translation>
+    </message>
+    <message>
+        <source>Could not bend the walls: try a smaller bend radius</source>
+        <translation>Nie udało się wygiąć ścianek: spróbuj mniejszego promienia gięcia</translation>
+    </message>
+    <message>
+        <source>Could not rip the walls apart at their corners</source>
+        <translation>Nie udało się rozciąć ścianek w narożnikach</translation>
+    </message>
+    <message>
+        <source>A bend doesn't run straight along its edge</source>
+        <translation>Gięcie nie biegnie prosto wzdłuż swojej krawędzi</translation>
+    </message>
+    <message>
+        <source>A bend is tighter than the sheet is thick</source>
+        <translation>Gięcie jest ciaśniejsze, niż pozwala grubość blachy</translation>
+    </message>
+    <message>
+        <source>The sheet's fixed face isn't flat</source>
+        <translation>Stała ściana blachy nie jest płaska</translation>
+    </message>
+    <message>
+        <source>The sheet's fixed face is gone</source>
+        <translation>Stała ściana blachy zniknęła</translation>
+    </message>
+    <message>
+        <source>Only flat walls and round bends unfold</source>
+        <translation>Rozwinąć można tylko płaskie ścianki i okrągłe gięcia</translation>
+    </message>
+    <message>
+        <source>A bend couldn't be rolled out</source>
+        <translation>Nie udało się rozwinąć gięcia</translation>
+    </message>
+    <message>
+        <source>Nothing to unfold</source>
+        <translation>Nie ma czego rozwinąć</translation>
+    </message>
+    <message>
+        <source>The unfolded faces don't fit together</source>
+        <translation>Rozwinięte ściany do siebie nie pasują</translation>
+    </message>
+    <message>
+        <source>The unfolded sheet doesn't come out as one piece (does it overlap itself?)</source>
+        <translation>Rozwinięta blacha nie wychodzi w jednym kawałku (czy nie nachodzi na siebie?)</translation>
     </message>
 </context>
 <context>
@@ -2866,6 +3186,30 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
         <translation>Wytłoczenie</translation>
     </message>
     <message>
+        <source>Base Flange</source>
+        <translation>Kołnierz bazowy</translation>
+    </message>
+    <message>
+        <source>Flange</source>
+        <translation>Kołnierz</translation>
+    </message>
+    <message>
+        <source>Hem</source>
+        <translation>Zawinięcie</translation>
+    </message>
+    <message>
+        <source>Tab</source>
+        <translation>Występ</translation>
+    </message>
+    <message>
+        <source>Corner Relief</source>
+        <translation>Podcięcie naroża</translation>
+    </message>
+    <message>
+        <source>Sheet Metal</source>
+        <translation>Blacha</translation>
+    </message>
+    <message>
         <source>Copy</source>
         <translation>Kopia</translation>
     </message>
@@ -3500,6 +3844,142 @@ To, co ich używa, zachowa ostatnią wartość i pokaże błąd, dopóki nie zos
     <message>
         <source>%1: %2 and %3 collide at %4%5</source>
         <translation>%1: %2 i %3 kolidują przy %4%5</translation>
+    </message>
+    <message>
+        <source>Tap a straight edge along an end of the sheet</source>
+        <translation>Dotknij prostej krawędzi wzdłuż końca blachy</translation>
+    </message>
+    <message>
+        <source>Convert: tap a flat side of a wall</source>
+        <translation>Konwersja: dotknij płaskiej strony ścianki</translation>
+    </message>
+    <message>
+        <source>Sheet thickness [mm]</source>
+        <translation>Grubość blachy [mm]</translation>
+    </message>
+    <message>
+        <source>Bend radius, inside [mm]</source>
+        <translation>Promień gięcia, wewnętrzny [mm]</translation>
+    </message>
+    <message>
+        <source>K-factor (where the neutral layer lies: 0 inside … 1 outside)</source>
+        <translation>Współczynnik K (gdzie leży warstwa obojętna: 0 wewnątrz … 1 na zewnątrz)</translation>
+    </message>
+    <message>
+        <source>Depth [mm]</source>
+        <translation>Głębokość [mm]</translation>
+    </message>
+    <message>
+        <source>Flange length, outside [mm]</source>
+        <translation>Długość kołnierza, zewnętrzna [mm]</translation>
+    </message>
+    <message>
+        <source>Bend outside</source>
+        <translation>Gięcie na zewnątrz</translation>
+    </message>
+    <message>
+        <source>Material inside</source>
+        <translation>Materiał wewnątrz</translation>
+    </message>
+    <message>
+        <source>This way</source>
+        <translation>W tę stronę</translation>
+    </message>
+    <message>
+        <source>The other way</source>
+        <translation>W drugą stronę</translation>
+    </message>
+    <message>
+        <source>Flange angle [°]</source>
+        <translation>Kąt kołnierza [°]</translation>
+    </message>
+    <message>
+        <source>Inset at both ends [mm] (material inside: with bend reliefs)</source>
+        <translation>Odsunięcie od obu końców [mm] (materiał wewnątrz: z podcięciami gięcia)</translation>
+    </message>
+    <message>
+        <source>Hem length [mm]</source>
+        <translation>Długość zawinięcia [mm]</translation>
+    </message>
+    <message>
+        <source>Gap under the hem [mm]</source>
+        <translation>Szczelina pod zawinięciem [mm]</translation>
+    </message>
+    <message>
+        <source>Relief size [mm]</source>
+        <translation>Rozmiar podcięcia [mm]</translation>
+    </message>
+    <message>
+        <source>Round</source>
+        <translation>Okrągłe</translation>
+    </message>
+    <message>
+        <source>Square</source>
+        <translation>Kwadratowe</translation>
+    </message>
+    <message>
+        <source>Base flange</source>
+        <translation>Kołnierz bazowy</translation>
+    </message>
+    <message>
+        <source>type the values, pick the side  ·  Enter accepts each</source>
+        <translation>wpisz wartości, wybierz stronę  ·  Enter zatwierdza każdą</translation>
+    </message>
+    <message>
+        <source>Base flange: tap a sketch region for a flat sheet, or an open sketch line to bend along</source>
+        <translation>Kołnierz bazowy: dotknij obszaru szkicu, by zrobić płaską blachę, albo otwartej linii szkicu, by wygiąć wzdłuż niej</translation>
+    </message>
+    <message>
+        <source>type the length, angle and inset  ·  Enter accepts each</source>
+        <translation>wpisz długość, kąt i odsunięcie  ·  Enter zatwierdza każdą</translation>
+    </message>
+    <message>
+        <source>Flange: tap an edge along an end of the sheet (where its thickness shows); it bends toward the side you tapped it on</source>
+        <translation>Kołnierz: dotknij krawędzi wzdłuż końca blachy (tam, gdzie widać jej grubość); wygina się w stronę, po której jej dotknięto</translation>
+    </message>
+    <message>
+        <source>type the length and the gap  ·  Enter accepts each</source>
+        <translation>wpisz długość i szczelinę  ·  Enter zatwierdza każdą</translation>
+    </message>
+    <message>
+        <source>Hem: tap an edge along an end of the sheet to fold back</source>
+        <translation>Zawinięcie: dotknij krawędzi wzdłuż końca blachy, by ją zawinąć</translation>
+    </message>
+    <message>
+        <source>Tab: tap a sketch region drawn on a side of the sheet</source>
+        <translation>Występ: dotknij obszaru szkicu narysowanego na stronie blachy</translation>
+    </message>
+    <message>
+        <source>Corner relief</source>
+        <translation>Podcięcie naroża</translation>
+    </message>
+    <message>
+        <source>type the size, round or square  ·  Enter accepts</source>
+        <translation>wpisz rozmiar, okrągłe albo kwadratowe  ·  Enter zatwierdza</translation>
+    </message>
+    <message>
+        <source>Corner relief: tap the corner where bends meet</source>
+        <translation>Podcięcie naroża: dotknij narożnika, w którym spotykają się gięcia</translation>
+    </message>
+    <message>
+        <source>Convert to sheet metal</source>
+        <translation>Konwersja na blachę</translation>
+    </message>
+    <message>
+        <source>type the thickness, bend radius and k-factor  ·  Enter accepts each</source>
+        <translation>wpisz grubość, promień gięcia i współczynnik K  ·  Enter zatwierdza każdą</translation>
+    </message>
+    <message>
+        <source>Convert to sheet metal: tap the outside of the wall that stays (a shelled body's floor, say)</source>
+        <translation>Konwersja na blachę: dotknij zewnętrznej strony ścianki, która zostaje na miejscu (np. dna skorupy)</translation>
+    </message>
+    <message>
+        <source>No sheet metal bodies yet: start with a Base Flange, or convert a shelled body</source>
+        <translation>Nie ma jeszcze brył z blachy: zacznij od kołnierza bazowego albo przekonwertuj skorupę</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
     </message>
 </context>
 <context>

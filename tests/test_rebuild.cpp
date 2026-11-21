@@ -131,6 +131,14 @@ void testEveryFieldCounts()
         {"shape", [](Feature& f) { f.shape = std::make_shared<const std::string>("x"); }},
         {"label", [](Feature& f) { f.label = "part"; }},
         {"reference", [](Feature& f) { f.reference = true; }},
+        {"sheet thickness", [](Feature& f) { f.sheet.thickness = 2.0; }},
+        {"sheet radius", [](Feature& f) { f.sheet.radius = 2.0; }},
+        {"k-factor", [](Feature& f) { f.sheet.kFactor = 0.5; }},
+        {"flange angle", [](Feature& f) { f.flange.angle = 45.0; }},
+        {"flange inset", [](Feature& f) { f.flange.inset = 1.0; }},
+        {"hem gap", [](Feature& f) { f.flange.gap = 1.0; }},
+        {"material inside", [](Feature& f) { f.flange.inside = true; }},
+        {"square relief", [](Feature& f) { f.flange.square = true; }},
     };
     for (const auto& [name, edit] : edits) {
         std::vector<Feature> changed = m.history;

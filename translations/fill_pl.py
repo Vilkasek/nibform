@@ -231,6 +231,7 @@ PL = {
   "Pick the bodies to move": "Wybierz bryły do przesunięcia",
   "The sketch region it was made from is gone": "Obszar szkicu, z którego powstała, zniknął",
   "The axis is gone": "Oś zniknęła", "The path is gone": "Ścieżka zniknęła",
+  "The face the sketch was drawn on is gone": "Ściana, na której narysowano szkic, zniknęła",
   "The mirror plane is gone": "Płaszczyzna odbicia zniknęła", "Pick the bodies to mirror": "Wybierz bryły do odbicia",
   "The pattern's direction is gone": "Kierunek szyku zniknął",
   "A pattern needs two instances or more": "Szyk potrzebuje co najmniej dwóch wystąpień",
@@ -742,6 +743,145 @@ PL["SketchEditor"].update({
   "%1 and %2 (%3 mm³)": "%1 i %2 (%3 mm³)", "Overlapping: %1": "Nachodzą na siebie: %1",
   "%1 moves through its whole range without collisions": "%1 przechodzi cały zakres bez kolizji",
   "%1: %2 and %3 collide at %4%5": "%1: %2 i %3 kolidują przy %4%5",
+})
+
+# Sheet metal (M18).
+PL["Model"].update({
+  "The sheet needs a thickness and a depth": "Blacha musi mieć grubość i głębokość",
+  "A sheet's path takes lines and arcs only": "Ścieżka blachy może się składać tylko z linii i łuków",
+  "The sheet's path is empty": "Ścieżka blachy jest pusta",
+  "A sheet's path must be open: pick a closed region for a flat sheet":
+      "Ścieżka blachy musi być otwarta: na płaską blachę wybierz zamknięty obszar",
+  "Where an arc meets the next piece of a sheet's path, it must be smooth":
+      "Tam, gdzie łuk styka się z następnym odcinkiem ścieżki blachy, przejście musi być gładkie",
+  "A sheet's path can't fold straight back on itself": "Ścieżka blachy nie może zawracać na samą siebie",
+  "The bend radius must be more than zero": "Promień gięcia musi być większy od zera",
+  "The bends don't fit between the corners of the sheet's path": "Gięcia nie mieszczą się między narożnikami ścieżki blachy",
+  "The sheet's outline doesn't close (is the thickness more than the bend radius?)":
+      "Obrys blachy się nie zamyka (czy grubość nie jest większa od promienia gięcia?)",
+  "The sheet crosses itself": "Blacha przecina samą siebie",
+  "The sheet this was bent from is gone": "Blacha, z której to wygięto, zniknęła",
+  "A hem needs a gap": "Zawinięcie potrzebuje szczeliny",
+  "Pick a straight edge along an end of the sheet": "Wybierz prostą krawędź wzdłuż końca blachy",
+  "The edge isn't on the sheet": "Ta krawędź nie należy do blachy",
+  "Pick an edge along an end of the sheet (where its thickness shows)":
+      "Wybierz krawędź wzdłuż końca blachy (tam, gdzie widać jej grubość)",
+  "The inset leaves nothing of the flange": "Przy takim odsunięciu z kołnierza nic nie zostaje",
+  "A flange's angle is more than 0° and less than 180°": "Kąt kołnierza musi być większy od 0° i mniejszy od 180°",
+  "The flange is shorter than its bend": "Kołnierz jest krótszy niż jego gięcie",
+  "Could not shape the flange": "Nie udało się ukształtować kołnierza",
+  "Could not make room for the bend": "Nie udało się zrobić miejsca na gięcie",
+  "Could not join the flange to the sheet": "Nie udało się połączyć kołnierza z blachą",
+  "The sheet this was cut from is gone": "Blacha, z której to wycięto, zniknęła",
+  "A relief needs a size": "Podcięcie musi mieć rozmiar",
+  "Tap a corner of a flat side of the sheet": "Dotknij narożnika płaskiej strony blachy",
+  "Could not cut the relief": "Nie udało się wyciąć podcięcia",
+  "The body to convert is gone": "Bryła do konwersji zniknęła",
+  "Pick a flat side of a wall": "Wybierz płaską stronę ścianki",
+  "The face isn't on the body": "Ta ściana nie należy do bryły",
+  "The walls aren't as thick as the sheet: shell the body with that thickness first":
+      "Ścianki nie mają grubości blachy: najpierw zrób skorupę o tej grubości",
+  "Only flat walls meeting along straight edges can be converted":
+      "Konwertować można tylko płaskie ścianki stykające się wzdłuż prostych krawędzi",
+  "Walls that meet flat can't be ripped": "Ścianek leżących w jednej płaszczyźnie nie da się rozciąć",
+  "Could not bend the walls: try a smaller bend radius": "Nie udało się wygiąć ścianek: spróbuj mniejszego promienia gięcia",
+  "Could not rip the walls apart at their corners": "Nie udało się rozciąć ścianek w narożnikach",
+  "A bend doesn't run straight along its edge": "Gięcie nie biegnie prosto wzdłuż swojej krawędzi",
+  "A bend is tighter than the sheet is thick": "Gięcie jest ciaśniejsze, niż pozwala grubość blachy",
+  "The sheet's fixed face isn't flat": "Stała ściana blachy nie jest płaska",
+  "The sheet's fixed face is gone": "Stała ściana blachy zniknęła",
+  "Only flat walls and round bends unfold": "Rozwinąć można tylko płaskie ścianki i okrągłe gięcia",
+  "A bend couldn't be rolled out": "Nie udało się rozwinąć gięcia",
+  "Nothing to unfold": "Nie ma czego rozwinąć",
+  "The unfolded faces don't fit together": "Rozwinięte ściany do siebie nie pasują",
+  "The unfolded sheet doesn't come out as one piece (does it overlap itself?)":
+      "Rozwinięta blacha nie wychodzi w jednym kawałku (czy nie nachodzi na siebie?)",
+  "The sheet needs a thickness": "Blacha musi mieć grubość",
+  "The sketch region it was made from is gone": "Obszar szkicu, z którego to powstało, zniknął",
+  "The sheet's line is gone": "Linia blachy zniknęła",
+  "Pick the edge to bend a flange from": "Wybierz krawędź, z której wygiąć kołnierz",
+  "The edge it was bent from is gone": "Krawędź, z której to wygięto, zniknęła",
+  "That isn't sheet metal: start with a base flange, or convert a shelled body":
+      "To nie jest blacha: zacznij od kołnierza bazowego albo przekonwertuj skorupę",
+  "Draw the tab on a side of a sheet metal body": "Narysuj występ na stronie bryły z blachy",
+  "Tap the corner for the relief": "Dotknij narożnika, w którym ma być podcięcie",
+  "Pick a side of a wall of the shelled body": "Wybierz stronę ścianki skorupy",
+  "The face it was converted from is gone": "Ściana, od której przekonwertowano bryłę, zniknęła",
+})
+PL["SketchEditor"].update({
+  "Base Flange": "Kołnierz bazowy", "Flange": "Kołnierz", "Hem": "Zawinięcie", "Tab": "Występ",
+  "Corner Relief": "Podcięcie naroża", "Sheet Metal": "Blacha",
+  "Tap a straight edge along an end of the sheet": "Dotknij prostej krawędzi wzdłuż końca blachy",
+  "Convert: tap a flat side of a wall": "Konwersja: dotknij płaskiej strony ścianki",
+  "Sheet thickness [mm]": "Grubość blachy [mm]", "Bend radius, inside [mm]": "Promień gięcia, wewnętrzny [mm]",
+  "K-factor (where the neutral layer lies: 0 inside … 1 outside)":
+      "Współczynnik K (gdzie leży warstwa obojętna: 0 wewnątrz … 1 na zewnątrz)",
+  "Depth [mm]": "Głębokość [mm]", "Flange length, outside [mm]": "Długość kołnierza, zewnętrzna [mm]",
+  "Bend outside": "Gięcie na zewnątrz", "Material inside": "Materiał wewnątrz",
+  "This way": "W tę stronę", "The other way": "W drugą stronę", "Flange angle [°]": "Kąt kołnierza [°]",
+  "Inset at both ends [mm] (material inside: with bend reliefs)":
+      "Odsunięcie od obu końców [mm] (materiał wewnątrz: z podcięciami gięcia)",
+  "Hem length [mm]": "Długość zawinięcia [mm]", "Gap under the hem [mm]": "Szczelina pod zawinięciem [mm]",
+  "Relief size [mm]": "Rozmiar podcięcia [mm]", "Round": "Okrągłe", "Square": "Kwadratowe",
+  "Base flange": "Kołnierz bazowy",
+  "type the values, pick the side  ·  Enter accepts each": "wpisz wartości, wybierz stronę  ·  Enter zatwierdza każdą",
+  "Base flange: tap a sketch region for a flat sheet, or an open sketch line to bend along":
+      "Kołnierz bazowy: dotknij obszaru szkicu, by zrobić płaską blachę, albo otwartej linii szkicu, by wygiąć wzdłuż niej",
+  "type the length, angle and inset  ·  Enter accepts each": "wpisz długość, kąt i odsunięcie  ·  Enter zatwierdza każdą",
+  "Flange: tap an edge along an end of the sheet (where its thickness shows); it bends toward the side you tapped it on":
+      "Kołnierz: dotknij krawędzi wzdłuż końca blachy (tam, gdzie widać jej grubość); wygina się w stronę, "
+      "po której jej dotknięto",
+  "type the length and the gap  ·  Enter accepts each": "wpisz długość i szczelinę  ·  Enter zatwierdza każdą",
+  "Hem: tap an edge along an end of the sheet to fold back": "Zawinięcie: dotknij krawędzi wzdłuż końca blachy, by ją zawinąć",
+  "Tab: tap a sketch region drawn on a side of the sheet": "Występ: dotknij obszaru szkicu narysowanego na stronie blachy",
+  "Corner relief": "Podcięcie naroża",
+  "type the size, round or square  ·  Enter accepts": "wpisz rozmiar, okrągłe albo kwadratowe  ·  Enter zatwierdza",
+  "Corner relief: tap the corner where bends meet": "Podcięcie naroża: dotknij narożnika, w którym spotykają się gięcia",
+  "Convert to sheet metal": "Konwersja na blachę",
+  "type the thickness, bend radius and k-factor  ·  Enter accepts each":
+      "wpisz grubość, promień gięcia i współczynnik K  ·  Enter zatwierdza każdą",
+  "Convert to sheet metal: tap the outside of the wall that stays (a shelled body's floor, say)":
+      "Konwersja na blachę: dotknij zewnętrznej strony ścianki, która zostaje na miejscu (np. dna skorupy)",
+  "No sheet metal bodies yet: start with a Base Flange, or convert a shelled body":
+      "Nie ma jeszcze brył z blachy: zacznij od kołnierza bazowego albo przekonwertuj skorupę",
+  "%1: %2": "%1: %2",
+})
+PL["DrawingSheet"].update({
+  "UP %1° R%2": "W GÓRĘ %1° R%2", "DOWN %1° R%2": "W DÓŁ %1° R%2", "FLAT PATTERN": "ROZWINIĘCIE",
+})
+PL["MainWindow"].update({
+  "Flat Pattern (DXF)…": "Rozwinięcie (DXF)…",
+  "Base Flange": "Kołnierz bazowy", "Flange": "Kołnierz", "Hem": "Zawinięcie", "Tab": "Występ",
+  "Corner Relief": "Podcięcie naroża", "Convert to Sheet Metal": "Konwertuj na blachę",
+  "Base Flange: tap a sketch region for a flat sheet, or an open sketch line to bend along; then its thickness, bend radius and k-factor (from parameters too)":
+      "Kołnierz bazowy: dotknij obszaru szkicu, by zrobić płaską blachę, albo otwartej linii szkicu, by wygiąć "
+      "wzdłuż niej; potem jej grubość, promień gięcia i współczynnik K (także z parametrów)",
+  "Flange: tap an edge along an end of a sheet; set its length (outside), angle and inset, the bend added outside or the material kept inside (with bend reliefs)":
+      "Kołnierz: dotknij krawędzi wzdłuż końca blachy; ustaw długość (zewnętrzną), kąt i odsunięcie, gięcie "
+      "dodane na zewnątrz albo materiał zachowany wewnątrz (z podcięciami gięcia)",
+  "Hem: tap an edge along an end of a sheet to fold it back flat over itself":
+      "Zawinięcie: dotknij krawędzi wzdłuż końca blachy, by zawinąć ją płasko na nią samą",
+  "Tab: tap a sketch region drawn on a side of a sheet; it is added as thick as the sheet":
+      "Występ: dotknij obszaru szkicu narysowanego na stronie blachy; zostaje dodany w grubości blachy",
+  "Corner Relief: tap the corner where two bends meet; a round or square hole makes room for them":
+      "Podcięcie naroża: dotknij narożnika, w którym spotykają się dwa gięcia; okrągły albo kwadratowy otwór "
+      "robi na nie miejsce",
+  "Convert to Sheet Metal: tap the outside of the wall of a shelled body that stays; the walls are bent to it and ripped apart at the corners":
+      "Konwertuj na blachę: dotknij zewnętrznej strony ścianki skorupy, która zostaje na miejscu; pozostałe "
+      "ścianki zostają do niej wygięte i rozcięte w narożnikach",
+  "Flat Pattern": "Rozwinięcie",
+  "There are no sheet metal bodies to lay flat": "Nie ma brył z blachy do rozwinięcia",
+  "Sheet Metal": "Blacha", "Show Flat Pattern": "Pokaż rozwinięcie",
+  "Each sheet metal body laid flat beside the model, its bend lines marked; it follows the changes":
+      "Każda bryła z blachy rozłożona płasko obok modelu, z zaznaczonymi liniami gięcia; nadąża za zmianami",
+  "Export Flat Pattern (DXF)…": "Eksportuj rozwinięcie (DXF)…",
+  "The outline to cut, and the bend lines with their direction, angle and radius":
+      "Obrys do wycięcia oraz linie gięcia z kierunkiem, kątem i promieniem",
+  "Export Flat Pattern": "Eksportuj rozwinięcie",
+  "There are no sheet metal bodies: start with a Base Flange, or convert a shelled body.":
+      "Nie ma brył z blachy: zacznij od kołnierza bazowego albo przekonwertuj skorupę.",
+  "Sheet metal body:": "Bryła z blachy:", "%1 doesn't unfold: %2": "%1 nie daje się rozwinąć: %2",
+  "Exported %1 (%2 × %3 mm)": "Wyeksportowano %1 (%2 × %3 mm)",
 })
 
 path = sys.argv[1] if len(sys.argv) > 1 else "translations/nibform_pl.ts"

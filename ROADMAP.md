@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M17 and i18n are done (see the README). Next: sheet metal (M18).
+M0–M18 and i18n are done (see the README). Next: scripting (M19).
 M21 collects the extra variants of the everyday tools.
 
 Each milestone is one branch, merged when its *done when* holds and the tests pass.
@@ -153,7 +153,7 @@ Several parts that fit and move together.
 **Done when:** a hinge with two leaves and a pin can be put together, opened through its
 range without collisions, and gets an exploded drawing with a parts list.
 
-## M18 – Sheet metal
+## M18 – Sheet metal ✓
 
 Parts bent from a flat sheet.
 

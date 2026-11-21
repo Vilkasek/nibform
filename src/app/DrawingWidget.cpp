@@ -168,6 +168,7 @@ void DrawingWidget::regenerate()
     m_geometry.resize(m_drawing.views.size());
     m_keys.resize(m_drawing.views.size());
     bool waiting = false;
+    std::optional<std::vector<FlatPattern>> flats; // unfolded when a view wants them
     for (std::size_t i = 0; i < m_drawing.views.size(); ++i) {
         const std::string key = keyOf(m_drawing.views[i]);
         if (!modelChanged && key == m_keys[i])
@@ -175,6 +176,18 @@ void DrawingWidget::regenerate()
         if (!waiting) {
             QGuiApplication::setOverrideCursor(Qt::WaitCursor);
             waiting = true;
+        }
+        if (m_drawing.views[i].kind == ViewKind::Flat) {
+            if (!flats) {
+                flats.emplace();
+                if (!m_drawing.assembly) {
+                    for (const auto& named : m_editor->flatPatterns())
+                        flats->push_back(named.flat);
+                }
+            }
+            m_geometry[i] = projectFlat(*flats, m_drawing.views[i]);
+            m_keys[i] = key;
+            continue;
         }
         m_geometry[i] = projectView(m_drawing.views[i].exploded && m_drawing.assembly ? apart : bodies,
                                     m_drawing.views[i], threads);
@@ -269,7 +282,7 @@ void DrawingWidget::addView(ViewKind kind, bool exploded)
     v.base = ViewKind::Front;
     v.at = gp_Pnt2d(m_drawing.width / 2.0, m_drawing.height / 2.0);
     v.scale = m_drawing.views.empty() ? 1.0 : m_drawing.views.front().scale;
-    v.hidden = kind != ViewKind::Iso && kind != ViewKind::Section;
+    v.hidden = kind != ViewKind::Iso && kind != ViewKind::Section && kind != ViewKind::Flat;
     if (kind == ViewKind::Section) {
         // Across which view: the section looks the same way, cut through the middle.
         const QStringList bases{tr("Front"), tr("Top"), tr("Left"), tr("Right")};

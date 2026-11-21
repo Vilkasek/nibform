@@ -14,6 +14,8 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 - **Solid modelling**: extrude (push / pull), revolve, sweep, loft, holes, fillets, chamfers,
   shells, booleans, mirror and patterns, construction planes and axes.
 - **Parametric history**: every step can be edited later; the model rebuilds from it.
+- **Sheet metal**: base flanges, edge flanges, hems, tabs, reliefs, shelled bodies converted; the
+  flat pattern kept up to date, as a DXF for the laser cutter and a drawing view with bend notes.
 - **Move, measure, section**: a move gizmo and face-to-face alignment, measurements with mass
   properties, a section view.
 - **Exchange**: STEP, IGES and STL in; STEP, IGES, STL and 3MF out; DXF and SVG sketches.
@@ -25,7 +27,8 @@ C++20 · Qt 6 · OpenCASCADE 7.9 · Eigen · GPL-3.0-or-later.
 
 [Installing](#installing) · [Building](#building) · [Getting started](#getting-started) ·
 [Sketching](#sketching) · [Constraints and dimensions](#constraints-and-dimensions) ·
-[Bodies](#bodies) · [History and projects](#history-and-projects) · [Parameters](#parameters) · [Assemblies](#assemblies) ·
+[Bodies](#bodies) · [History and projects](#history-and-projects) · [Parameters](#parameters) · [Sheet metal](#sheet-metal) ·
+[Assemblies](#assemblies) ·
 [Import and export](#import-and-export) · [Drawings](#drawings) · [Controls](#controls) ·
 [Pen, touch and tablet](#pen-touch-and-tablet) · [Language](#language) ·
 [Development](#development) · [Plan](#plan)
@@ -227,7 +230,8 @@ window stays usable, with a *Rebuilding…* bar at the top until the new model s
 An operation whose input is gone (a region after a sketch change) turns red with an explanation
 and is skipped. Inputs are remembered as geometry and found again on every rebuild: a region by a
 point inside it, a face by its middle and normal, an edge by its middle and direction, a body by a
-point inside it.
+point inside it. A sketch drawn on a face (or a construction plane) moves with it when an earlier
+operation moves that face.
 
 *File → Save* writes a `.nibform` project: readable JSON with the sketches, the history, drawings
 and body names / colors. `nibform file.nibform` opens one; *Open Recent* lists the last ones. Undo
@@ -259,6 +263,37 @@ saying why.
 renames or deletes it. The table and configurations go to and from **CSV** (one column per
 configuration; a spreadsheet's `;` and decimal commas are fine). All of it is saved with the project
 and undone like any other change.
+
+## Sheet metal
+
+Parts bent from a flat sheet: *Bodies → Sheet Metal*, or the *Base Flange* button on the model bar
+(its arrow lists the rest). A sheet metal body is an ordinary solid of flat walls and round bends,
+so holes, cuts and fillets work on it as on any other; its **rules** – thickness, inner bend
+radius and **k-factor** (where the neutral layer lies, 0.44 to start with) – are asked when it is
+made, can be typed as expressions of [parameters](#parameters), and every flange of it follows them.
+
+- **Base Flange**: tap a sketch region for a flat sheet (*This side* / *The other side* of the
+  sketch), or an **open sketch line** of lines and arcs: the sheet is bent along it, its corners
+  rounded with the bend radius, as deep as typed.
+- **Flange**: tap an edge along an end of the sheet (where its thickness shows); it bends toward
+  the side the edge was tapped on (or *the other way*), its **length measured outside**, at any
+  **angle**, **inset** from both ends. *Bend outside* adds the bend beyond the end; *Material
+  inside* keeps the flange's outside where the end was, and cuts **bend reliefs** beside an inset
+  flange.
+- **Hem**: the end folded back flat over the sheet, its length and the gap under it.
+- **Tab**: a sketch region drawn on a side of the sheet, added as thick as the sheet.
+- **Corner Relief**: tap the corner where bends meet: a round or square hole makes room for them.
+- **Convert to Sheet Metal**: tap the outside of the wall that stays of a **shelled** body (its
+  floor, say): the walls are bent to it with the bend radius, and ripped apart where they meet
+  each other, with corner reliefs where the rips reach the bends.
+
+**The flat pattern** is worked out from the finished body: from its fixed side, every bend is rolled
+out along its neutral layer, so it shows every hole and cut made after the bends.
+*Sheet Metal → Show Flat Pattern* lays each sheet metal body flat beside the model, its bend lines
+marked, and keeps it up to date. *Export Flat Pattern (DXF)* (also under *File → Export*) writes
+the outline to cut on layer `CUT` and each bend line on layer `BEND` with its note (`UP 90° R1.5`),
+in millimetres. In a drawing, *Add View → Flat Pattern* adds it as a view, the bend lines dash-dotted
+with their direction, angle and radius written along them.
 
 ## Assemblies
 
@@ -313,6 +348,8 @@ returns to it). The assembly is kept with the project, beside the history, and u
   kept in the project.
 - **Export**: STEP, IGES, STL (binary, 0.05 mm mesh) or **3MF** for 3D printing – one object per
   shown body, with its name and color, in millimetres or inches.
+- **Flat Pattern (DXF)**: a sheet metal body unfolded for the laser cutter (see
+  [Sheet metal](#sheet-metal)).
 - **Sketch → Import Drawing / Export Sketch**: DXF (lines, circles, arcs, polylines with bulges,
   splines, ellipses, points; in the file's units) and SVG (paths, shapes and their transforms,
   scaled to millimetres).
@@ -473,7 +510,7 @@ python3 translations/fill_pl.py                    # fills in the Polish from it
 - [x] **M15** – parameters: a parameter table, expressions in values, configurations
 - [x] **M16** – details: threads, text and engraving, draft, ribs, variable fillets
 - [x] **M17** – assemblies: components, joints and motion, interference, exploded views, BOM
-- [ ] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF
+- [x] **M18** – sheet metal: flanges, bends and reliefs, flat pattern and DXF
 - [ ] **M19** – scripting: Python API, console, headless runs, macros, plugins
 - [ ] **M20** – versions and sharing: named versions, branch and merge, comments, synced folders, web viewer
 

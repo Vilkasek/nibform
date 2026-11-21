@@ -262,6 +262,48 @@ void testExtrudeFromAnOffset()
     CHECK(r.bodies.size() == 2 && near(totalVolume(r.bodies), 10000.0, 1e-3));
 }
 
+// A sketch drawn on a face rides along when an earlier feature moves that face.
+void testSketchOnAFaceFollowsIt()
+{
+    std::map<int, Sketch> sketches;
+    rectangle(sketches[1], 0, 0, 20, 20);
+    const SketchLookup lookup = [&](int id) { return sketches.count(id) ? &sketches.at(id) : nullptr; };
+    std::vector<Feature> history = {extrudeAt(1, {10, 10}, 20.0)};
+    RebuildResult r = rebuild(lookup, history);
+
+    // Drawn on the top face, as the editor makes it: centered there, facing up.
+    sketches.emplace(2, Sketch(gp_Ax3(gp_Pnt(10, 10, 20), gp::DZ(), gp::DX())));
+    sketches.at(2).addCircle(sketches.at(2).addPoint({0, 0}), 3.0);
+    CHECK(!planeUnder(gp_Ax3(gp::Origin(), gp::DZ(), gp::DX()), r.bodies, r.context)); // a base plane
+    const auto under = planeUnder(sketches.at(2).plane(), r.bodies, r.context);
+    CHECK(under && under->kind == PlaneRef::Kind::Face);
+    Feature entry;
+    entry.kind = Feature::Kind::Sketch;
+    entry.sketch = 2;
+    entry.plane = *under;
+    history.push_back(entry);
+    history.push_back(extrudeAt(2, {0, 0}, 10.0));
+    numberFeatures(history);
+    r = rebuild(lookup, history);
+    CHECK(r.errors.at(2).empty() && r.bodies.size() == 1);
+    CHECK(near(totalVolume(r.bodies), 8000.0 + M_PI * 9.0 * 10.0, 1e-3));
+
+    // The cube 30 high: the boss starts on its new top, still one body.
+    history[0].value = 30.0;
+    r = rebuild(lookup, history);
+    CHECK(r.errors.at(1).empty() && r.errors.at(2).empty());
+    CHECK(r.bodies.size() == 1);
+    CHECK(near(totalVolume(r.bodies), 12000.0 + M_PI * 9.0 * 10.0, 1e-3));
+    CHECK(r.context.sketchPlanes.count(2) && near(r.context.sketchPlanes.at(2).Location().Z(), 30.0, 1e-9));
+    CHECK(near(r.context.sketchPlanes.at(2).Location().X(), 10.0, 1e-9));
+
+    // Stored where it went (as the editor does), it stays there.
+    sketches.at(2).setPlane(r.context.sketchPlanes.at(2));
+    r = rebuild(lookup, history);
+    CHECK(samePlane(r.context.sketchPlanes.at(2), sketches.at(2).plane()));
+    CHECK(near(totalVolume(r.bodies), 12000.0 + M_PI * 9.0 * 10.0, 1e-3));
+}
+
 int main()
 {
     return runTests({
@@ -273,5 +315,6 @@ int main()
         {"inside point avoids holes", testInsidePointAvoidsHoles},
         {"STEP and STL export", testStepAndStlExport},
         {"extrude from an offset", testExtrudeFromAnOffset},
+        {"sketch on a face follows it", testSketchOnAFaceFollowsIt},
     });
 }

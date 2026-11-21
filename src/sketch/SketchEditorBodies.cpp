@@ -382,9 +382,30 @@ std::optional<Feature> SketchEditor::featureFromSession(double value) const
 
 // --- Presentation -------------------------------------------------------------------
 
+void SketchEditor::placeSketches()
+{
+    bool moved = false;
+    for (int i = 0; i < static_cast<int>(m_slots.size()); ++i) {
+        Slot& slot = m_slots[i];
+        const auto at = m_context.sketchPlanes.find(slot.id);
+        // The open sketch stays put under the pen (the model is rolled back before it anyway).
+        if (i == m_active || at == m_context.sketchPlanes.end() || samePlane(slot.sketch.plane(), at->second))
+            continue;
+        slot.sketch.setPlane(at->second);
+        slot.prs->setPlane(at->second);
+        slot.regions = findRegions(slot.sketch);
+        moved = true;
+    }
+    if (moved) {
+        refreshSketches();
+        showRegions();
+    }
+}
+
 void SketchEditor::refreshBodies()
 {
     const auto& ctx = m_viewer->aisContext();
+    placeSketches();
     setCutLook(false); // presentations kept below must not stay see-through
     showThreads();
     // Picked faces / edges belong to the old presentations.
@@ -449,6 +470,8 @@ void SketchEditor::refreshBodies()
             ctx->Erase(prs, false);
         refreshAssembly(); // components of bodies follow them
     }
+    if (m_flatShown)
+        showFlatPatterns(); // they follow the model
     updateSelectionModes();
     emit selectionChanged();
     emit bodiesChanged();
@@ -476,13 +499,16 @@ void SketchEditor::updateSelectionModes()
         };
         // Tools that take corners, and those that don't want edges in the way.
         const bool corners = m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Axis
-                          || m_toolKind == ToolKind::Move || m_toolKind == ToolKind::Measure;
+                          || m_toolKind == ToolKind::Move || m_toolKind == ToolKind::Measure
+                          || m_toolKind == ToolKind::CornerRelief;
         const bool noEdges = m_toolKind == ToolKind::PushPull || m_toolKind == ToolKind::Shell
                           || m_toolKind == ToolKind::Hole || m_toolKind == ToolKind::Loft
                           || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::OffsetPlane
                           || m_toolKind == ToolKind::ThreePointPlane || m_toolKind == ToolKind::Section
                           || m_toolKind == ToolKind::Thread || m_toolKind == ToolKind::Draft
-                          || m_toolKind == ToolKind::Emboss || m_toolKind == ToolKind::Rib;
+                          || m_toolKind == ToolKind::Emboss || m_toolKind == ToolKind::Rib
+                          || m_toolKind == ToolKind::SheetBase || m_toolKind == ToolKind::Tab
+                          || m_toolKind == ToolKind::SheetConvert || m_toolKind == ToolKind::CornerRelief;
         set(faces, model);
         set(edges, model && !noEdges);
         set(AIS_Shape::SelectionMode(TopAbs_VERTEX), model && corners);
@@ -698,12 +724,13 @@ SketchEditor::Hit SketchEditor::modelHitAt(const PointerEvent& e) const
     // Regions only where they can be used: pulled, turned, swept, lofted.
     const bool regionTool = m_toolKind == ToolKind::Select || m_toolKind == ToolKind::PushPull
                          || m_toolKind == ToolKind::Revolve || m_toolKind == ToolKind::Sweep
-                         || m_toolKind == ToolKind::Loft || m_toolKind == ToolKind::Emboss;
+                         || m_toolKind == ToolKind::Loft || m_toolKind == ToolKind::Emboss
+                         || m_toolKind == ToolKind::SheetBase || m_toolKind == ToolKind::Tab;
 
     // Sketch curves (an axis to turn about, a path to sweep along) lie on top of the rest.
     const bool lineTool = m_toolKind == ToolKind::Revolve || m_toolKind == ToolKind::BodyLinearPattern
                        || m_toolKind == ToolKind::BodyCircularPattern || m_toolKind == ToolKind::AnglePlane;
-    if (lineTool || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::Rib) {
+    if (lineTool || m_toolKind == ToolKind::Sweep || m_toolKind == ToolKind::Rib || m_toolKind == ToolKind::SheetBase) {
         Hit curve;
         double nearest = 10.0 * m_touchScale;
         for (int s = 0; s < static_cast<int>(m_slots.size()); ++s) {
@@ -1518,6 +1545,29 @@ std::vector<TimelineItem> SketchEditor::timeline() const
             base = f.operation == BodyOperation::Cut ? tr("Engrave") : tr("Emboss");
             item.detail = lengthShort(f.value);
             break;
+        case Feature::Kind::SheetBase:
+            base = tr("Base Flange");
+            item.detail = lengthShort(f.sheet.thickness);
+            break;
+        case Feature::Kind::Flange:
+            base = tr("Flange");
+            item.detail = QStringLiteral("%1 · %2°").arg(lengthShort(f.value), mm(f.flange.angle));
+            break;
+        case Feature::Kind::Hem:
+            base = tr("Hem");
+            item.detail = lengthShort(f.value);
+            break;
+        case Feature::Kind::Tab:
+            base = tr("Tab");
+            break;
+        case Feature::Kind::Relief:
+            base = tr("Corner Relief");
+            item.detail = lengthShort(f.value);
+            break;
+        case Feature::Kind::SheetConvert:
+            base = tr("Sheet Metal");
+            item.detail = lengthShort(f.sheet.thickness);
+            break;
         case Feature::Kind::Move:
             base = f.copy ? tr("Copy") : tr("Move");
             break;
@@ -1579,7 +1629,10 @@ void SketchEditor::activateTimelineItem(int index)
     if (feature.kind == Feature::Kind::Revolve || feature.kind == Feature::Kind::Pattern
         || feature.kind == Feature::Kind::Hole || feature.kind == Feature::Kind::Datum
         || feature.kind == Feature::Kind::Thread || feature.kind == Feature::Kind::Draft
-        || feature.kind == Feature::Kind::Rib || feature.kind == Feature::Kind::Emboss) {
+        || feature.kind == Feature::Kind::Rib || feature.kind == Feature::Kind::Emboss
+        || feature.kind == Feature::Kind::SheetBase || feature.kind == Feature::Kind::SheetConvert
+        || feature.kind == Feature::Kind::Flange || feature.kind == Feature::Kind::Hem
+        || feature.kind == Feature::Kind::Relief) {
         editFeature(index);
         return;
     }

@@ -266,7 +266,12 @@ std::optional<FeatureField> featureField(const Feature& f, const std::string& ke
             return FeatureField{ValueKind::Angle, -89.0, 89.0, false};
         case K::Rib:
         case K::Emboss:
+        case K::Flange:
+        case K::Hem:
+        case K::Relief:
             return positive;
+        case K::SheetBase:
+            return f.regions.empty() ? length : std::optional<FeatureField>();
         case K::Pattern:
             return f.pattern == Feature::PatternKind::Circular ? FeatureField{ValueKind::Angle, 1.0, 360.0, false} : length;
         case K::Datum:
@@ -292,6 +297,18 @@ std::optional<FeatureField> featureField(const Feature& f, const std::string& ke
         return FeatureField{ValueKind::Length, 0.0, 1e5, false};
     if (f.kind == K::Hole && key == "hole.thread.length")
         return FeatureField{ValueKind::Length, 0.0, 1e5, false};
+
+    // Sheet metal: the rules on what makes the sheet, the shape on its flanges.
+    if ((f.kind == K::SheetBase || f.kind == K::SheetConvert) && (key == "sheet.thickness" || key == "sheet.radius"))
+        return FeatureField{ValueKind::Length, key == "sheet.radius" ? 0.0 : 0.01, 1e3, false};
+    if ((f.kind == K::SheetBase || f.kind == K::SheetConvert) && key == "sheet.kFactor")
+        return FeatureField{ValueKind::Number, 0.0, 1.0, false};
+    if (f.kind == K::Flange && key == "flange.angle")
+        return FeatureField{ValueKind::Angle, 1.0, 179.0, false};
+    if (f.kind == K::Flange && key == "flange.inset")
+        return FeatureField{ValueKind::Length, 0.0, 1e5, false};
+    if (f.kind == K::Hem && key == "flange.gap")
+        return FeatureField{ValueKind::Length, 0.01, 1e3, false};
 
     if (f.kind == K::Hole && (key == "hole.diameter" || key == "hole.depth" || key == "hole.headDiameter"
                               || key == "hole.headDepth"))
@@ -325,6 +342,18 @@ std::optional<double> featureValue(const Feature& f, const std::string& key)
         return f.thread.length;
     if (key == "hole.thread.length")
         return f.hole.thread.length;
+    if (key == "sheet.thickness")
+        return f.sheet.thickness;
+    if (key == "sheet.radius")
+        return f.sheet.radius;
+    if (key == "sheet.kFactor")
+        return f.sheet.kFactor;
+    if (key == "flange.angle")
+        return f.flange.angle;
+    if (key == "flange.inset")
+        return f.flange.inset;
+    if (key == "flange.gap")
+        return f.flange.gap;
     return f.hole.headDepth;
 }
 
@@ -354,6 +383,18 @@ void setFeatureValue(Feature& f, const std::string& key, double value)
         f.thread.length = value;
     else if (key == "hole.thread.length")
         f.hole.thread.length = value;
+    else if (key == "sheet.thickness")
+        f.sheet.thickness = value;
+    else if (key == "sheet.radius")
+        f.sheet.radius = value;
+    else if (key == "sheet.kFactor")
+        f.sheet.kFactor = value;
+    else if (key == "flange.angle")
+        f.flange.angle = value;
+    else if (key == "flange.inset")
+        f.flange.inset = value;
+    else if (key == "flange.gap")
+        f.flange.gap = value;
 }
 
 ValueKind dimensionKind(ConstraintKind kind)

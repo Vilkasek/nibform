@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/SheetMetal.h"
 #include "sketch/Sketch.h"
 
 #include <QByteArray>
@@ -26,3 +27,9 @@ QByteArray sketchToSvg(const Sketch& sketch);
 std::optional<std::vector<EntityId>> importSketchFile(Sketch& sketch, const QString& path, QString* error);
 std::optional<std::vector<EntityId>> importDxf(Sketch& sketch, const QByteArray& data, QString* error);
 std::optional<std::vector<EntityId>> importSvg(Sketch& sketch, const QByteArray& data, QString* error);
+
+// A sheet metal part's flat pattern for the laser cutter: its outline (and holes) on layer
+// CUT, each bend's line on layer BEND with a note of its direction, angle and inner radius
+// ("UP 90° R1"); millimetres, the pattern's lower left corner at the origin.
+QByteArray flatPatternToDxf(const FlatPattern& flat, bool bendLines = true);
+QString exportFlatPatternDxf(const FlatPattern& flat, const QString& path);

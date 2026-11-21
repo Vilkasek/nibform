@@ -319,11 +319,23 @@ void SketchEditor::closeSketch()
             m_slots.erase(m_slots.begin() + closing);
             std::erase_if(m_features, isEntry);
             m_regionSelection.clear();
-        } else if (std::none_of(m_features.begin(), m_features.end(), isEntry)) {
-            Feature entry;
-            entry.kind = Feature::Kind::Sketch;
-            entry.sketch = id;
-            m_features.push_back(entry);
+        } else {
+            auto entry = std::find_if(m_features.begin(), m_features.end(), isEntry);
+            if (entry == m_features.end()) {
+                Feature added;
+                added.kind = Feature::Kind::Sketch;
+                added.sketch = id;
+                m_features.push_back(added);
+                entry = m_features.end() - 1;
+            }
+            // What it was drawn on, so it follows when that moves. The model is as it was
+            // before the sketch (rolled back to it, or all of it for a new one); sketches
+            // from before this was remembered pick it up here too.
+            if (entry->plane.kind == PlaneRef::Kind::None) {
+                settleModel();
+                if (const auto under = planeUnder(m_slots[closing].sketch.plane(), m_bodies, m_context))
+                    entry->plane = *under;
+            }
         }
         // Everything built from the sketch follows its changes.
         rebuildModel();

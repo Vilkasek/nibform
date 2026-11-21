@@ -415,6 +415,35 @@ void paintSheet(QPainter& p, const SheetContent& content, const SheetHighlight& 
                 segment(p, d, m - Vec{0, r}, m + Vec{0, r});
             }
         }
+        // A flat pattern's bends: their lines, and a note along each.
+        if (!g.bends.empty()) {
+            p.setPen(pen(color, kHair, Qt::DashDotDotLine));
+            for (const ViewGeometry::Bend& b : g.bends)
+                p.drawLine(toPaint(d, toSheet(v, g, b.a)), toPaint(d, toSheet(v, g, b.b)));
+            p.setPen(color);
+            for (const ViewGeometry::Bend& b : g.bends) {
+                const gp_Pnt2d a = toSheet(v, g, b.a), e = toSheet(v, g, b.b);
+                const Vec along = vec(e) - vec(a);
+                const double length = std::hypot(along.x, along.y);
+                if (length < 1e-9)
+                    continue;
+                double angle = std::atan2(along.y, along.x) * 180.0 / M_PI;
+                if (angle > 90.0 || angle <= -90.0)
+                    angle += 180.0; // readable
+                const QString text = (b.up ? QCoreApplication::translate("DrawingSheet", "UP %1° R%2")
+                                           : QCoreApplication::translate("DrawingSheet", "DOWN %1° R%2"))
+                                         .arg(QString::number(b.degrees, 'g', 4), QString::number(b.radius, 'g', 4));
+                const Vec middle = (vec(a) + vec(e)) * 0.5;
+                const Vec off{-along.y / length * 1.0, along.x / length * 1.0};
+                drawText(p, d, middle + off, text, 2.5, angle);
+            }
+        }
+        if (v.kind == ViewKind::Flat && !g.empty()) {
+            p.setPen(color);
+            const QRectF r = viewRect(content, i);
+            drawText(p, d, {r.center().x(), r.bottom() + 5.0}, QCoreApplication::translate("DrawingSheet", "FLAT PATTERN"),
+                     3.5, 0.0);
+        }
         if (v.kind == ViewKind::Section && !g.empty()) {
             p.setPen(color);
             const QRectF r = viewRect(content, i);
@@ -432,7 +461,7 @@ void paintSheet(QPainter& p, const SheetContent& content, const SheetHighlight& 
         const gp_Pnt at = content.modelMiddle.Translated(gp_Vec(n) * section.offset);
         for (int i = 0; i < static_cast<int>(d.views.size()) && i < static_cast<int>(content.views.size()); ++i) {
             const SheetView& v = d.views[i];
-            if (v.kind == ViewKind::Section || v.kind == ViewKind::Iso)
+            if (v.kind == ViewKind::Section || v.kind == ViewKind::Iso || v.kind == ViewKind::Flat)
                 continue;
             const gp_Dir eye = viewAxes(v.kind).Direction();
             if (std::abs(eye.Dot(n)) > 1e-6)

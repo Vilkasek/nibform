@@ -86,6 +86,8 @@ enum class ToolKind
     Revolve, Sweep, Loft, Hole, BodyMirror, BodyLinearPattern, BodyCircularPattern,
     OffsetPlane, AnglePlane, ThreePointPlane, Axis,
     Thread, Draft, Rib, Emboss,
+    // Model: sheet metal (SketchEditorSheet.cpp)
+    SheetBase, Flange, Hem, Tab, CornerRelief, SheetConvert,
 };
 
 // The model tools that build a solid feature or construction geometry from several picks.

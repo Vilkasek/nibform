@@ -8,6 +8,7 @@
 #include "app/PatternPanel.h"
 #include "app/RadialMenu.h"
 #include "app/ShortcutsDialog.h"
+#include "io/SketchExchange.h"
 #include "viewer/UnitText.h"
 #include "model/Export.h"
 #include "sketch/SketchEditor.h"
@@ -26,6 +27,7 @@
 #include <QHeaderView>
 #include <QTreeWidget>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QDir>
 #include <QLocale>
 #include <QFileInfo>
@@ -80,6 +82,12 @@ QString toolId(ToolKind kind)
     case ToolKind::Draft: return QStringLiteral("draft");
     case ToolKind::Rib: return QStringLiteral("rib");
     case ToolKind::Emboss: return QStringLiteral("emboss");
+    case ToolKind::SheetBase: return QStringLiteral("baseFlange");
+    case ToolKind::Flange: return QStringLiteral("flange");
+    case ToolKind::Hem: return QStringLiteral("hem");
+    case ToolKind::Tab: return QStringLiteral("tab");
+    case ToolKind::CornerRelief: return QStringLiteral("cornerRelief");
+    case ToolKind::SheetConvert: return QStringLiteral("convertToSheet");
     case ToolKind::Move: return QStringLiteral("move");
     case ToolKind::Measure: return QStringLiteral("measure");
     case ToolKind::Section: return QStringLiteral("section");
@@ -700,6 +708,7 @@ void MainWindow::buildActions()
     m_exportIgesAction = exports->addAction(tr("IGES…"), this, [this] { exportBodies(ExportFormat::Iges); });
     m_exportStlAction = exports->addAction(tr("STL…"), this, [this] { exportBodies(ExportFormat::Stl); });
     m_export3mfAction = exports->addAction(tr("3MF (3D printing)…"), this, [this] { exportBodies(ExportFormat::ThreeMf); });
+    m_exportFlatAction = exports->addAction(tr("Flat Pattern (DXF)…"), this, &MainWindow::exportFlatPattern);
     file->addSeparator();
     bindable(file->addAction(tr("Quit"), QKeySequence::Quit, this, &QWidget::close), QStringLiteral("file.quit"), fileGroup);
 
@@ -877,6 +886,23 @@ void MainWindow::buildActions()
                           "fills from it to the body"));
     tip(ToolKind::Emboss, tr("Emboss (Shift+E): tap sketch regions (a letter takes its whole text), then the face "
                              "to raise or sink them on, flat or curved"));
+    // Sheet metal (M18).
+    modelGroup({makeTool(ToolKind::SheetBase, tr("Base Flange"), QKeySequence(), Icon::SheetBase),
+                makeTool(ToolKind::Flange, tr("Flange"), QKeySequence(), Icon::Flange),
+                makeTool(ToolKind::Hem, tr("Hem"), QKeySequence(), Icon::Hem),
+                makeTool(ToolKind::Tab, tr("Tab"), QKeySequence(), Icon::Tab),
+                makeTool(ToolKind::CornerRelief, tr("Corner Relief"), QKeySequence(), Icon::Relief),
+                makeTool(ToolKind::SheetConvert, tr("Convert to Sheet Metal"), QKeySequence(), Icon::SheetConvert)});
+    tip(ToolKind::SheetBase, tr("Base Flange: tap a sketch region for a flat sheet, or an open sketch line to bend "
+                                "along; then its thickness, bend radius and k-factor (from parameters too)"));
+    tip(ToolKind::Flange, tr("Flange: tap an edge along an end of a sheet; set its length (outside), angle and inset, "
+                             "the bend added outside or the material kept inside (with bend reliefs)"));
+    tip(ToolKind::Hem, tr("Hem: tap an edge along an end of a sheet to fold it back flat over itself"));
+    tip(ToolKind::Tab, tr("Tab: tap a sketch region drawn on a side of a sheet; it is added as thick as the sheet"));
+    tip(ToolKind::CornerRelief, tr("Corner Relief: tap the corner where two bends meet; a round or square hole "
+                                   "makes room for them"));
+    tip(ToolKind::SheetConvert, tr("Convert to Sheet Metal: tap the outside of the wall of a shelled body that "
+                                   "stays; the walls are bent to it and ripped apart at the corners"));
     m_modelBar->addSeparator();
     m_modelBar->addAction(makeTool(ToolKind::Move, tr("Move"), QKeySequence(Qt::Key_M), Icon::Move));
     tip(ToolKind::Move, tr("Move (M): tap bodies, then drag the arrows and rings, or tap a corner, round edge or "
@@ -1178,8 +1204,16 @@ void MainWindow::buildActions()
             views->addAction(name, this, [this, kind] { m_drawingWidget->addView(kind); });
         QAction* explodedView =
             views->addAction(tr("Exploded Isometric"), this, [this] { m_drawingWidget->addView(ViewKind::Iso, true); });
-        connect(views, &QMenu::aboutToShow, explodedView, [this, explodedView] {
+        QAction* flatView = views->addAction(tr("Flat Pattern"), this, [this] {
+            if (m_editor->flatPatterns().empty()) {
+                showMessage(tr("There are no sheet metal bodies to lay flat"));
+                return;
+            }
+            m_drawingWidget->addView(ViewKind::Flat);
+        });
+        connect(views, &QMenu::aboutToShow, explodedView, [this, explodedView, flatView] {
             explodedView->setVisible(m_drawingWidget->showsAssembly());
+            flatView->setVisible(!m_drawingWidget->showsAssembly());
         });
         menuButton(tr("Add View"), Icon::Iso, views);
         auto* sheet = new QMenu(m_drawingBar);
@@ -1420,6 +1454,23 @@ void MainWindow::buildActions()
                           ToolKind::BodyLinearPattern, ToolKind::BodyCircularPattern, ToolKind::OffsetPlane,
                           ToolKind::AnglePlane, ToolKind::ThreePointPlane, ToolKind::Axis})
         bodies->addAction(m_toolActions[kind]);
+    QMenu* sheet = bodies->addMenu(tr("Sheet Metal"));
+    sheet->setToolTipsVisible(true);
+    for (ToolKind kind : {ToolKind::SheetBase, ToolKind::Flange, ToolKind::Hem, ToolKind::Tab, ToolKind::CornerRelief,
+                          ToolKind::SheetConvert})
+        sheet->addAction(m_toolActions[kind]);
+    sheet->addSeparator();
+    QAction* flat = sheet->addAction(tr("Show Flat Pattern"), this, [this](bool on) {
+        settleModel();
+        m_editor->setFlatPatternsShown(on);
+    });
+    flat->setCheckable(true);
+    flat->setChecked(m_editor->flatPatternsShown());
+    flat->setToolTip(tr("Each sheet metal body laid flat beside the model, its bend lines marked; it follows the changes"));
+    iconize(flat, Icon::FlatPattern);
+    bindable(flat, QStringLiteral("model.flatPattern"), tr("Model"), "model");
+    QAction* flatDxf = sheet->addAction(tr("Export Flat Pattern (DXF)…"), this, &MainWindow::exportFlatPattern);
+    flatDxf->setToolTip(tr("The outline to cut, and the bend lines with their direction, angle and radius"));
     bodies->setToolTipsVisible(true);
 
     QMenu* constraintMenu = menuBar()->addMenu(tr("&Constraints"));
@@ -1619,6 +1670,12 @@ void MainWindow::updateTimeline()
                         : item.kind == Feature::Kind::Draft   ? Icon::Draft
                         : item.kind == Feature::Kind::Rib     ? Icon::Rib
                         : item.kind == Feature::Kind::Emboss  ? Icon::Emboss
+                        : item.kind == Feature::Kind::SheetBase ? Icon::SheetBase
+                        : item.kind == Feature::Kind::Flange  ? Icon::Flange
+                        : item.kind == Feature::Kind::Hem     ? Icon::Hem
+                        : item.kind == Feature::Kind::Tab     ? Icon::Tab
+                        : item.kind == Feature::Kind::Relief  ? Icon::Relief
+                        : item.kind == Feature::Kind::SheetConvert ? Icon::SheetConvert
                         : item.kind == Feature::Kind::Mirror  ? Icon::BodyMirror
                         : item.kind == Feature::Kind::Pattern ? Icon::CircularPattern
                         : item.kind == Feature::Kind::Datum   ? Icon::Plane
@@ -1651,7 +1708,7 @@ void MainWindow::updateTimeline()
         m_timelineBar->addWidget(chip);
     }
     const bool any = m_editor->bodyCount() > 0;
-    for (QAction* action : {m_exportStepAction, m_exportStlAction, m_exportIgesAction, m_export3mfAction})
+    for (QAction* action : {m_exportStepAction, m_exportStlAction, m_exportIgesAction, m_export3mfAction, m_exportFlatAction})
         action->setEnabled(any);
 }
 
@@ -1693,20 +1750,36 @@ void MainWindow::applyTabletMode()
 
 void MainWindow::updateLayout()
 {
-    // Narrow (portrait, a tablet turned on its side): icons only, so the bars still fit.
-    const bool compact = width() < 1100;
+    // Narrow (portrait, a tablet turned on its side), or too many tools for the width with
+    // their names (a long language): icons only, so the bars still fit.
     const bool tablet = m_tabletAction && m_tabletAction->isChecked();
     const int icon = tablet ? 32 : 24;
-    for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_drawingBar}) {
-        bar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
-        bar->setIconSize(QSize(icon, icon));
-    }
-    m_newSketchButton->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
-    m_newSketchButton->setIconSize(QSize(icon, icon));
-    m_operationLabel->setVisible(!compact);
-    for (QToolButton* button : m_groupButtons) {
-        button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
-        button->setIconSize(QSize(icon, icon));
+    auto style = [&](bool compact) {
+        for (QToolBar* bar : {m_modelBar, m_sketchBar, m_viewBar, m_drawingBar}) {
+            bar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
+            bar->setIconSize(QSize(icon, icon));
+        }
+        m_newSketchButton->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
+        m_newSketchButton->setIconSize(QSize(icon, icon));
+        m_operationLabel->setVisible(!compact);
+        for (QToolButton* button : m_groupButtons) {
+            button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextUnderIcon);
+            button->setIconSize(QSize(icon, icon));
+        }
+    };
+    bool compact = width() < 1100;
+    style(compact);
+    if (!compact) {
+        // The bars side by side in the top row (those not hidden for the mode).
+        int row = 0;
+        for (QToolBar* bar : {m_modelBar, m_sketchBar, m_drawingBar, m_assemblyBar, m_viewBar, m_quickBar}) {
+            if (bar && !bar->isHidden() && toolBarArea(bar) == Qt::TopToolBarArea && !toolBarBreak(bar))
+                row += bar->sizeHint().width();
+        }
+        if (row > width()) {
+            compact = true;
+            style(true);
+        }
     }
     m_constraintBar->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
     m_constraintBar->setIconSize(QSize(tablet ? 26 : 20, tablet ? 26 : 20));
@@ -2034,6 +2107,53 @@ void MainWindow::exportBodies(ExportFormat format)
         showMessage(tr("Exported %1").arg(QFileInfo(path).fileName()));
 }
 
+void MainWindow::exportFlatPattern()
+{
+    settleModel();
+    if (m_editor->mode() == EditorMode::Sketch)
+        m_editor->closeSketch();
+    const std::vector<SketchEditor::NamedFlat> flats = m_editor->flatPatterns();
+    if (flats.empty()) {
+        QMessageBox::information(this, tr("Export Flat Pattern"),
+                                 tr("There are no sheet metal bodies: start with a Base Flange, or convert a shelled body."));
+        return;
+    }
+    // Which one, when there are several.
+    int which = 0;
+    if (flats.size() > 1) {
+        QStringList names;
+        for (const auto& f : flats)
+            names << f.name;
+        bool ok = false;
+        const QString name = QInputDialog::getItem(this, tr("Export Flat Pattern"), tr("Sheet metal body:"), names, 0, false, &ok);
+        if (!ok)
+            return;
+        which = static_cast<int>(names.indexOf(name));
+    }
+    const SketchEditor::NamedFlat& chosen = flats[which];
+    if (!chosen.flat.ok()) {
+        QMessageBox::warning(this, tr("Export Failed"),
+                             tr("%1 doesn't unfold: %2").arg(chosen.name, SketchEditor::modelText(chosen.flat.error)));
+        return;
+    }
+    const QString base = m_path.isEmpty() ? chosen.name : QFileInfo(m_path).completeBaseName() + QLatin1Char('-') + chosen.name;
+    const QString suggested = (m_path.isEmpty() ? lastDirectory() : QFileInfo(m_path).absolutePath()) + QLatin1Char('/')
+                            + base + QStringLiteral(".dxf");
+    QString path = QFileDialog::getSaveFileName(this, tr("Export Flat Pattern"), suggested, QStringLiteral("DXF (*.dxf)"));
+    if (path.isEmpty())
+        return;
+    if (QFileInfo(path).suffix().isEmpty())
+        path += QStringLiteral(".dxf");
+    rememberDirectory(path);
+    const QString error = exportFlatPatternDxf(chosen.flat, path);
+    if (!error.isEmpty())
+        QMessageBox::warning(this, tr("Export Failed"), error);
+    else
+        showMessage(tr("Exported %1 (%2 × %3 mm)")
+                        .arg(QFileInfo(path).fileName(), QString::number(chosen.flat.width, 'f', 2),
+                             QString::number(chosen.flat.height, 'f', 2)));
+}
+
 void MainWindow::closeEvent(QCloseEvent* event)
 {
     if (maybeSave()) {
@@ -2165,6 +2285,7 @@ void MainWindow::updateMode(EditorMode mode)
     m_closeSketchAction->setEnabled(sketch);
     m_clearSketchAction->setEnabled(sketch);
     updateEditActions();
+    updateLayout(); // other bars, other widths: names under the icons, or icons only
 }
 
 void MainWindow::updateEditActions()

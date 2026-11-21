@@ -4,6 +4,7 @@
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLib.hxx>
 #include <BRepPrimAPI_MakeHalfSpace.hxx>
@@ -20,6 +21,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS.hxx>
 #include <gp_Pln.hxx>
+#include <gp_Trsf.hxx>
 #include <gp_Vec2d.hxx>
 
 #include <algorithm>
@@ -134,6 +136,7 @@ gp_Ax2 viewAxes(ViewKind kind)
     case ViewKind::Back:
         return gp_Ax2(o, gp::DY(), -gp::DX());
     case ViewKind::Top:
+    case ViewKind::Flat:
         return gp_Ax2(o, gp::DZ(), gp::DX());
     case ViewKind::Bottom:
         return gp_Ax2(o, -gp::DZ(), gp::DX());
@@ -305,6 +308,31 @@ ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetVie
     if (g.empty()) {
         g.min = g.max = gp_Pnt2d(0, 0);
     }
+    return g;
+}
+
+ViewGeometry projectFlat(const std::vector<FlatPattern>& flats, const SheetView& view, double gap)
+{
+    std::vector<TopoDS_Shape> solids;
+    std::vector<ViewGeometry::Bend> bends;
+    double x = 0.0;
+    for (const FlatPattern& f : flats) {
+        if (!f.ok() || f.solid.IsNull())
+            continue;
+        gp_Trsf shift;
+        shift.SetTranslation(gp_Vec(x, 0.0, 0.0));
+        solids.push_back(BRepBuilderAPI_Transform(f.solid, shift, true).Shape());
+        for (const FlatBend& b : f.bends) {
+            bends.push_back({projectPoint(ViewKind::Flat, gp_Pnt(b.a.X() + x, b.a.Y(), 0.0)),
+                             projectPoint(ViewKind::Flat, gp_Pnt(b.b.X() + x, b.b.Y(), 0.0)), b.angle, b.radius, b.up});
+        }
+        x += f.width + gap;
+    }
+    SheetView seen = view;
+    seen.kind = ViewKind::Flat;
+    seen.hidden = false; // its underside is its outline again
+    ViewGeometry g = projectView(solids, seen);
+    g.bends = std::move(bends);
     return g;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/SheetMetal.h"
 #include "model/Threads.h"
 
 #include <TopoDS_Shape.hxx>
@@ -17,8 +18,10 @@
 // are millimetres from the sheet's lower left corner, Y up; view coordinates are model
 // millimetres in the view's own plane (before its scale).
 
-enum class ViewKind { Front, Back, Top, Bottom, Right, Left, Iso, Section };
+enum class ViewKind { Front, Back, Top, Bottom, Right, Left, Iso, Section, Flat };
 
+// Flat: the sheet metal bodies' flat patterns (M18), side by side, seen from above, with
+// their bend lines and notes.
 struct SheetView
 {
     ViewKind kind = ViewKind::Front;
@@ -97,6 +100,15 @@ struct ViewGeometry
     // Cosmetic threads, drawn thin: a hole's major diameter or a bolt's minor one (three
     // quarters of a circle seen end on, two lines seen from the side).
     std::vector<Polyline2d> threads;
+    // A flat pattern's bends: the bend line, and what its note says.
+    struct Bend
+    {
+        gp_Pnt2d a, b;
+        double degrees = 0.0;
+        double radius = 0.0;
+        bool up = true;
+    };
+    std::vector<Bend> bends;
     gp_Pnt2d min, max; // extent, in view coordinates
     bool empty() const { return visible.empty() && hidden.empty() && cut.empty(); }
     gp_Pnt2d middle() const { return gp_Pnt2d((min.X() + max.X()) / 2.0, (min.Y() + max.Y()) / 2.0); }
@@ -135,6 +147,10 @@ std::vector<Balloon> placeBalloons(const ViewGeometry& view, const std::vector<s
 // first. The threads on them are drawn and called out (not in section or isometric views).
 ViewGeometry projectView(const std::vector<TopoDS_Shape>& bodies, const SheetView& view,
                          const std::vector<ThreadMark>& threads = {});
+
+// The flat patterns side by side (in order, `gap` model mm apart), as the view sees them
+// from above, with their bend lines.
+ViewGeometry projectFlat(const std::vector<FlatPattern>& flats, const SheetView& view, double gap = 10.0);
 
 // Lines across closed loops (even-odd: holes stay empty), `spacing` apart at `angleDeg`.
 std::vector<std::pair<gp_Pnt2d, gp_Pnt2d>> hatchLoops(const std::vector<Polyline2d>& loops, double spacing,

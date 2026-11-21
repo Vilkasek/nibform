@@ -103,7 +103,8 @@ bool configurationModified(const ParameterTable& table);
 
 // The values of a feature that can be expressions, by key: "value", "count", "endValue",
 // "setback", "startOffset", "hole.diameter", "hole.depth", "hole.headDiameter", "hole.headDepth",
-// "hole.thread.length", "thread.diameter", "thread.length". A thread's diameter (a
+// "hole.thread.length", "thread.diameter", "thread.length", "sheet.thickness", "sheet.radius",
+// "sheet.kFactor", "flange.angle", "flange.inset", "flange.gap". A thread's diameter (a
 // tapped hole's too) snaps to the nearest standard size.
 struct FeatureField
 {

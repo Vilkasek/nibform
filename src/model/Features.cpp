@@ -456,6 +456,92 @@ std::optional<gp_Ax3> resolvePlane(const std::vector<TopoDS_Shape>& bodies, cons
     return std::nullopt;
 }
 
+bool samePlane(const gp_Ax3& a, const gp_Ax3& b)
+{
+    return a.Location().Distance(b.Location()) < 1e-9 && a.Direction().IsEqual(b.Direction(), 1e-12)
+        && a.XDirection().IsEqual(b.XDirection(), 1e-12);
+}
+
+std::optional<PlaneRef> planeUnder(const gp_Ax3& plane, const std::vector<TopoDS_Shape>& bodies,
+                                   const ModelContext& context)
+{
+    // The base planes go through the origin; a sketch on a face or a datum starts in the
+    // middle of it.
+    if (plane.Location().Distance(gp::Origin()) < 1e-9)
+        return std::nullopt;
+    const gp_Dir normal = plane.Direction();
+    auto inPlane = [&](const gp_Pnt& p, const gp_Dir& n) {
+        return n.Dot(normal) > 0.9999 && std::abs(gp_Vec(p, plane.Location()).Dot(gp_Vec(n))) < 1e-6;
+    };
+    for (const Datum& d : context.datums) {
+        if (d.plane && inPlane(d.frame.Location(), d.frame.Direction()))
+            return PlaneRef{PlaneRef::Kind::Datum, {}, d.id};
+    }
+    // The face in that plane with its middle nearest the sketch's origin.
+    std::optional<TopoDS_Face> best;
+    double bestDistance = std::numeric_limits<double>::max();
+    for (const TopoDS_Shape& body : bodies) {
+        for (TopExp_Explorer it(body, TopAbs_FACE); it.More(); it.Next()) {
+            const TopoDS_Face face = TopoDS::Face(it.Current());
+            const auto n = planarNormal(face);
+            if (!n)
+                continue;
+            const gp_Pnt middle = centroid(face);
+            if (!inPlane(middle, *n))
+                continue;
+            const double d = middle.Distance(plane.Location());
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = face;
+            }
+        }
+    }
+    if (!best)
+        return std::nullopt;
+    return PlaneRef{PlaneRef::Kind::Face, facePick(*best), 0};
+}
+
+std::vector<SheetFound> findSheets(const std::vector<TopoDS_Shape>& bodies, const ModelContext& context)
+{
+    std::vector<SheetFound> out;
+    for (const SheetBody& sheet : context.sheets) {
+        const auto face = findFace(bodies, sheet.fixed);
+        // Still on its plane (a face elsewhere facing that way isn't it).
+        if (!face || std::abs(gp_Vec(centroid(face->first), sheet.fixed.middle).Dot(gp_Vec(sheet.fixed.normal))) > 1e-4)
+            continue;
+        if (std::any_of(out.begin(), out.end(), [&](const SheetFound& f) { return f.body == face->second; }))
+            continue;
+        out.push_back({sheet, face->second, face->first});
+    }
+    return out;
+}
+
+std::optional<SheetFound> sheetOf(const std::vector<TopoDS_Shape>& bodies, const ModelContext& context, int body)
+{
+    for (const SheetFound& f : findSheets(bodies, context)) {
+        if (f.body == body)
+            return f;
+    }
+    return std::nullopt;
+}
+
+namespace {
+
+// Where a sketch on `now` goes when what it was drawn on is at `target`: facing the same
+// way, it only slides along its normal (its curves keep their place on the face); turned,
+// it takes the new plane's axes.
+gp_Ax3 followPlane(const gp_Ax3& now, const gp_Ax3& target)
+{
+    const gp_Dir n = target.Direction();
+    if (!now.Direction().IsEqual(n, 1e-6))
+        return target;
+    gp_Ax3 moved = now;
+    moved.Translate(gp_Vec(n) * gp_Vec(now.Location(), target.Location()).Dot(gp_Vec(n)));
+    return moved;
+}
+
+} // namespace
+
 std::optional<TopoDS_Wire> sketchPath(const Sketch& sketch, int entity)
 {
     const SketchEntity* seed = sketch.entity(entity);
@@ -645,8 +731,19 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
         return true;
     };
     switch (f.kind) {
-    case Feature::Kind::Sketch:
-        return missing; // nothing to build
+    case Feature::Kind::Sketch: {
+        // Builds nothing; one drawn on a face or a datum moves along with it.
+        const Sketch* sketch = sketches(f.sketch);
+        if (f.plane.kind == PlaneRef::Kind::None || !sketch)
+            return missing;
+        const auto target = resolvePlane(bodies, f.plane, context);
+        if (!target) {
+            missing.error = QT_TRANSLATE_NOOP("Model", "The face the sketch was drawn on is gone");
+            return missing;
+        }
+        missing.sketchPlane = followPlane(sketch->plane(), *target);
+        return missing;
+    }
     case Feature::Kind::Extrude: {
         std::vector<Profile> profiles;
         for (const RegionPick& r : f.regions) {
@@ -968,6 +1065,98 @@ FeatureResult applyUnguarded(const SketchLookup& sketches, const std::vector<Top
         return wrap(embossProfiles(bodies, face->second, face->first, f.faces.front().middle, faces, along, f.value,
                                    f.operation == BodyOperation::Cut));
     }
+    case Feature::Kind::SheetBase: {
+        if (f.sheet.thickness <= 0.0)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The sheet needs a thickness"));
+        SheetBody sheet{f.id, f.sheet, {}};
+        FeatureResult result;
+        if (!f.regions.empty()) {
+            std::vector<TopoDS_Face> faces;
+            if (!profiles(faces))
+                return failed(bodies, QT_TRANSLATE_NOOP("Model", "The sketch region it was made from is gone"));
+            const gp_Dir n = sketches(f.regions.front().sketch)->plane().Direction();
+            const gp_Dir along = f.flip ? n.Reversed() : n;
+            std::vector<Profile> plates;
+            for (const TopoDS_Face& face : faces)
+                plates.push_back({face, along, -1});
+            result = wrap(extrude(bodies, plates, f.sheet.thickness, BodyOperation::NewBody));
+            // The side facing the way it was made (up from a sketch on the ground): laid
+            // flat, it looks as the part does from there.
+            sheet.fixed = {centroid(faces.front()).Translated(gp_Vec(along) * f.sheet.thickness), along};
+        } else {
+            const Sketch* sketch = sketches(f.pathSketch);
+            const auto path = sketch ? sketchPath(*sketch, f.pathEntity) : std::nullopt;
+            if (!path)
+                return failed(bodies, QT_TRANSLATE_NOOP("Model", "The sheet's line is gone"));
+            SheetFace fixed;
+            std::string error;
+            const auto solid = contourSheet(*path, sketch->plane().Direction(), f.value, f.sheet, f.flip, fixed, error);
+            if (!solid) {
+                missing.error = error;
+                return missing;
+            }
+            result = wrap(applyTool(bodies, *solid, BodyOperation::NewBody));
+            sheet.fixed = {fixed.middle, fixed.normal};
+        }
+        if (result.ok())
+            result.sheet = sheet;
+        return result;
+    }
+    case Feature::Kind::Flange:
+    case Feature::Kind::Hem: {
+        if (f.edges.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick the edge to bend a flange from"));
+        const auto edge = findEdge(bodies, f.edges.front());
+        if (!edge)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The edge it was bent from is gone"));
+        const auto sheet = sheetOf(bodies, context, edge->body);
+        if (!sheet)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "That isn't sheet metal: start with a base flange, or convert a shelled body"));
+        return wrap(edgeFlange(bodies, edge->body, edge->edge, sheet->sheet.spec, f.value, f.flange, f.flip,
+                               f.kind == Feature::Kind::Hem));
+    }
+    case Feature::Kind::Tab: {
+        std::vector<TopoDS_Face> faces;
+        if (!profiles(faces) || f.regions.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The sketch region it was made from is gone"));
+        const gp_Ax3 plane = sketches(f.regions.front().sketch)->plane();
+        // The sheet with a side in the sketch's plane: the tab goes into it, as thick as it.
+        for (const SheetFound& found : findSheets(bodies, context)) {
+            for (TopExp_Explorer it(bodies[found.body], TopAbs_FACE); it.More(); it.Next()) {
+                const TopoDS_Face face = TopoDS::Face(it.Current());
+                const auto n = planarNormal(face);
+                if (!n || std::abs(n->Dot(plane.Direction())) < 0.9999
+                    || std::abs(gp_Vec(plane.Location(), centroid(face)).Dot(gp_Vec(*n))) > 1e-6
+                    || isThicknessFace(face, found.sheet.spec.thickness))
+                    continue;
+                std::vector<Profile> tabs;
+                for (const TopoDS_Face& region : faces)
+                    tabs.push_back({region, n->Reversed(), -1});
+                return wrap(extrude(bodies, tabs, found.sheet.spec.thickness, BodyOperation::Join));
+            }
+        }
+        return failed(bodies, QT_TRANSLATE_NOOP("Model", "Draw the tab on a side of a sheet metal body"));
+    }
+    case Feature::Kind::Relief: {
+        if (f.points.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Tap the corner for the relief"));
+        const auto body = findBody(bodies, f.points.front());
+        const auto sheet = body ? sheetOf(bodies, context, *body) : std::nullopt;
+        if (!sheet)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "That isn't sheet metal: start with a base flange, or convert a shelled body"));
+        return wrap(cornerRelief(bodies, *body, f.points.front(), sheet->sheet.spec, f.value, f.flange.square));
+    }
+    case Feature::Kind::SheetConvert: {
+        if (f.faces.empty())
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "Pick a side of a wall of the shelled body"));
+        const auto face = findFace(bodies, f.faces.front());
+        if (!face)
+            return failed(bodies, QT_TRANSLATE_NOOP("Model", "The face it was converted from is gone"));
+        FeatureResult result = wrap(convertToSheet(bodies, face->second, face->first, f.sheet));
+        if (result.ok())
+            result.sheet = SheetBody{f.id, f.sheet, f.faces.front()};
+        return result;
+    }
     case Feature::Kind::Datum: {
         FeatureResult result;
         result.bodies = bodies;
@@ -1030,8 +1219,20 @@ FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoD
     // Values the editor never makes (a damaged file can extrude 1e308 mm) make
     // OpenCASCADE throw deep inside its algorithms. The feature fails then, as any
     // feature that doesn't apply, instead of taking the app down.
+    // Sketches that followed their face or datum, moved there (made when first asked for).
+    std::map<int, Sketch> placed;
+    const SketchLookup lookup = [&](int id) -> const Sketch* {
+        const Sketch* sketch = sketches(id);
+        const auto at = context.sketchPlanes.find(id);
+        if (!sketch || at == context.sketchPlanes.end() || samePlane(sketch->plane(), at->second))
+            return sketch;
+        auto it = placed.find(id);
+        if (it == placed.end())
+            it = placed.emplace(id, Sketch(at->second, sketch->contents())).first;
+        return &it->second;
+    };
     try {
-        return applyUnguarded(sketches, bodies, f, context);
+        return applyUnguarded(lookup, bodies, f, context);
     } catch (const Standard_Failure&) {
         return failed(bodies, QT_TRANSLATE_NOOP("Model", "This feature can't be built from its values"));
     }
@@ -1051,6 +1252,16 @@ void remember(ModelContext& context, const Feature& feature, const FeatureResult
         context.threads[feature.id] = result.threads;
     else
         context.threads.erase(feature.id);
+    if (result.sheet) {
+        std::erase_if(context.sheets, [&](const SheetBody& b) { return b.feature == feature.id; });
+        context.sheets.push_back(*result.sheet);
+    }
+    if (feature.kind == Feature::Kind::Sketch) {
+        if (result.sketchPlane)
+            context.sketchPlanes[feature.sketch] = *result.sketchPlane;
+        else
+            context.sketchPlanes.erase(feature.sketch);
+    }
 }
 
 std::vector<double> matrixOf(const gp_Trsf& trsf)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/SheetMetal.h"
 #include "model/Solids.h"
 #include "sketch/Sketch.h"
 
@@ -102,7 +103,7 @@ struct Feature
 {
     enum class Kind
     {
-        Sketch,  // a sketch was made (keeps its place in the timeline; builds nothing)
+        Sketch,  // a sketch was made (keeps its place in the timeline; builds nothing); it follows `plane`
         Extrude, // regions and / or body faces, `value` far from `startOffset`, with `operation`
         Fillet,  // edges, radius `value`
         Chamfer, // edges, size `value`
@@ -122,6 +123,14 @@ struct Feature
         Draft,   // `faces` tilted by `value` degrees about the neutral `plane`
         Rib,     // a wall `value` thick from the open path (`pathSketch`, `pathEntity`) to the body; `flip`: the other side
         Emboss,  // regions onto the face `faces[0]`, `value` high (`operation` Join) or deep (Cut)
+        // Sheet metal (M18), bent by the rules `sheet` of the base flange / conversion:
+        SheetBase,    // a new sheet: regions (flat, `flip`: the other side of the sketch), or the open path
+                      // (`pathSketch`, `pathEntity`) bent at its corners, `value` deep
+        Flange,       // from the edge `edges[0]`, `value` long, shaped by `flange`; `flip`: bent the other way
+        Hem,          // the edge `edges[0]` folded back flat, `value` long, `flange.gap` apart
+        Tab,          // regions on a side of a sheet, as thick as it
+        Relief,       // a corner relief `value` across at `points[0]` (`flange.square`)
+        SheetConvert, // the shelled body of `faces[0]` (a side of a wall, which stays) to sheet metal
     };
     enum class PatternKind { Linear, Circular };
     enum class DatumKind { OffsetPlane, AnglePlane, ThreePointPlane, Axis, TwoPointAxis };
@@ -148,7 +157,7 @@ struct Feature
     std::vector<gp_Pnt> bodies; // in pick order
 
     AxisRef axis;   // Revolve: around it; Pattern: along (linear) or around (circular) it; Datum
-    PlaneRef plane; // Mirror: about it; Datum: the plane it starts from
+    PlaneRef plane; // Mirror: about it; Datum: the plane it starts from; Sketch: what it was drawn on
     // Sweep: the path, the chain of connected curves through this sketch curve.
     int pathSketch = -1;
     int pathEntity = -1;
@@ -172,6 +181,9 @@ struct Feature
     std::shared_ptr<const std::string> shape;
     std::string label;
     bool reference = false;
+    // Sheet metal
+    SheetSpec sheet;
+    FlangeSpec flange;
     // Values typed as expressions, by field (see featureField() in Parameters.h): they
     // follow the parameters. A value without one is a plain number.
     std::map<std::string, Expression> expressions;
@@ -196,6 +208,16 @@ std::optional<int> bodyContaining(const std::vector<TopoDS_Shape>& bodies, const
 // to one body at most, earlier styles first.
 std::vector<int> matchBodyStyles(const std::vector<TopoDS_Shape>& bodies, const std::vector<BodyStyle>& styles);
 
+// A sheet metal body: the rules it is bent by (from the feature that made it), and its
+// fixed face (the side that stays as it lies when it is unfolded), by which the body is
+// found again.
+struct SheetBody
+{
+    int feature = 0;
+    SheetSpec spec;
+    FacePick fixed;
+};
+
 // What a replay knows besides the bodies: the datums so far, and each applied feature's
 // tool solid (by feature id), for patterns.
 struct ModelContext
@@ -204,6 +226,10 @@ struct ModelContext
     std::map<int, FeatureTool> tools;
     std::vector<TopoDS_Shape> references; // imported to look at, not to build on
     std::map<int, std::vector<ThreadMark>> threads; // by feature id: threads and tapped holes
+    // By sketch id: where sketches drawn on a body face or a datum plane sit now (they
+    // follow it when earlier features move it).
+    std::map<int, gp_Ax3> sketchPlanes;
+    std::vector<SheetBody> sheets;
     const Datum* datum(int id) const;
     std::vector<ThreadMark> allThreads() const;
 };
@@ -212,6 +238,12 @@ std::optional<gp_Ax1> resolveAxis(const SketchLookup& sketches, const std::vecto
                                   const AxisRef& ref, const ModelContext& context);
 std::optional<gp_Ax3> resolvePlane(const std::vector<TopoDS_Shape>& bodies, const PlaneRef& ref,
                                    const ModelContext& context);
+// What a sketch on `plane` was drawn on: a flat body face or a datum plane it lies in,
+// facing the same way. Empty for sketches on the base planes (they stay where they are).
+std::optional<PlaneRef> planeUnder(const gp_Ax3& plane, const std::vector<TopoDS_Shape>& bodies,
+                                   const ModelContext& context);
+// The same position and axes (within rounding).
+bool samePlane(const gp_Ax3& a, const gp_Ax3& b);
 // The connected chain of curves through `entity` of the sketch, as a wire in 3D.
 std::optional<TopoDS_Wire> sketchPath(const Sketch& sketch, int entity);
 
@@ -246,7 +278,20 @@ struct FeatureResult : ModelResult
     std::optional<Datum> datum;
     std::optional<TopoDS_Shape> reference;
     std::vector<ThreadMark> threads;
+    std::optional<gp_Ax3> sketchPlane; // Sketch: where it sits now
+    std::optional<SheetBody> sheet;     // a sheet metal body it made
 };
+
+// The sheet metal bodies as they are now: which body each is, and its fixed face.
+struct SheetFound
+{
+    SheetBody sheet;
+    int body = -1;
+    TopoDS_Face fixed;
+};
+std::vector<SheetFound> findSheets(const std::vector<TopoDS_Shape>& bodies, const ModelContext& context);
+// The sheet the body (index) is, if it is one.
+std::optional<SheetFound> sheetOf(const std::vector<TopoDS_Shape>& bodies, const ModelContext& context, int body);
 FeatureResult applyFeature(const SketchLookup& sketches, const std::vector<TopoDS_Shape>& bodies,
                            const Feature& feature, const ModelContext& context = {});
 // Records what an applied feature leaves for later ones (its datum, its tool).

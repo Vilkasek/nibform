@@ -56,6 +56,8 @@ add_library(nibform_core STATIC
   src/model/Profiles.h
   src/model/Rebuild.cpp
   src/model/Rebuild.h
+  src/model/SheetMetal.cpp
+  src/model/SheetMetal.h
   src/model/Solids.cpp
   src/model/Solids.h
   src/model/TextShapes.cpp
@@ -133,6 +135,7 @@ add_executable(nibform WIN32 MACOSX_BUNDLE
   src/sketch/SketchEditorParameters.cpp
   src/sketch/SketchEditorAssembly.cpp
   src/sketch/SketchEditorDetails.cpp
+  src/sketch/SketchEditorSheet.cpp
   src/viewer/UnitText.h
   src/sketch/SketchEditor.h
   src/sketch/SketchTools.cpp
@@ -216,6 +219,12 @@ add_executable(test_details tests/test_details.cpp tests/Check.h)
 target_compile_options(test_details PRIVATE ${NIBFORM_WARNINGS})
 target_link_libraries(test_details PRIVATE nibform_io)
 add_test(NAME details COMMAND test_details)
+
+# Sheet metal (M18): flanges, conversion and the flat pattern.
+add_executable(test_sheet_metal tests/test_sheet_metal.cpp tests/Check.h)
+target_compile_options(test_sheet_metal PRIVATE ${NIBFORM_WARNINGS})
+target_link_libraries(test_sheet_metal PRIVATE nibform_io)
+add_test(NAME sheet_metal COMMAND test_sheet_metal)
 
 # Assemblies (M17): components, joints, interference, the hinge (saved as a project to
 # look at with NIBFORM_SAVE_HINGE=path).

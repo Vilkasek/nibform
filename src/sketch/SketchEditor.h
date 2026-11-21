@@ -223,6 +223,18 @@ public:
     // The threads and tapped holes of the model (for drawings' callouts).
     std::vector<ThreadMark> threads() const { return m_context.allThreads(); }
 
+    // --- Sheet metal (SketchEditorSheet.cpp) --------------------------------------------
+    // The flat pattern of each sheet metal body (shown ones), with the body's name.
+    struct NamedFlat
+    {
+        QString name;
+        FlatPattern flat;
+    };
+    std::vector<NamedFlat> flatPatterns() const;
+    // The flat patterns shown beside the model, kept up to date.
+    bool flatPatternsShown() const { return m_flatShown; }
+    void setFlatPatternsShown(bool shown);
+
     // Whether the entry made a solid a pattern can repeat (an extrusion from a sketch, a
     // revolve, sweep, loft, hole), and starting such a pattern: then tap its direction.
     bool canPattern(int index) const;
@@ -505,6 +517,7 @@ private:
         int pathEntity = -1;
         std::vector<int> bodies; // indices
         int source = 0;          // a pattern of this feature (id) instead of bodies
+        std::optional<EdgePick> edge; // a flange's or hem's edge
         std::optional<FacePick> face; // a hole's face; the face a thread or an emboss goes on
         std::vector<FacePick> faces;  // faces to draft
         std::vector<gp_Pnt> points;   // hole positions, or a plane's / axis' points
@@ -577,6 +590,16 @@ private:
     std::optional<gp_Pnt> pointOnFace(const TopoDS_Face& face, const QPointF& tap) const;
     // Datums (construction planes and axes) on screen; base ones while a tool takes them.
     void showDatums();
+    // Sheet metal tools (SketchEditorSheet.cpp): the picks (true when complete), the
+    // feature's own part, its values asked, the values the next one starts with, the hint.
+    bool sheetTap(const Hit& hit);
+    bool sheetFeature(Feature& f) const;
+    std::vector<FeaturePrompt> sheetPrompts(const Feature& feature) const;
+    void rememberSheetValues(const Feature& f);
+    QString sheetHint() const;
+    void showFlatPatterns();
+    bool m_flatShown = false;
+    Handle(AIS_Shape) m_flatPrs, m_flatBendPrs;
     bool wantsBaseDatums() const;
     std::optional<Datum> datumById(int id) const;
     SolidPicks m_solid;
@@ -768,6 +791,8 @@ private:
     Snapshot snapshot() const;
     void restore(Snapshot snapshot);
     void refreshBodies();
+    // Sketches on faces / datums to where the last rebuild put them.
+    void placeSketches();
     void updateSelectionModes();
     void refreshRegions(int sketch);
     void showRegions(); // redraws region fills (selection changed, features changed)

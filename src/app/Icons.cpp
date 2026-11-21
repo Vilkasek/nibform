@@ -595,6 +595,77 @@ void draw(QPainter& p, Icon icon, const QColor& ink, const QColor& accent)
         arrowHead(p, {12, 23}, {12, 19}, accent);
         break;
     }
+    case Icon::SheetBase: {
+        // A thin plate seen at a slant, its edge thickened.
+        p.drawPolygon(QPolygonF({{2, 14}, {11, 18}, {22, 12}, {13, 8}}));
+        p.setPen(pen(accent, 2.2));
+        p.drawLine(QPointF(2, 14), QPointF(11, 18));
+        p.drawLine(QPointF(11, 18), QPointF(22, 12));
+        break;
+    }
+    case Icon::Flange: {
+        // A plate whose end is bent up round a bend.
+        p.drawLine(QPointF(3, 20), QPointF(13, 20));
+        p.setPen(pen(accent, 2.0));
+        QPainterPath bend;
+        bend.moveTo(13, 20);
+        bend.quadTo(19, 20, 19, 14);
+        bend.lineTo(19, 4);
+        p.drawPath(bend);
+        break;
+    }
+    case Icon::Hem: {
+        // A plate whose end folds back flat over itself.
+        p.drawLine(QPointF(3, 16), QPointF(17, 16));
+        p.setPen(pen(accent, 2.0));
+        QPainterPath fold;
+        fold.moveTo(17, 16);
+        fold.arcTo(QRectF(14, 10, 6, 6), -90, 180);
+        fold.lineTo(8, 10);
+        p.drawPath(fold);
+        break;
+    }
+    case Icon::Tab: {
+        // A plate with a tongue sticking out of its side.
+        p.drawPolyline(QPolygonF({{9, 4}, {3, 4}, {3, 20}, {21, 20}, {21, 4}, {15, 4}}));
+        p.setPen(pen(accent, 1.8));
+        p.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 90));
+        p.drawPolygon(QPolygonF({{9, 4}, {9, 1}, {15, 1}, {15, 4}}));
+        p.setBrush(Qt::NoBrush);
+        break;
+    }
+    case Icon::Relief: {
+        // Two bend lines meeting at a corner, a round hole cut where they cross.
+        p.setPen(QPen(ink, 1.2, Qt::DashLine));
+        p.drawLine(QPointF(3, 15), QPointF(15, 15));
+        p.drawLine(QPointF(15, 3), QPointF(15, 15));
+        p.setPen(pen(ink));
+        p.drawPolyline(QPolygonF({{3, 21}, {21, 21}, {21, 3}}));
+        p.setPen(pen(accent, 1.8));
+        p.drawEllipse(QPointF(15, 15), 3.5, 3.5);
+        break;
+    }
+    case Icon::SheetConvert: {
+        // An open box whose bottom corners turn into bends.
+        p.drawLine(QPointF(3, 3), QPointF(3, 14));
+        p.drawLine(QPointF(21, 3), QPointF(21, 14));
+        p.setPen(pen(accent, 2.0));
+        QPainterPath box;
+        box.moveTo(3, 14);
+        box.quadTo(3, 20, 9, 20);
+        box.lineTo(15, 20);
+        box.quadTo(21, 20, 21, 14);
+        p.drawPath(box);
+        break;
+    }
+    case Icon::FlatPattern: {
+        // A cross of walls laid flat, the bend lines dashed.
+        p.drawPolygon(QPolygonF({{8, 2}, {16, 2}, {16, 8}, {22, 8}, {22, 16}, {16, 16}, {16, 22}, {8, 22},
+                                 {8, 16}, {2, 16}, {2, 8}, {8, 8}}));
+        p.setPen(QPen(accent, 1.4, Qt::DashLine));
+        p.drawRect(QRectF(8, 8, 8, 8));
+        break;
+    }
     case Icon::Note: {
         // Lines of text under a capital.
         p.drawLine(QPointF(5, 13), QPointF(19, 13));

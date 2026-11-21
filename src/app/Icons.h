@@ -16,6 +16,7 @@ enum class Icon
     Revolve, Sweep, Loft, Hole, Plane, Axis, BodyMirror, Move, Measure, Section, Import, Drawing, Note,
     Thread, Draft, Rib, Emboss, Text,
     Assembly, Joint, Ground, Interference, Explode,
+    SheetBase, Flange, Hem, Tab, Relief, SheetConvert, FlatPattern,
 };
 
 // Toolbar icons drawn in code, so they follow the theme: lines in `ink`, the part that

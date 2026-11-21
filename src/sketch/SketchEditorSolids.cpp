@@ -431,6 +431,14 @@ void SketchEditor::solidTap(const Hit& hit)
         }
         ready = m_solid.pathEntity >= 0;
         break;
+    case ToolKind::SheetBase:
+    case ToolKind::Flange:
+    case ToolKind::Hem:
+    case ToolKind::Tab:
+    case ToolKind::CornerRelief:
+    case ToolKind::SheetConvert:
+        ready = sheetTap(hit);
+        break;
     case ToolKind::Emboss:
         if (hit.kind == Hit::Kind::Region) {
             toggleRegion(hit.region);
@@ -506,6 +514,14 @@ void SketchEditor::refreshSolidMarks()
         if (const auto face = findSurface(m_bodies, *m_solid.face))
             add(face->first);
     }
+    if (m_solid.edge) {
+        if (const auto edge = findEdge(m_bodies, *m_solid.edge))
+            add(edge->edge);
+    }
+    if (m_solid.face && m_toolKind == ToolKind::SheetConvert) {
+        if (const auto face = findFace(m_bodies, *m_solid.face))
+            add(face->first);
+    }
     for (const gp_Pnt& p : m_solid.points)
         add(BRepBuilderAPI_MakeVertex(p).Shape());
     for (const SketchPointRef& r : m_solid.holeAt) {
@@ -575,7 +591,7 @@ bool SketchEditor::solidCancel()
         return false;
     const bool any = !m_solid.regions.empty() || m_solid.axis || m_solid.plane || m_solid.pathEntity >= 0
                   || !m_solid.bodies.empty() || m_solid.source != 0 || !m_solid.points.empty()
-                  || !m_solid.holeAt.empty() || m_solid.face || !m_solid.faces.empty();
+                  || !m_solid.holeAt.empty() || m_solid.face || !m_solid.faces.empty() || m_solid.edge;
     if (!any)
         return false;
     clearFeaturePreview();
@@ -705,6 +721,15 @@ std::optional<Feature> SketchEditor::solidFeature() const
         f.pathSketch = m_solid.pathSketch;
         f.pathEntity = m_solid.pathEntity;
         f.value = s_ribThickness;
+        break;
+    case ToolKind::SheetBase:
+    case ToolKind::Flange:
+    case ToolKind::Hem:
+    case ToolKind::Tab:
+    case ToolKind::CornerRelief:
+    case ToolKind::SheetConvert:
+        if (!sheetFeature(f))
+            return std::nullopt;
         break;
     case ToolKind::Emboss:
         f.kind = Feature::Kind::Emboss;
@@ -905,6 +930,12 @@ std::vector<SketchEditor::FeaturePrompt> SketchEditor::promptsFor(const Feature&
         prompts.push_back(depth);
         break;
     }
+    case Feature::Kind::SheetBase:
+    case Feature::Kind::SheetConvert:
+    case Feature::Kind::Flange:
+    case Feature::Kind::Hem:
+    case Feature::Kind::Relief:
+        return sheetPrompts(feature);
     case Feature::Kind::Datum:
         if (feature.datum == Feature::DatumKind::OffsetPlane || feature.datum == Feature::DatumKind::AnglePlane) {
             const bool offset = feature.datum == Feature::DatumKind::OffsetPlane;
@@ -1076,6 +1107,7 @@ void SketchEditor::solidReady()
         default:
             break;
         }
+        rememberSheetValues(f);
         if (commitFeature(f))
             resetSolid();
         updateHint();
@@ -1249,6 +1281,13 @@ QString SketchEditor::solidHint() const
         if (asking)
             return with(tr("Rib"), tr("type the thickness, pick the side  ·  Enter accepts"));
         return tr("Rib: tap an open sketch line (or chain) across the walls it should join");
+    case ToolKind::SheetBase:
+    case ToolKind::Flange:
+    case ToolKind::Hem:
+    case ToolKind::Tab:
+    case ToolKind::CornerRelief:
+    case ToolKind::SheetConvert:
+        return sheetHint();
     case ToolKind::Emboss:
         if (asking)
             return with(tr("Emboss"), tr("type the height, emboss or engrave  ·  Enter accepts"));

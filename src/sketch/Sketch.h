@@ -106,6 +106,7 @@ public:
     Contents contents() const { return {m_points, m_entities, m_constraints, m_nextId, m_image, m_texts}; }
 
     const gp_Ax3& plane() const { return m_plane; }
+    void setPlane(const gp_Ax3& plane) { m_plane = plane; }
     gp_Pnt to3d(const gp_Pnt2d& p) const;
     gp_Pnt2d to2d(const gp_Pnt& p) const;
 
