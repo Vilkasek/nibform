@@ -1,6 +1,6 @@
 pkgbase = nibform
 	pkgdesc = Pen-first parametric CAD
-	pkgver = 0.5.0
+	pkgver = 0.6.0
 	pkgrel = 1
 	url = https://vilkasek.github.io/nibform/
 	arch = x86_64
@@ -11,13 +11,15 @@ pkgbase = nibform
 	makedepends = eigen
 	makedepends = qt6-tools
 	makedepends = qt6-declarative
+	makedepends = pybind11
 	depends = qt6-base
 	depends = qt6-svg
 	depends = opencascade
+	depends = python
 	depends = hicolor-icon-theme
 	depends = gcc-libs
 	depends = glibc
-	source = nibform-0.5.0.tar.gz::https://github.com/Vilkasek/nibform/archive/refs/tags/v0.5.0.tar.gz
-	sha256sums = 45807a9da46316aec4174baef107c621ad4508a9fa07645a96033e8ae4420327
+	source = nibform-0.6.0.tar.gz::https://github.com/Vilkasek/nibform/archive/refs/tags/v0.6.0.tar.gz
+	sha256sums = 0ffc48a71cde75b15263d468383ffbcfcc465aecdac5f2c2849d6651572f9a6c
 
 pkgname = nibform
