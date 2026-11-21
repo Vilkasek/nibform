@@ -53,6 +53,14 @@
     <mediatype>application/x-nibform-project</mediatype>
   </provides>
   <releases>
+    <release version="0.6.0" date="2026-11-21">
+      <description>
+        <p>Sheet metal: base and edge flanges, hems, tabs, bend and corner reliefs, shelled parts
+          converted, and the flat pattern kept up to date, as DXF and as a drawing view. Python
+          scripting: an API to the project, generated features that stay editable, a console,
+          macros, plugins and headless runs. A sketch on a face now follows the face.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-16">
       <description>
         <p>Pen-first sketching, a larger sketch toolkit, revolve / sweep / loft and other solid features,
